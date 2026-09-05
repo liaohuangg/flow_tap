@@ -1,0 +1,15 @@
+# 日志
+*.log
+
+# 图片 / macOS 元数据
+*.png
+.DS_Store
+
+# 原始数据文件（已打包 zip 走 LFS，这里忽略原始 csv/json）
+*.csv
+*.json
+
+# Python 运行时产物
+__pycache__/
+*.py[cod]
+.pytest_cache/
