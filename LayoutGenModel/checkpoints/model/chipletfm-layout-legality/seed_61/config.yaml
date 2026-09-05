@@ -1,0 +1,134 @@
+family: flow_matching
+task: layout
+num_classes: 10
+method: layout-geometry-att-gnn-bbox-strong-overlap
+seed: 61
+log_dir: logs/diffusion_debug
+mode: train
+from_checkpoint: none
+logger:
+  filter: .*
+  wandb: false
+  wandb_entity: <your name here>
+  wandb_project: <your project here>
+wandb: null
+implementation: custom
+model:
+  mask_key: is_ports
+  use_mask_as_input: true
+  max_diffusion_steps: 200
+  t_encoding_type: sinusoid
+  t_encoding_dim: 32
+  fm_t_min: 0.0001
+  backbone: geometry_att_gnn
+  backbone_params:
+    edge_features: 8
+    cond_node_features: 2
+    hidden_size: 256
+    hidden_node_features:
+    - 256
+    - 256
+    - 256
+    attention_node_features:
+    - 256
+    - 256
+    - 256
+    layers_per_block: 2
+    input_encoding_dim: 32
+    dropout: 0.0
+    num_heads: 4
+    mlp_num_layers: 2
+    mlp_size_factor: 4
+    ff_num_layers: 2
+    ff_size_factor: 1
+    att_implementation: flash
+    dir_att_input: true
+    extra_node_feature_keys:
+    - node_power
+    extra_node_feature_normalize: graph_max
+    thermal_mp_enabled: true
+    thermal_mp_power_key: node_power
+    thermal_mp_sigma: 0.35
+    thermal_mp_topk: 0
+    thermal_mp_normalize_power: graph_max
+    geometry_attention_enabled: true
+    geometry_attention_layers: 0
+    geometry_attention_heads: 4
+    geometry_attention_pair_hidden_size: null
+    geometry_attention_pair_layers: 2
+    geometry_attention_ff_num_layers: 2
+    geometry_attention_ff_size_factor: 1
+    geometry_attention_power_key: node_power
+    geometry_attention_sigma: 0.35
+    geometry_attention_normalize_power: graph_max
+    auxiliary_legality_heads_enabled: true
+    auxiliary_legality_head_hidden_size: null
+    auxiliary_legality_head_layers: 2
+    conv_params:
+      layer_type: gat
+      heads: 4
+      concat: true
+    in_node_features: 2
+    out_node_features: 2
+    t_encoding_dim: 32
+    device: cuda
+    mask_key: is_ports
+  guidance_mode: none
+  legality_guidance_weight: 0.0
+  hpwl_guidance_weight: 0.0
+  bbox_guidance_weight: 0.0
+  bbox_softmax_beta: 30.0
+  guidance_step: 0
+  forward_guidance_weight: 0.0
+  grad_descent_steps: 0
+  num_classes: 10
+  input_shape:
+  - 5
+  - 2
+  device: cuda
+cluster:
+  is_cluster: false
+  num_clusters: 512
+  verbose: false
+batch_size: 32
+val_batch_size: 64
+train_steps: 120000
+print_every: 500
+validate_graphs: 16
+eval_every: 20000
+eval_samples: 32
+eval_policy: open_loop
+display_examples: 0
+num_output_samples: 0
+lr: 0.0003
+augment: false
+train_data_limit: none
+val_data_limit: none
+bbox:
+  train_weight: 0.04
+  start_step: 10000
+  warmup_steps: 30000
+  softmax_beta: 30.0
+  target_ratio: 0.9
+thermal:
+  train_weight: 0.0
+  start_step: 0
+  warmup_steps: 0
+  ckpt: D:\WORK\NEW\flow_GCN\thermalmodel\checkpoints\fp32\fp32_hrnet_b96_lr2e-4_s4_bps2_er2_gw0.1_aw0.1_mcw0.1_topkw0.0_topkk0_peakw0.0_ep200_seed0_tr0_va0_20260507_171818\hrnet_fp32_hrnet_b96_lr2e-4_s4_bps2_er2_gw0.1_aw0.1_mcw0.1_topkw0.0_topkk0_peakw0.0_ep200_seed0_tr0_va0_ep0175_seed0_bs32_lr2e-04_base96_gw0p1_s4_b2_er2_tr0_va0.pth
+  grid_size: 128
+  rect_sharpness: 80.0
+  smooth_max_beta: 20.0
+  max_weight: 1.0
+  mean_weight: 0.1
+  target_max_k: 0.0
+legality_aux:
+  enabled: true
+  start_step: 20000
+  warmup_steps: 30000
+  overlap_head_weight: 0.02
+  boundary_head_weight: 0.015
+  overlap_direct_weight: 0.008
+  boundary_direct_weight: 0.008
+num_params: 5984276
+train_dataset: 90000
+val_dataset: 5000

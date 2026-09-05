@@ -1,0 +1,37 @@
+backbone: geometry_att_gnn
+backbone_params:
+  edge_features: 4
+  cond_node_features: 2
+  hidden_size: 128
+  hidden_node_features: [256, 256]
+  attention_node_features: [32, 32]
+  layers_per_block: 2
+  input_encoding_dim: 32
+  dropout: 0.0
+  num_heads: 4
+  mlp_num_layers: 2
+  mlp_size_factor: 4
+  ff_num_layers: 2
+  ff_size_factor: 1
+  att_implementation: flash
+  dir_att_input: True
+  extra_node_feature_keys: []
+  extra_node_feature_normalize: graph_max
+  thermal_mp_enabled: false
+  thermal_mp_power_key: node_power
+  thermal_mp_sigma: 0.35
+  thermal_mp_topk: 0
+  thermal_mp_normalize_power: graph_max
+  geometry_attention_enabled: true
+  geometry_attention_layers: 0
+  geometry_attention_heads: 4
+  geometry_attention_pair_hidden_size: null
+  geometry_attention_pair_layers: 2
+  geometry_attention_ff_num_layers: 2
+  geometry_attention_ff_size_factor: 1
+  geometry_attention_power_key: node_power
+  geometry_attention_sigma: 0.35
+  geometry_attention_normalize_power: graph_max
+  auxiliary_legality_heads_enabled: false
+  auxiliary_legality_head_hidden_size: null
+  auxiliary_legality_head_layers: 2

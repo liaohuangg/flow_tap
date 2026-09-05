@@ -1,0 +1,126 @@
+defaults:
+  - model: geometry-att-gnn   #graph-transformer
+  - model/conv-layer@model.backbone_params: gat
+  - model/size@model.backbone_params: large
+  - guidance@_here_: sgd
+  - legalizer@_here_: standard
+  - sc_placer@_here_: sgd
+  - _self_
+  - override hydra/hydra_logging: none
+  - override hydra/job_logging: stdout
+
+family: flow_matching
+task: layout
+num_classes: 10
+method: layout-eval
+seed: 61
+log_dir: logs/diffusion_debug
+from_checkpoint: checkpoints/model/best.ckpt
+param_sweep: False
+
+logger:
+  filter: '.*'
+  wandb: False
+  wandb_entity: ""
+  wandb_project: ""
+
+# model params
+implementation: custom
+model:
+  mask_key: is_ports
+  use_mask_as_input: True
+  max_diffusion_steps: 100
+  t_encoding_type: sinusoid
+  t_encoding_dim: 32
+  fm_t_min: 1e-4
+  guidance_mode: sgd
+  legality_guidance_weight: 6.0
+  hpwl_guidance_weight: 5e-6
+  heat_repulsion_guidance_weight: 0.0
+  heat_repulsion_sigma: 0.35
+  heat_repulsion_power_key: node_power
+  heat_repulsion_normalize_power: graph_max
+  grad_descent_rate: 0.1
+  grad_descent_steps: 8
+  legality_softmax_factor_min: 10.0
+  legality_softmax_factor_max: 10.0
+  legality_softmax_critical_factor: 0.0
+  guidance_schedule:
+    enabled: True
+    legality_only_until: 0.5
+    joint_until: 0.9
+    legality_initial_weight: 6.0
+    legality_mid_weight: 6.0
+    legality_final_weight: 5.0
+    hpwl_initial_weight: 0.0
+    hpwl_final_weight: 5e-6
+    heat_repulsion_initial_weight: 0.0
+    heat_repulsion_final_weight: 0.0
+  backbone_params:
+    edge_features: 8
+    extra_node_feature_keys: [node_power]
+    extra_node_feature_normalize: graph_max
+    thermal_mp_enabled: True
+    thermal_mp_sigma: 0.35
+    thermal_mp_topk: 0
+
+thermal:
+  ckpt: checkpoints/thermal/thermal_ep0175.pth
+  report_guidance_enabled: True
+  guidance_weight: 0.0
+  guidance_lr: 0.002
+  guidance_steps: 1
+  legality_weight: 10.0
+  grad_clip: 0.01
+  schedule:
+    enabled: True
+    start: 0.7
+    full: 0.9
+    initial_weight: 0.0
+    final_weight: 0.01
+
+# clustering params
+cluster:
+  is_cluster: False
+  num_clusters: 512
+  verbose: False
+  cached_clusters: False
+
+# legalization
+legalization:
+  mode: none
+  softmax_min: 5.0
+  softmax_max: 50.0
+
+# eval params
+val_batch_size: 16
+sc_halo: 1.0
+macros_only: False
+cached_macros: False
+eval_samples: 0
+eval_policy_algorithm: open_loop
+eval_policy:
+  num_iterations: 5
+  num_clusters: 512
+  sc_placement_algorithm: none
+  verbose: False
+  save_plots: False
+  save_videos: False
+edge_dropout: 0
+
+# scatter plots
+scatter_plots:
+  - [lambda_2, legality_2]
+  - [lambda_2, hpwl_ratio]
+  - [hpwl_ratio, legality_2]
+  - [original_hpwl_normalized, hpwl_normalized]
+
+show_intermediate_every: 20
+num_output_samples: 12
+train_data_limit: none
+val_data_limit: none
+
+hydra:
+  output_subdir: null
+  run:
+    dir: .
