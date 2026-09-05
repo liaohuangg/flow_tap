@@ -33,10 +33,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-PROJECT = Path("/root/placement/FlowTAP")
+PROJECT = Path("/root/placement/flow_tap")
 DS = PROJECT / "Dataset"
 DATASET = DS / "dataset"
-sys.path.insert(0, str(DS))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from input_preprocess import cfg_to_json  # noqa: E402
 from preprocess_bump_region import compute_hubump, _connection_matrix  # noqa: E402
@@ -151,7 +151,7 @@ def is_feasible(chiplets: list[dict], connections: list[dict]) -> bool:
 # main
 # --------------------------------------------------------------------------- #
 def read_dropped_ids() -> list[int]:
-    p = DATASET / "placement_dataset_body" / "dropped_systems.txt"
+    p = DATASET / "placement_dataset" / "placement_dataset_tw" / "dropped_systems.txt"
     ids = []
     for line in p.read_text(encoding="utf-8").splitlines():
         line = line.strip()
@@ -202,7 +202,7 @@ def main() -> None:
 
     # greedy 布局(在 dataset/ 目录下运行, 与 gendataset.sh 一致)
     print("[repl] 开始 greedy 布局...", flush=True)
-    cmd = [sys.executable, str(DS / "gen_legal_pla_greedy.py"),
+    cmd = [sys.executable, str(PROJECT / "gen_dataset" / "gen_legal_pla_greedy.py"),
            "--input-dir", str(IN_DIR), "--output-dir", str(PLACE_DIR),
            "--start", str(BASE_SEED), "--end", str(BASE_SEED + len(targets) - 1)]
     r = subprocess.run(cmd, cwd=str(DATASET))

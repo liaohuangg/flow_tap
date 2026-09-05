@@ -267,14 +267,14 @@ def main():
     parser.add_argument(
         "--config-dir",
         type=str,
-        default="../config",
-        help=".cfg 文件所在目录（相对本脚本所在目录，默认: ../config）",
+        default="../Dataset/config",
+        help=".cfg 文件所在目录（相对本脚本所在目录，默认: ../Dataset/config）",
     )
     parser.add_argument(
         "--output-dir", "-o",
         type=str,
-        default="input_test",
-        help="输出 JSON 的目录（相对本脚本所在目录，默认: input_test）",
+        default="../Dataset/dataset/input_test",
+        help="输出 JSON 的目录（相对本脚本所在目录，默认: ../Dataset/dataset/input_test）",
     )
     parser.add_argument(
         "--start-i",

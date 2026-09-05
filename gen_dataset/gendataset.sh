@@ -10,7 +10,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR"
+cd "$SCRIPT_DIR/../Dataset"
 
 CHUNK=5000
 WORKERS=8
@@ -118,7 +118,7 @@ while [ "$lo" -le "$END" ]; do
   hi=$(( lo + PER - 1 ))
   if [ "$hi" -gt "$END" ]; then hi="$END"; fi
   (
-    cd "$SCRIPT_DIR/dataset"
+    cd "$SCRIPT_DIR/../Dataset/dataset"
     python "$SCRIPT_DIR/gen_legal_pla_greedy.py" --start "$lo" --end "$hi" --output-dir output/placement
   ) > "/tmp/gendataset_pla_${lo}_${hi}.log" 2>&1 &
   pids+=("$!")

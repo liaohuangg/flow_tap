@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-为 placement_dataset_body (body 坐标 + 每个 chiplet 的 hubump 字段) 生成 128×128 热仿真数据集,
+为 placement_dataset/placement_dataset_tw (body 坐标 + 每个 chiplet 的 hubump 字段) 生成 128×128 热仿真数据集,
 每个布局一份 (原功耗, 不再生成重随机功耗变体 j=1)。hubump 直接从 body 记录读取, 不重新计算。
 
 热模型参照 resultEval/run_hotspot.py: 6 层 TAP-2.5D 堆叠, -detailed_3D on, grid 128×128。
@@ -33,11 +33,11 @@ from pathlib import Path
 
 import numpy as np
 
-PROJECT = Path("/root/placement/FlowTAP")
+PROJECT = Path("/root/placement/flow_tap")
 DATASET = PROJECT / "Dataset" / "dataset"
 # 预处理后: body(芯片本体)坐标 + 每个 chiplet 的 hubump 字段 (见 preprocess_bump_region.py)。
 # 热模型拿 body + hubump 向外扩, 还原原始无重叠 footprint。
-PLACE_DATASET = DATASET / "placement_dataset_body"
+PLACE_DATASET = DATASET / "placement_dataset" / "placement_dataset_tw"
 THERMAL = DATASET / "thermal_dataset"
 
 RESULT_EVAL = PROJECT / "resultEval"
@@ -45,9 +45,9 @@ sys.path.insert(0, str(RESULT_EVAL))
 from util.fill_space import fill_space  # noqa: F401
 import run_hotspot as rh  # noqa: E402
 
-# 使用复制到 Dataset/hotspot/ 的 hotspot 二进制 (源自 TAP-2.5D/util/hotspot,
+# 使用项目顶层 hotspot/ 的 hotspot 二进制 (源自 TAP-2.5D/util/hotspot,
 # 输出扁平单层 128×128 grid_steady = 芯片层 Layer 4 热图)。
-HOTSPOT_DIR = DATASET.parent / "hotspot"
+HOTSPOT_DIR = PROJECT / "hotspot"
 rh.HOTSPOT_BIN = HOTSPOT_DIR / "hotspot"
 
 GRID = 128

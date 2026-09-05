@@ -28,7 +28,7 @@ hubump 计算 (自洽固定点, 与 TAP-2.5D routing 的 pmax 容量判定一致
         w' = w - 2*hubump, h' = h - 2*hubump
         chiplet["hubump"] = hubump  (供下游还原 footprint)
 
-输出目录: dataset/placement_dataset_body/  (与原 placement_dataset 分离, 不改动原数据)
+输出目录: dataset/placement_dataset/placement_dataset_tw/  (与原 placement_dataset 分离, 不改动原数据)
 用法:
   python preprocess_bump_region.py --start 300001 --end 380000
 """
@@ -40,10 +40,10 @@ import re
 import sys
 from pathlib import Path
 
-PROJECT = Path("/root/placement/FlowTAP")
+PROJECT = Path("/root/placement/flow_tap")
 DATASET = PROJECT / "Dataset" / "dataset"
 SRC_DIR = DATASET / "placement_dataset"
-OUT_DIR = DATASET / "placement_dataset_body"
+OUT_DIR = DATASET / "placement_dataset" / "placement_dataset_tw"
 
 CHUNK = 5000  # 每个 chiplet_dataset_{k}.json 含 5000 systems
 UBUMP_PITCH = 0.045  # 45um microbump 节距, mm

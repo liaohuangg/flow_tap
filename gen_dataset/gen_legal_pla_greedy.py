@@ -948,9 +948,9 @@ def main() -> None:
     args = parser.parse_args()
 
     script_dir = Path(__file__).parent.resolve()
-    # 脚本位于 Dataset/ 顶层,数据仍在 Dataset/dataset/ 下
-    input_dir = Path(args.input_dir).resolve() if args.input_dir else (script_dir / "dataset" / "input_test")
-    output_dir = Path(args.output_dir).resolve() if args.output_dir else (script_dir / "dataset" / "output" / "placement")
+    # 脚本位于 gen_dataset/ 顶层,数据在 ../Dataset/dataset/ 下
+    input_dir = Path(args.input_dir).resolve() if args.input_dir else (script_dir.parent / "Dataset" / "dataset" / "input_test")
+    output_dir = Path(args.output_dir).resolve() if args.output_dir else (script_dir.parent / "Dataset" / "dataset" / "output" / "placement")
 
     generate_for_directory(
         input_dir=input_dir,

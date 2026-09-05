@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-为 placement_dataset_body (body 坐标 + 每个 chiplet 的 hubump 字段) 生成线长数据集,
+为 placement_dataset/placement_dataset_tw (body 坐标 + 每个 chiplet 的 hubump 字段) 生成线长数据集,
 使用 CPLEX (IBM ILOG CPLEX 22.1.0) 求解 TAP-2.5D 的 microbump 布线整数规划 (ILP)。
 
 自包含实现: 把 TAP-2.5D 的 routing.py (平均线长 avg wirelength) 与 routing_maxL.py
@@ -38,9 +38,9 @@ from pathlib import Path
 
 import cplex
 
-PROJECT = Path("/root/placement/FlowTAP")
+PROJECT = Path("/root/placement/flow_tap")
 DATASET = PROJECT / "Dataset" / "dataset"
-PLACE_DATASET = DATASET / "placement_dataset_body"
+PLACE_DATASET = DATASET / "placement_dataset" / "placement_dataset_tw"
 OUT_DIR = DATASET / "wirelength_dataset"
 
 AVG_DIR = OUT_DIR / "avg_wirelength"
@@ -596,7 +596,7 @@ def solve_cplex_maxL(system) -> float:
 # 数据读取 / 单布局处理
 # --------------------------------------------------------------------------- #
 def load_range(start_sys: int, end_sys: int) -> dict:
-    """从 placement_dataset_body/chiplet_dataset_*.json 读取 system_{start}..system_{end}。"""
+    """从 placement_dataset/placement_dataset_tw/chiplet_dataset_*.json 读取 system_{start}..system_{end}。"""
     records: dict[int, dict] = {}
     k0 = (start_sys - 1) // CHUNK + 1
     k1 = (end_sys - 1) // CHUNK + 1

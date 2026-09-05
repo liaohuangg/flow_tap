@@ -14,7 +14,7 @@ set -uo pipefail
 PY=/root/anaconda3/envs/chipdiffusion/bin/python
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GEN="$SCRIPT_DIR/gen_wirelength_dataset.py"
-LOG_DIR="$SCRIPT_DIR/dataset/wirelength_dataset"
+LOG_DIR="$SCRIPT_DIR/../Dataset/dataset/wirelength_dataset"
 LOG="$LOG_DIR/wirelength_sim.log"
 
 START=340001

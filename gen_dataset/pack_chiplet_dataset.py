@@ -24,8 +24,8 @@ import time
 from multiprocessing import Pool
 from pathlib import Path
 
-# 脚本位于 Dataset/ 顶层,数据仍在 Dataset/dataset/ 下
-BASE = Path(__file__).resolve().parent / "dataset"
+# 脚本位于 gen_dataset/ 顶层,数据在 ../Dataset/dataset/ 下
+BASE = Path(__file__).resolve().parent.parent / "Dataset" / "dataset"
 INPUT_DIR = BASE / "input_test"
 PLACE_DIR = BASE / "output" / "placement"
 OUT_DIR = BASE / "placement_dataset"

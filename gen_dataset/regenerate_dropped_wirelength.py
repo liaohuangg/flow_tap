@@ -3,7 +3,7 @@
 
 背景: 340001..360000 里 682 个 system 因 bump region 物理不可行 (小 die 塞了过高互连带宽,
 45um microbump 环宽超过芯片本体) 在 preprocess_bump_region 阶段被丢弃, 故未进入
-placement_dataset_body, 也没有 wirelength 数据。
+placement_dataset/placement_dataset_tw, 也没有 wirelength 数据。
 
 方法: 这些 system 的原始 footprint 数据仍完整保留在 placement_dataset 里。线长求解器
 (TapSystem, hubump_mode="die") 本身是"拿 body 尺寸向外扩环"计算 hubump, 对这类 case
@@ -33,7 +33,7 @@ from gen_wirelength_dataset import (
     solve_cplex_avg,
 )
 
-DATASET = Path("/root/placement/FlowTAP/Dataset/dataset")
+DATASET = Path("/root/placement/flow_tap/Dataset/dataset")
 SRC_DIR = DATASET / "placement_dataset"          # 原始 footprint 数据(含被丢弃的)
 CHUNK = 5000
 START, END = 340001, 360000

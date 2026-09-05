@@ -12,7 +12,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DATA="$SCRIPT_DIR/dataset/thermal_dataset"
+DATA="$SCRIPT_DIR/../Dataset/dataset/thermal_dataset"
 FIG="$DATA/figures"
 PYTHON="${PYTHON:-/root/anaconda3/envs/chipdiffusion/bin/python}"
 DRAW="$SCRIPT_DIR/draw_thermal_map.py"

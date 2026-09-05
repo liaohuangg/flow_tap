@@ -2,7 +2,7 @@
 """
 把 gen_replacement_layouts.py 生成的 40 个合法布局, 原位替换到:
   1. dataset/placement_dataset/      40 个非法 system 的 footprint 记录 -> 新合法布局
-  2. dataset/placement_dataset_body/ 后 8w 中 4 个非法 system -> 新 body 记录(补上被丢弃的)
+  2. dataset/placement_dataset/placement_dataset_tw/ 后 8w 中 4 个非法 system -> 新 body 记录(补上被丢弃的)
   3. config/chiplet_dataset_*.zip    40 个非法 system 的 .cfg -> 新 .cfg
 
 替换前把被改动的文件备份到 /tmp/replacement/backup/。
@@ -17,17 +17,17 @@ import sys
 import zipfile
 from pathlib import Path
 
-PROJECT = Path("/root/placement/FlowTAP")
+PROJECT = Path("/root/placement/flow_tap")
 DS = PROJECT / "Dataset"
 DATASET = DS / "dataset"
 CONFIG = DS / "config"
 PLACE_DATASET = DATASET / "placement_dataset"
-BODY_DATASET = DATASET / "placement_dataset_body"
+BODY_DATASET = DATASET / "placement_dataset" / "placement_dataset_tw"
 TMP = Path("/tmp/replacement")
 BACKUP = TMP / "backup"
 CHUNK = 5000
 
-sys.path.insert(0, str(DS))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from preprocess_bump_region import preprocess_record  # noqa: E402
 
 CHIPLET_FIELDS = ["name", "x-position", "y-position", "width", "height", "rotation", "power"]
@@ -87,7 +87,7 @@ def main() -> None:
         fp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
         print(f"[apply] placement_dataset/chiplet_dataset_{k}.json: 替换 {len(tlist)} 个", flush=True)
 
-    # 2) 替换 placement_dataset_body (仅后 8w 的 4 个: body 数据只覆盖 300001..380000)
+    # 2) 替换 placement_dataset/placement_dataset_tw (仅后 8w 的 4 个: body 数据只覆盖 300001..380000)
     body_groups: dict[int, list[int]] = {}
     for t in targets:
         if t >= 300001:
@@ -101,7 +101,7 @@ def main() -> None:
             assert key not in data, f"{key} 不应已存在于 {fp}(应为被丢弃状态)"
             data[key] = preprocess_record(new_records[t])  # footprint -> body
         fp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
-        print(f"[apply] placement_dataset_body/chiplet_dataset_{k}.json: 补上 {len(tlist)} 个", flush=True)
+        print(f"[apply] placement_dataset/placement_dataset_tw/chiplet_dataset_{k}.json: 补上 {len(tlist)} 个", flush=True)
 
     # 3) 替换 config zip
     zip_groups: dict[int, dict[str, str]] = {}
