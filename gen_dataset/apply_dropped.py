@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """
-把 gen_replacement_layouts.py 生成的可行布局, 原位替换到:
-  1. dataset/placement_dataset/placement_dataset/     footprint 记录 -> 新可行布局
-  2. dataset/placement_dataset/placement_dataset_tw/  body 记录(重新计算 bump region)
+把 gen_dropped_layouts.py 生成的可行布局补全到:
+  1. dataset/placement_dataset/placement_dataset/     footprint 记录 -> 覆盖(旧布局替换为新可行布局)
+  2. dataset/placement_dataset/placement_dataset_tw/  body 记录 -> 新增(原本缺失, 重新计算 bump region 后补上)
 
-不改动 config/chiplet_dataset_*.zip (下游不使用 zip, 无需同步)。
+与 apply_replacement.py 的区别: body 是「新增」而非「覆盖」(这些 system 原本不在 body 里)。
 
-替换前把被改动的文件备份到 /tmp/replacement/backup/。
+替换前把被改动的文件备份到 /tmp/replacement_dropped/backup/。
 
-用法: python apply_replacement.py
+用法: python apply_dropped.py
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ PROJECT = Path("/root/placement/flow_tap")
 DATASET = PROJECT / "Dataset" / "dataset"
 PLACE_DATASET = DATASET / "placement_dataset" / "placement_dataset"
 BODY_DATASET = DATASET / "placement_dataset" / "placement_dataset_tw"
-TMP = Path("/tmp/replacement")
+TMP = Path("/tmp/replacement_dropped")
 BACKUP = TMP / "backup"
 CHUNK = 5000
 
@@ -57,7 +57,7 @@ def main() -> None:
         seed = int(mapping[str(t)])
         new_records[t] = build_new_record(t, seed)
 
-    # 1) footprint 替换 (placement_dataset/placement_dataset)
+    # 1) footprint 覆盖 (placement_dataset/placement_dataset)
     groups: dict[int, list[int]] = {}
     for t in targets:
         groups.setdefault((t - 1) // CHUNK + 1, []).append(t)
@@ -67,12 +67,12 @@ def main() -> None:
         data = json.loads(fp.read_text(encoding="utf-8"))
         for t in tlist:
             key = f"system_{t}"
-            assert key in data, f"{key} 不在 {fp}"
+            assert key in data, f"{key} 不在 {fp}(footprint 应存在)"
             data[key] = new_records[t]
         fp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
-        print(f"[apply] footprint {fp.name}: 替换 {len(tlist)} 个", flush=True)
+        print(f"[apply-dropped] footprint {fp.name}: 覆盖 {len(tlist)} 个", flush=True)
 
-    # 2) body 替换 (placement_dataset/placement_dataset_tw, 重新计算 bump region)
+    # 2) body 新增 (placement_dataset/placement_dataset_tw)
     body_groups: dict[int, list[int]] = {}
     for t in targets:
         body_groups.setdefault((t - 1) // CHUNK + 1, []).append(t)
@@ -82,12 +82,12 @@ def main() -> None:
         data = json.loads(fp.read_text(encoding="utf-8"))
         for t in tlist:
             key = f"system_{t}"
-            assert key in data, f"{key} 不在 {fp}(应为待替换的 body)"
+            assert key not in data, f"{key} 已存在于 {fp}(应为缺失)"
             data[key] = preprocess_record(new_records[t])  # footprint -> body
         fp.write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
-        print(f"[apply] body {fp.name}: 替换 {len(tlist)} 个", flush=True)
+        print(f"[apply-dropped] body {fp.name}: 新增 {len(tlist)} 个", flush=True)
 
-    print(f"[apply] 全部完成: 替换 {len(targets)} 个非法布局", flush=True)
+    print(f"[apply-dropped] 全部完成: 补全 {len(targets)} 个缺失布局", flush=True)
 
 
 if __name__ == "__main__":

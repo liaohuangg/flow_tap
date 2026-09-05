@@ -29,8 +29,9 @@ hubump 计算 (自洽固定点, 与 TAP-2.5D routing 的 pmax 容量判定一致
         chiplet["hubump"] = hubump  (供下游还原 footprint)
 
 输出目录: dataset/placement_dataset/placement_dataset_tw/  (与原 placement_dataset 分离, 不改动原数据)
+输入目录: dataset/placement_dataset/placement_dataset/     (原始 footprint, 无 hubump 字段)
 用法:
-  python preprocess_bump_region.py --start 300001 --end 380000
+  python preprocess_bump_region.py --start 1 --end 380000
 """
 from __future__ import annotations
 
@@ -42,7 +43,7 @@ from pathlib import Path
 
 PROJECT = Path("/root/placement/flow_tap")
 DATASET = PROJECT / "Dataset" / "dataset"
-SRC_DIR = DATASET / "placement_dataset"
+SRC_DIR = DATASET / "placement_dataset" / "placement_dataset"
 OUT_DIR = DATASET / "placement_dataset" / "placement_dataset_tw"
 
 CHUNK = 5000  # 每个 chiplet_dataset_{k}.json 含 5000 systems
@@ -210,8 +211,8 @@ def load_and_preprocess(start_sys: int, end_sys: int) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--start", type=int, default=300001)
-    ap.add_argument("--end", type=int, default=380000)
+    ap.add_argument("--start", type=int, default=1)
+    ap.add_argument("--end", type=int, default=300000)
     args = ap.parse_args()
     load_and_preprocess(args.start, args.end)
 
