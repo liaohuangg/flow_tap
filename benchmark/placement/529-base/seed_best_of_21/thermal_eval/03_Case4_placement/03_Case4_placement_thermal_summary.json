@@ -1,0 +1,18 @@
+{
+  "placement_json": "/mnt/d/WORK/NEW/flow_GCN/ChipletFM/logs/output/atplace/525-base-2/seed_13012/placement/03_Case4_placement.json",
+  "ckpt": "/mnt/d/WORK/NEW/flow_GCN/thermalmodel/checkpoints/fp32/thermal_ep0175.pth",
+  "source_json": "/mnt/d/WORK/NEW/flow_GCN/benchmark/ATPlace_json/Case4.json",
+  "grid_size_input": 128,
+  "grid_size_output": [
+    64,
+    64
+  ],
+  "temperature_unit": "C",
+  "thermal_max_c": 75.46408081054688,
+  "thermal_mean_c": 71.58731842041016,
+  "thermal_min_c": 65.87603759765625,
+  "thermal_avg_head_c": 71.60769653320312,
+  "heatmap_png": "/mnt/d/WORK/NEW/flow_GCN/ChipletFM/logs/output/atplace/525-base-2/seed_13012/thermal_eval/03_Case4_placement/03_Case4_placement_thermal_heatmap.png",
+  "temperature_npy": "/mnt/d/WORK/NEW/flow_GCN/ChipletFM/logs/output/atplace/525-base-2/seed_13012/thermal_eval/03_Case4_placement/03_Case4_placement_temperature_c.npy",
+  "overlay_flp": "/mnt/d/WORK/NEW/flow_GCN/ChipletFM/logs/output/atplace/525-base-2/seed_13012/thermal_eval/03_Case4_placement/03_Case4_placement.flp"
+}

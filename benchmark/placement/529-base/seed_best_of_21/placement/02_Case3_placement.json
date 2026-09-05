@@ -1,0 +1,153 @@
+{
+  "chiplets": [
+    {
+      "name": "CPU2_0",
+      "x-position": 0.359999418258667,
+      "y-position": 19.748876571655273,
+      "width": 8.0,
+      "height": 9.0,
+      "rotation": 0,
+      "power": 150.0
+    },
+    {
+      "name": "CPU2_1",
+      "x-position": 0.3600727319717407,
+      "y-position": 9.866240501403809,
+      "width": 8.0,
+      "height": 9.0,
+      "rotation": 0,
+      "power": 150.0
+    },
+    {
+      "name": "CPU2_2",
+      "x-position": 9.122014999389648,
+      "y-position": 10.066909790039062,
+      "width": 8.0,
+      "height": 9.0,
+      "rotation": 0,
+      "power": 150.0
+    },
+    {
+      "name": "CPU2_3",
+      "x-position": 17.867589950561523,
+      "y-position": 9.865962982177734,
+      "width": 8.0,
+      "height": 9.0,
+      "rotation": 0,
+      "power": 150.0
+    },
+    {
+      "name": "DRAM_0",
+      "x-position": 8.912090301513672,
+      "y-position": 19.70429039001465,
+      "width": 9.0,
+      "height": 9.0,
+      "rotation": 0,
+      "power": 20.0
+    },
+    {
+      "name": "DRAM_1",
+      "x-position": 0.18009813129901886,
+      "y-position": 0.18024590611457825,
+      "width": 9.0,
+      "height": 9.0,
+      "rotation": 0,
+      "power": 20.0
+    },
+    {
+      "name": "DRAM_2",
+      "x-position": 18.289108276367188,
+      "y-position": 19.625329971313477,
+      "width": 9.0,
+      "height": 9.0,
+      "rotation": 0,
+      "power": 20.0
+    },
+    {
+      "name": "DRAM_3",
+      "x-position": 16.822032928466797,
+      "y-position": 0.18002815544605255,
+      "width": 9.0,
+      "height": 9.0,
+      "rotation": 0,
+      "power": 20.0
+    }
+  ],
+  "connections": [
+    {
+      "node1": "CPU2_0",
+      "node2": "CPU2_1",
+      "wireCount": 704,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "CPU2_0",
+      "node2": "CPU2_2",
+      "wireCount": 704,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "CPU2_0",
+      "node2": "DRAM_0",
+      "wireCount": 1408,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "CPU2_1",
+      "node2": "CPU2_3",
+      "wireCount": 704,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "CPU2_1",
+      "node2": "DRAM_1",
+      "wireCount": 1408,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "CPU2_2",
+      "node2": "CPU2_3",
+      "wireCount": 704,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "CPU2_2",
+      "node2": "DRAM_2",
+      "wireCount": 1408,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "CPU2_3",
+      "node2": "DRAM_3",
+      "wireCount": 1408,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    }
+  ],
+  "wirelength": 106937.89073562622,
+  "area": 774.4732015479304,
+  "aspect_ratio": 0.9489010459969126
+}

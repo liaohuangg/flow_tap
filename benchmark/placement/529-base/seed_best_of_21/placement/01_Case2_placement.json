@@ -1,0 +1,108 @@
+{
+  "chiplets": [
+    {
+      "name": "HBM_0",
+      "x-position": 13.161502838134766,
+      "y-position": 32.45228576660156,
+      "width": 8.0,
+      "height": 12.0,
+      "rotation": 0,
+      "power": 25.0
+    },
+    {
+      "name": "HBM_1",
+      "x-position": 32.67124557495117,
+      "y-position": 31.807151794433594,
+      "width": 8.0,
+      "height": 12.0,
+      "rotation": 0,
+      "power": 25.0
+    },
+    {
+      "name": "HBM_2",
+      "x-position": 19.121030807495117,
+      "y-position": 3.5414822101593018,
+      "width": 8.0,
+      "height": 12.0,
+      "rotation": 0,
+      "power": 25.0
+    },
+    {
+      "name": "HBM_3",
+      "x-position": 4.225189685821533,
+      "y-position": 21.79598617553711,
+      "width": 8.0,
+      "height": 12.0,
+      "rotation": 0,
+      "power": 25.0
+    },
+    {
+      "name": "Virtuvian_0",
+      "x-position": 13.461664199829102,
+      "y-position": 15.885479927062988,
+      "width": 31.4,
+      "height": 14.5,
+      "rotation": 0,
+      "power": 256.0
+    },
+    {
+      "name": "Nimbus_0",
+      "x-position": 21.62975311279297,
+      "y-position": 30.659992218017578,
+      "width": 10.5,
+      "height": 16.0,
+      "rotation": 0,
+      "power": 14.0
+    }
+  ],
+  "connections": [
+    {
+      "node1": "HBM_0",
+      "node2": "Virtuvian_0",
+      "wireCount": 704,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "HBM_1",
+      "node2": "Virtuvian_0",
+      "wireCount": 704,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "HBM_2",
+      "node2": "Virtuvian_0",
+      "wireCount": 704,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "HBM_3",
+      "node2": "Virtuvian_0",
+      "wireCount": 704,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "Nimbus_0",
+      "node2": "Virtuvian_0",
+      "wireCount": 704,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    }
+  ],
+  "wirelength": 79225.52400817872,
+  "area": 1752.184233016313,
+  "aspect_ratio": 0.9424368909454811
+}

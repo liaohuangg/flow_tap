@@ -1,0 +1,600 @@
+{
+  "chiplets": [
+    {
+      "name": "CPU1_0",
+      "width": 2.5,
+      "height": 3.5,
+      "power": 12.0
+    },
+    {
+      "name": "CPU1_1",
+      "width": 2.5,
+      "height": 3.5,
+      "power": 12.0
+    },
+    {
+      "name": "CPU1_2",
+      "width": 2.5,
+      "height": 3.5,
+      "power": 12.0
+    },
+    {
+      "name": "CPU1_3",
+      "width": 2.5,
+      "height": 3.5,
+      "power": 12.0
+    },
+    {
+      "name": "CPU1_4",
+      "width": 2.5,
+      "height": 3.5,
+      "power": 12.0
+    },
+    {
+      "name": "CPU1_5",
+      "width": 2.5,
+      "height": 3.5,
+      "power": 12.0
+    },
+    {
+      "name": "CPU1_6",
+      "width": 2.5,
+      "height": 3.5,
+      "power": 12.0
+    },
+    {
+      "name": "CPU1_7",
+      "width": 2.5,
+      "height": 3.5,
+      "power": 12.0
+    },
+    {
+      "name": "CPU1_8",
+      "width": 2.5,
+      "height": 3.5,
+      "power": 12.0
+    },
+    {
+      "name": "CPU1_9",
+      "width": 2.5,
+      "height": 3.5,
+      "power": 12.0
+    },
+    {
+      "name": "CPU1_10",
+      "width": 2.5,
+      "height": 3.5,
+      "power": 12.0
+    },
+    {
+      "name": "CPU1_11",
+      "width": 2.5,
+      "height": 3.5,
+      "power": 12.0
+    },
+    {
+      "name": "Analog_0",
+      "width": 3.0,
+      "height": 2.0,
+      "power": 4.0
+    },
+    {
+      "name": "Analog_1",
+      "width": 3.0,
+      "height": 2.0,
+      "power": 4.0
+    },
+    {
+      "name": "Analog_2",
+      "width": 3.0,
+      "height": 2.0,
+      "power": 4.0
+    },
+    {
+      "name": "Analog_3",
+      "width": 3.0,
+      "height": 2.0,
+      "power": 4.0
+    },
+    {
+      "name": "Analog_4",
+      "width": 3.0,
+      "height": 2.0,
+      "power": 4.0
+    },
+    {
+      "name": "Analog_5",
+      "width": 3.0,
+      "height": 2.0,
+      "power": 4.0
+    },
+    {
+      "name": "Analog_6",
+      "width": 3.0,
+      "height": 2.0,
+      "power": 4.0
+    },
+    {
+      "name": "Analog_7",
+      "width": 3.0,
+      "height": 2.0,
+      "power": 4.0
+    },
+    {
+      "name": "Analog_8",
+      "width": 3.0,
+      "height": 2.0,
+      "power": 4.0
+    },
+    {
+      "name": "Analog_9",
+      "width": 3.0,
+      "height": 2.0,
+      "power": 4.0
+    },
+    {
+      "name": "Analog_10",
+      "width": 3.0,
+      "height": 2.0,
+      "power": 4.0
+    },
+    {
+      "name": "Analog_11",
+      "width": 3.0,
+      "height": 2.0,
+      "power": 4.0
+    },
+    {
+      "name": "Analog_12",
+      "width": 3.0,
+      "height": 2.0,
+      "power": 4.0
+    },
+    {
+      "name": "Analog_13",
+      "width": 3.0,
+      "height": 2.0,
+      "power": 4.0
+    },
+    {
+      "name": "Analog_14",
+      "width": 3.0,
+      "height": 2.0,
+      "power": 4.0
+    },
+    {
+      "name": "Analog_15",
+      "width": 3.0,
+      "height": 2.0,
+      "power": 4.0
+    },
+    {
+      "name": "Analog_16",
+      "width": 3.0,
+      "height": 2.0,
+      "power": 4.0
+    },
+    {
+      "name": "Analog_17",
+      "width": 3.0,
+      "height": 2.0,
+      "power": 4.0
+    },
+    {
+      "name": "Analog_18",
+      "width": 3.0,
+      "height": 2.0,
+      "power": 4.0
+    },
+    {
+      "name": "Analog_19",
+      "width": 3.0,
+      "height": 2.0,
+      "power": 4.0
+    },
+    {
+      "name": "Analog_20",
+      "width": 3.0,
+      "height": 2.0,
+      "power": 4.0
+    },
+    {
+      "name": "Analog_21",
+      "width": 3.0,
+      "height": 2.0,
+      "power": 4.0
+    },
+    {
+      "name": "Analog_22",
+      "width": 3.0,
+      "height": 2.0,
+      "power": 4.0
+    },
+    {
+      "name": "Analog_23",
+      "width": 3.0,
+      "height": 2.0,
+      "power": 4.0
+    }
+  ],
+  "connections": [
+    {
+      "node1": "Analog_0",
+      "node2": "CPU1_0",
+      "wireCount": 88,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "Analog_1",
+      "node2": "CPU1_0",
+      "wireCount": 88,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "Analog_10",
+      "node2": "CPU1_5",
+      "wireCount": 88,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "Analog_11",
+      "node2": "CPU1_5",
+      "wireCount": 88,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "Analog_12",
+      "node2": "CPU1_6",
+      "wireCount": 88,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "Analog_13",
+      "node2": "CPU1_6",
+      "wireCount": 88,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "Analog_14",
+      "node2": "CPU1_7",
+      "wireCount": 88,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "Analog_15",
+      "node2": "CPU1_7",
+      "wireCount": 88,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "Analog_16",
+      "node2": "CPU1_8",
+      "wireCount": 88,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "Analog_17",
+      "node2": "CPU1_8",
+      "wireCount": 88,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "Analog_18",
+      "node2": "CPU1_9",
+      "wireCount": 88,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "Analog_19",
+      "node2": "CPU1_9",
+      "wireCount": 88,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "Analog_2",
+      "node2": "CPU1_1",
+      "wireCount": 88,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "Analog_20",
+      "node2": "CPU1_10",
+      "wireCount": 88,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "Analog_21",
+      "node2": "CPU1_10",
+      "wireCount": 88,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "Analog_22",
+      "node2": "CPU1_11",
+      "wireCount": 88,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "Analog_23",
+      "node2": "CPU1_11",
+      "wireCount": 88,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "Analog_3",
+      "node2": "CPU1_1",
+      "wireCount": 88,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "Analog_4",
+      "node2": "CPU1_2",
+      "wireCount": 88,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "Analog_5",
+      "node2": "CPU1_2",
+      "wireCount": 88,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "Analog_6",
+      "node2": "CPU1_3",
+      "wireCount": 88,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "Analog_7",
+      "node2": "CPU1_3",
+      "wireCount": 88,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "Analog_8",
+      "node2": "CPU1_4",
+      "wireCount": 88,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "Analog_9",
+      "node2": "CPU1_4",
+      "wireCount": 88,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "CPU1_0",
+      "node2": "CPU1_1",
+      "wireCount": 44,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "CPU1_0",
+      "node2": "CPU1_2",
+      "wireCount": 44,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "CPU1_0",
+      "node2": "CPU1_3",
+      "wireCount": 44,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "CPU1_1",
+      "node2": "CPU1_11",
+      "wireCount": 44,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "CPU1_1",
+      "node2": "CPU1_2",
+      "wireCount": 44,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "CPU1_10",
+      "node2": "CPU1_11",
+      "wireCount": 44,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "CPU1_10",
+      "node2": "CPU1_2",
+      "wireCount": 44,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "CPU1_10",
+      "node2": "CPU1_9",
+      "wireCount": 44,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "CPU1_11",
+      "node2": "CPU1_9",
+      "wireCount": 44,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "CPU1_3",
+      "node2": "CPU1_4",
+      "wireCount": 44,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "CPU1_3",
+      "node2": "CPU1_5",
+      "wireCount": 44,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "CPU1_4",
+      "node2": "CPU1_5",
+      "wireCount": 44,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "CPU1_4",
+      "node2": "CPU1_8",
+      "wireCount": 44,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "CPU1_5",
+      "node2": "CPU1_7",
+      "wireCount": 44,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "CPU1_6",
+      "node2": "CPU1_7",
+      "wireCount": 88,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "CPU1_6",
+      "node2": "CPU1_8",
+      "wireCount": 44,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "CPU1_6",
+      "node2": "CPU1_9",
+      "wireCount": 44,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "CPU1_7",
+      "node2": "CPU1_8",
+      "wireCount": 44,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    }
+  ]
+}

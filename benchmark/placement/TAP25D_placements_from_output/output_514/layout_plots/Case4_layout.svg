@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="846" height="880" viewBox="0 0 846 880">
+<style>
+text{font-family:Arial,Helvetica,sans-serif;fill:#1f2933}
+.meta{font-size:13px;fill:#52606d}.tick{font-size:11px;fill:#7b8794}
+.chip{stroke:#102a43;stroke-width:1.4}.grid{stroke:#d9e2ec;stroke-width:0.8}
+</style>
+<rect width="846" height="880" fill="#f8fafc"/>
+<text x="58" y="28" font-size="22" font-weight="700">Case4 final layout</text>
+<text class="meta" x="58" y="51">step 1233 | max temp 110.11 C | wirelength 18.2047</text>
+<rect x="58" y="76" width="760.00" height="760.00" fill="#ffffff" stroke="#243b53" stroke-width="2"/>
+<line class="grid" x1="58.00" y1="76" x2="58.00" y2="836.00"/>
+<line class="grid" x1="58" y1="836.00" x2="818.00" y2="836.00"/>
+<text class="tick" x="58.00" y="855.00" text-anchor="middle">0</text>
+<text class="tick" x="48" y="840.00" text-anchor="end">0</text>
+<line class="grid" x1="186.81" y1="76" x2="186.81" y2="836.00"/>
+<line class="grid" x1="58" y1="707.19" x2="818.00" y2="707.19"/>
+<text class="tick" x="186.81" y="855.00" text-anchor="middle">10</text>
+<text class="tick" x="48" y="711.19" text-anchor="end">10</text>
+<line class="grid" x1="315.63" y1="76" x2="315.63" y2="836.00"/>
+<line class="grid" x1="58" y1="578.37" x2="818.00" y2="578.37"/>
+<text class="tick" x="315.63" y="855.00" text-anchor="middle">20</text>
+<text class="tick" x="48" y="582.37" text-anchor="end">20</text>
+<line class="grid" x1="444.44" y1="76" x2="444.44" y2="836.00"/>
+<line class="grid" x1="58" y1="449.56" x2="818.00" y2="449.56"/>
+<text class="tick" x="444.44" y="855.00" text-anchor="middle">30</text>
+<text class="tick" x="48" y="453.56" text-anchor="end">30</text>
+<line class="grid" x1="573.25" y1="76" x2="573.25" y2="836.00"/>
+<line class="grid" x1="58" y1="320.75" x2="818.00" y2="320.75"/>
+<text class="tick" x="573.25" y="855.00" text-anchor="middle">40</text>
+<text class="tick" x="48" y="324.75" text-anchor="end">40</text>
+<line class="grid" x1="702.07" y1="76" x2="702.07" y2="836.00"/>
+<line class="grid" x1="58" y1="191.93" x2="818.00" y2="191.93"/>
+<text class="tick" x="702.07" y="855.00" text-anchor="middle">50</text>
+<text class="tick" x="48" y="195.93" text-anchor="end">50</text>
+<g><title>CPU1_0: center=(38, 26), lower-left=(32, 20), w=12, h=12 mm</title>
+<rect class="chip" x="470.20" y="423.80" width="154.58" height="154.58" fill="#4c78a8" fill-opacity="0.82" rx="2"/>
+<text x="547.49" y="499.08" font-size="14" font-weight="700" text-anchor="middle" dominant-baseline="middle" fill="#102a43">CPU1_0</text>
+<text x="547.49" y="515.08" font-size="11" text-anchor="middle" dominant-baseline="middle" fill="#102a43">#0</text>
+</g>
+<g><title>CPU1_1: center=(32, 43), lower-left=(26, 37), w=12, h=12 mm</title>
+<rect class="chip" x="392.92" y="204.81" width="154.58" height="154.58" fill="#f58518" fill-opacity="0.82" rx="2"/>
+<text x="470.20" y="280.10" font-size="14" font-weight="700" text-anchor="middle" dominant-baseline="middle" fill="#102a43">CPU1_1</text>
+<text x="470.20" y="296.10" font-size="11" text-anchor="middle" dominant-baseline="middle" fill="#102a43">#1</text>
+</g>
+<g><title>GPU_0: center=(49, 49), lower-left=(40, 40), w=18, h=18 mm</title>
+<rect class="chip" x="573.25" y="88.88" width="231.86" height="231.86" fill="#54a24b" fill-opacity="0.82" rx="2"/>
+<text x="689.19" y="202.81" font-size="14" font-weight="700" text-anchor="middle" dominant-baseline="middle" fill="#102a43">GPU_0</text>
+<text x="689.19" y="218.81" font-size="11" text-anchor="middle" dominant-baseline="middle" fill="#102a43">#2</text>
+</g>
+<g><title>GPU_1: center=(48, 10), lower-left=(39, 1), w=18, h=18 mm</title>
+<rect class="chip" x="560.37" y="591.25" width="231.86" height="231.86" fill="#e45756" fill-opacity="0.82" rx="2"/>
+<text x="676.31" y="705.19" font-size="14" font-weight="700" text-anchor="middle" dominant-baseline="middle" fill="#102a43">GPU_1</text>
+<text x="676.31" y="721.19" font-size="11" text-anchor="middle" dominant-baseline="middle" fill="#102a43">#3</text>
+</g>
+<g><title>GPU_2: center=(10, 38), lower-left=(1, 29), w=18, h=18 mm</title>
+<rect class="chip" x="70.88" y="230.58" width="231.86" height="231.86" fill="#72b7b2" fill-opacity="0.82" rx="2"/>
+<text x="186.81" y="344.51" font-size="14" font-weight="700" text-anchor="middle" dominant-baseline="middle" fill="#102a43">GPU_2</text>
+<text x="186.81" y="360.51" font-size="11" text-anchor="middle" dominant-baseline="middle" fill="#102a43">#4</text>
+</g>
+<g><title>GPU_3: center=(10, 14), lower-left=(1, 5), w=18, h=18 mm</title>
+<rect class="chip" x="70.88" y="539.73" width="231.86" height="231.86" fill="#b279a2" fill-opacity="0.82" rx="2"/>
+<text x="186.81" y="653.66" font-size="14" font-weight="700" text-anchor="middle" dominant-baseline="middle" fill="#102a43">GPU_3</text>
+<text x="186.81" y="669.66" font-size="11" text-anchor="middle" dominant-baseline="middle" fill="#102a43">#5</text>
+</g>
+<g><title>HBM_0: center=(33, 54), lower-left=(27, 50), w=12, h=8 mm</title>
+<rect class="chip" x="405.80" y="88.88" width="154.58" height="103.05" fill="#ff9da6" fill-opacity="0.82" rx="2"/>
+<text x="483.08" y="138.41" font-size="14" font-weight="700" text-anchor="middle" dominant-baseline="middle" fill="#102a43">HBM_0</text>
+<text x="483.08" y="154.41" font-size="11" text-anchor="middle" dominant-baseline="middle" fill="#102a43">#6</text>
+</g>
+<g><title>HBM_1: center=(31, 6), lower-left=(25, 2), w=12, h=8 mm</title>
+<rect class="chip" x="380.03" y="707.19" width="154.58" height="103.05" fill="#9d755d" fill-opacity="0.82" rx="2"/>
+<text x="457.32" y="756.71" font-size="14" font-weight="700" text-anchor="middle" dominant-baseline="middle" fill="#102a43">HBM_1</text>
+<text x="457.32" y="772.71" font-size="11" text-anchor="middle" dominant-baseline="middle" fill="#102a43">#7</text>
+</g>
+<g><title>HBM_2: center=(11, 52), lower-left=(5, 48), w=12, h=8 mm</title>
+<rect class="chip" x="122.41" y="114.64" width="154.58" height="103.05" fill="#bab0ac" fill-opacity="0.82" rx="2"/>
+<text x="199.69" y="164.17" font-size="14" font-weight="700" text-anchor="middle" dominant-baseline="middle" fill="#102a43">HBM_2</text>
+<text x="199.69" y="180.17" font-size="11" text-anchor="middle" dominant-baseline="middle" fill="#102a43">#8</text>
+</g>
+<g><title>HBM_3: center=(30, 15), lower-left=(24, 11), w=12, h=8 mm</title>
+<rect class="chip" x="367.15" y="591.25" width="154.58" height="103.05" fill="#59a14f" fill-opacity="0.82" rx="2"/>
+<text x="444.44" y="640.78" font-size="14" font-weight="700" text-anchor="middle" dominant-baseline="middle" fill="#102a43">HBM_3</text>
+<text x="444.44" y="656.78" font-size="11" text-anchor="middle" dominant-baseline="middle" fill="#102a43">#9</text>
+</g>
+<g><title>HBM_4: center=(53, 26), lower-left=(49, 20), w=8, h=12 mm</title>
+<rect class="chip" x="689.19" y="423.80" width="103.05" height="154.58" fill="#edc948" fill-opacity="0.82" rx="2"/>
+<text x="740.71" y="499.08" font-size="14" font-weight="700" text-anchor="middle" dominant-baseline="middle" fill="#102a43">HBM_4</text>
+<text x="740.71" y="515.08" font-size="11" text-anchor="middle" dominant-baseline="middle" fill="#102a43">#10</text>
+</g>
+<text class="meta" x="58" y="868">units: mm, output x/y are chiplet centers; axes use lower-left origin</text>
+</svg>

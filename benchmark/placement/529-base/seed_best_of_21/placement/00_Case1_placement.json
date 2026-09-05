@@ -1,0 +1,117 @@
+{
+  "chiplets": [
+    {
+      "name": "CPU1_0",
+      "x-position": 8.028410911560059,
+      "y-position": 24.287384033203125,
+      "width": 12.0,
+      "height": 12.0,
+      "rotation": 0,
+      "power": 105.0
+    },
+    {
+      "name": "GPU_0",
+      "x-position": 23.586807250976562,
+      "y-position": 11.52895736694336,
+      "width": 18.0,
+      "height": 18.0,
+      "rotation": 0,
+      "power": 300.0
+    },
+    {
+      "name": "GPU_1",
+      "x-position": 29.846050262451172,
+      "y-position": 30.393434524536133,
+      "width": 18.0,
+      "height": 18.0,
+      "rotation": 0,
+      "power": 300.0
+    },
+    {
+      "name": "HBM_0",
+      "x-position": 9.672290802001953,
+      "y-position": 36.909332275390625,
+      "width": 8.0,
+      "height": 12.0,
+      "rotation": 0,
+      "power": 25.0
+    },
+    {
+      "name": "HBM_1",
+      "x-position": 14.7020263671875,
+      "y-position": 11.255117416381836,
+      "width": 8.0,
+      "height": 12.0,
+      "rotation": 0,
+      "power": 25.0
+    },
+    {
+      "name": "HBM_2",
+      "x-position": 21.284826278686523,
+      "y-position": 31.359294891357422,
+      "width": 8.0,
+      "height": 12.0,
+      "rotation": 0,
+      "power": 25.0
+    }
+  ],
+  "connections": [
+    {
+      "node1": "CPU1_0",
+      "node2": "GPU_0",
+      "wireCount": 352,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "CPU1_0",
+      "node2": "GPU_1",
+      "wireCount": 352,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "CPU1_0",
+      "node2": "HBM_0",
+      "wireCount": 704,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "GPU_0",
+      "node2": "GPU_1",
+      "wireCount": 352,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "GPU_0",
+      "node2": "HBM_1",
+      "wireCount": 704,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    },
+    {
+      "node1": "GPU_1",
+      "node2": "HBM_2",
+      "wireCount": 704,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 12.8,
+      "EMIB_max_width": 99.0,
+      "EMIB_bump_width": 0.5
+    }
+  ],
+  "wirelength": 62947.5751953125,
+  "area": 1499.3019472969772,
+  "aspect_ratio": 0.9456666812209221
+}
