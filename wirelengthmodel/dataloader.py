@@ -23,13 +23,15 @@ from torch.utils.data import Dataset, DataLoader
 PLACEMENT_DIR = "/root/placement/flow_tap/Dataset/dataset/placement_dataset/placement_dataset_tw"
 WIRELENGTH_DIR = "/root/placement/flow_tap/Dataset/dataset/wirelength_dataset"
 
-# 有标签的布局文件:69..76,对应 system_340001 .. system_380000,共 40000 个
-LABELED_FILES = [69, 70, 71, 72, 73, 74, 75, 76]
+# 有 total 线长标签的布局文件:69..80,对应 system_340001 .. system_400000,共 60000 个
+# (边距离/每侧流量标签只有 69..76 即 340001..380000; total-only 训练不需要这些,故可扩展)
+LABELED_FILES = [69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80]
 
-# 节点特征列顺序(14 维:前 7 个几何/物理,后 7 个容量/需求拥塞信号)
+# 节点特征列顺序(18 维:前 7 个几何/物理,后 11 个容量/需求拥塞信号)
 NODE_FEATURES = ["x", "y", "width", "height", "rotation", "power", "hubump",
                  "log_demand", "log_capacity", "load_ratio",
-                 "log_cap_left", "log_cap_top", "log_cap_right", "log_cap_bottom"]
+                 "log_cap_left", "log_cap_top", "log_cap_right", "log_cap_bottom",
+                 "log_pref_left", "log_pref_top", "log_pref_right", "log_pref_bottom"]
 # 边特征列顺序
 EDGE_FEATURES = ["log_wireCount", "min_clump_manhattan"]
 
@@ -56,6 +58,22 @@ def _clumps(x: float, y: float, w: float, h: float, hu: float):
 
 def _min_clump_manhattan(clumps_a, clumps_b) -> float:
     return min(abs(a[0] - b[0]) + abs(a[1] - b[1]) for a in clumps_a for b in clumps_b)
+
+
+def _preferred_side(clumps_i, clumps_j):
+    """返回 (i 朝 j 的侧索引 h_i, j 朝 i 的侧索引 h_j)。
+
+    h_i = 使两端 clump 距离最小的 i 侧(0..3 = 左/上/右/下),是"无拥塞时该 net 想走的侧"。
+    """
+    best = None
+    h_i = h_j = 0
+    for h, a in enumerate(clumps_i):
+        for k, b in enumerate(clumps_j):
+            d = abs(a[0] - b[0]) + abs(a[1] - b[1])
+            if best is None or d < best:
+                best = d
+                h_i, h_j = h, k
+    return h_i, h_j
 
 
 def _bump_capacity(w_mm: float, h_mm: float, hubump: float) -> int:
@@ -88,8 +106,8 @@ def parse_system(system: dict, use_congestion: bool = True,
                  side_flow_by_name: dict | None = None) -> dict:
     """把一个 system 的原始 dict 解析成图的数据结构。
 
-    use_congestion=True 时,节点额外含 7 个拥塞特征(log_demand/log_capacity/load_ratio
-    + 每条边各自的容量 log_cap_left/top/right/bottom)。
+    use_congestion=True 时,节点额外含 11 个拥塞特征(log_demand/log_capacity/load_ratio
+    + 每侧容量 log_cap_{L,T,R,B} + 每侧偏好需求 log_pref_{L,T,R,B})。
     dist_by_pair 提供每条互联边(无向)的路由距离标签 ({(node1,node2): distance}), 附着到边上。
     side_flow_by_name 提供每个 chiplet 每侧边的 bump 流量/容量 ({name: {flow_out,flow_in,capacity}}),
       附着到节点上 (node_side_flow = flow_out+flow_in, node_side_capacity = capacity)。
@@ -97,12 +115,24 @@ def parse_system(system: dict, use_congestion: bool = True,
     chiplets = system["chiplets"]
     name2idx = {c["name"]: i for i, c in enumerate(chiplets)}
 
-    # 每个 chiplet 的入射总带宽(需求),仅当需要拥塞特征时计算
+    # clump 坐标(左/上/右/下),用于 dmin 与每侧偏好需求
+    clumps = [
+        _clumps(c["x-position"], c["y-position"], c["width"], c["height"], c["hubump"])
+        for c in chiplets
+    ]
+
+    # 每 chiplet 总需求(入射带宽)+ 每侧偏好需求(哪侧朝向哪个邻居),几何确定、始终计算
     demand = [0.0] * len(chiplets)
-    if use_congestion:
-        for e in system["connections"]:
-            demand[name2idx[e["node1"]]] += float(e["wireCount"])
-            demand[name2idx[e["node2"]]] += float(e["wireCount"])
+    pref_demand = [[0.0] * 4 for _ in chiplets]
+    for e in system["connections"]:
+        u = name2idx[e["node1"]]
+        v = name2idx[e["node2"]]
+        wc = float(e["wireCount"])
+        demand[u] += wc
+        demand[v] += wc
+        h_u, h_v = _preferred_side(clumps[u], clumps[v])
+        pref_demand[u][h_u] += wc
+        pref_demand[v][h_v] += wc
 
     nodes = []
     for i, c in enumerate(chiplets):
@@ -120,14 +150,19 @@ def parse_system(system: dict, use_congestion: bool = True,
             cap = float(_bump_capacity(c["width"], c["height"], c["hubump"]))
             load = s / cap if cap > 0 else 0.0
             cl, ct, cr, cb = _per_side_capacity(c["width"], c["height"], c["hubump"])
+            pl, pt, pr, pb = pref_demand[i]
             feat += [math.log1p(s), math.log1p(cap), load,
-                     math.log1p(cl), math.log1p(ct), math.log1p(cr), math.log1p(cb)]
+                     math.log1p(cl), math.log1p(ct), math.log1p(cr), math.log1p(cb),
+                     math.log1p(pl), math.log1p(pt), math.log1p(pr), math.log1p(pb)]
         nodes.append(tuple(feat))
 
-    clumps = [
-        _clumps(c["x-position"], c["y-position"], c["width"], c["height"], c["hubump"])
-        for c in chiplets
-    ]
+    # 每侧拥塞原始信号(供 correction 直接使用): [每侧容量(4), 每侧偏好需求(4)] log1p
+    node_cong = []
+    for i, c in enumerate(chiplets):
+        cl, ct, cr, cb = _per_side_capacity(c["width"], c["height"], c["hubump"])
+        pl, pt, pr, pb = pref_demand[i]
+        node_cong.append([math.log1p(cl), math.log1p(ct), math.log1p(cr), math.log1p(cb),
+                          math.log1p(pl), math.log1p(pt), math.log1p(pr), math.log1p(pb)])
 
     # 每 chiplet 每侧边的 bump 流量 (flow_out+flow_in, 原始计数) 与容量 (CPLEX side_flow)
     node_side_flow = None
@@ -176,6 +211,7 @@ def parse_system(system: dict, use_congestion: bool = True,
         "die_area": die_area,
         "node_side_flow": node_side_flow,
         "node_side_capacity": node_side_capacity,
+        "node_cong": node_cong,
     }
 
 
@@ -284,7 +320,7 @@ class Normalizer:
 # ----------------------------------------------------------------------------
 class ChipletWirelengthDataset(Dataset):
     """图回归数据集。每个样本返回:
-        x:           [N, 14] 标准化节点特征(use_congestion=True 时含 7 个拥塞特征)
+        x:           [N, 18] 标准化节点特征(use_congestion=True 时含 11 个拥塞特征)
         edge_index:  [2, 2E] 有向边索引
         edge_attr:   [2E, 2] 标准化边特征
         edge_weight: [2E]    原始 wireCount
@@ -313,6 +349,9 @@ class ChipletWirelengthDataset(Dataset):
         node_geom = torch.tensor(
             [[n[0], n[1], n[2], n[3], n[6]] for n in graph["nodes"]],
             dtype=torch.float32)
+
+        # 每侧拥塞原始信号(供 correction 直接使用): [每侧容量(4), 每侧偏好需求(4)] log1p
+        cong = torch.tensor(graph["node_cong"], dtype=torch.float32)
 
         # 每 chiplet 每侧边的 bump 流量标签 ([N,4] = flow_out+flow_in, 原始计数); 无标签则 None
         nsf = graph.get("node_side_flow")
@@ -358,6 +397,7 @@ class ChipletWirelengthDataset(Dataset):
             "edge_dmin": edge_dmin,
             "edge_label": edge_label,
             "node_flow": node_flow,
+            "cong": cong,
             "global_attr": global_attr,
             "wcount": torch.tensor([graph["wcount"]], dtype=torch.float32),
             "y": y,
@@ -368,8 +408,8 @@ class ChipletWirelengthDataset(Dataset):
 
 
 def collate_fn(batch: List[dict]) -> dict:
-    xs, geoms, edge_indices, edge_attrs, edge_weights, edge_dmins, edge_labels, node_flows, global_attrs, wcounts, ys = \
-        [], [], [], [], [], [], [], [], [], [], []
+    xs, geoms, edge_indices, edge_attrs, edge_weights, edge_dmins, edge_labels, node_flows, congs, global_attrs, wcounts, ys = \
+        [], [], [], [], [], [], [], [], [], [], [], []
     node_offset = 0
     batch_list = []
 
@@ -388,6 +428,7 @@ def collate_fn(batch: List[dict]) -> dict:
             edge_labels.append(item["edge_label"])
         if has_flow:
             node_flows.append(item["node_flow"])
+        congs.append(item["cong"])
         global_attrs.append(item["global_attr"])
         wcounts.append(item["wcount"])
         ys.append(item["y"])
@@ -401,6 +442,7 @@ def collate_fn(batch: List[dict]) -> dict:
         "edge_attr": torch.cat(edge_attrs, dim=0),
         "edge_weight": torch.cat(edge_weights, dim=0),
         "edge_dmin": torch.cat(edge_dmins, dim=0),
+        "cong": torch.cat(congs, dim=0),
         "global_attr": torch.stack(global_attrs, dim=0),
         "batch": torch.cat(batch_list, dim=0),
         "wcount": torch.cat(wcounts, dim=0),

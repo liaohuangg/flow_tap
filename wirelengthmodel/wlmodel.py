@@ -22,39 +22,63 @@ from dataloader import get_dataloaders
 
 
 # ----------------------------------------------------------------------------
-# 消息传递层(纯 PyTorch,不用 torch_scatter)
+# 图注意力层(GAT,纯 PyTorch,不用 torch_scatter)
 # ----------------------------------------------------------------------------
-class MessagePassingLayer(nn.Module):
-    """带边特征的图卷积:聚合每条边的 message 到目标节点。"""
+class GATLayer(nn.Module):
+    """带边特征的多头图注意力层。
 
-    def __init__(self, node_dim: int, edge_dim: int, out_dim: int, dropout: float = 0.0):
+    注意力 = 软选择"该看哪个邻居/哪条边"(soft-argmax),天然适合"走哪个侧、哪个邻居拥塞"
+    这类离散选择;相比 sum 聚合, 更能建模超载在邻居间的级联传播。
+    """
+
+    def __init__(self, node_dim: int, edge_dim: int, out_dim: int,
+                 heads: int = 4, dropout: float = 0.0):
         super().__init__()
-        self.msg_net = nn.Sequential(
-            nn.Linear(2 * node_dim + edge_dim, out_dim),
-            nn.ReLU(),
-            nn.Dropout(dropout),
-            nn.Linear(out_dim, out_dim),
-        )
-        self.update_net = nn.Sequential(
+        assert out_dim % heads == 0, "out_dim 必须能被 heads 整除"
+        self.heads = heads
+        self.head_dim = out_dim // heads
+        self.out_dim = out_dim
+
+        self.q = nn.Linear(node_dim, out_dim, bias=False)      # 目标侧 query
+        self.k = nn.Linear(node_dim, out_dim, bias=False)      # 源侧 key
+        self.v = nn.Linear(node_dim, out_dim, bias=False)      # 源侧 value
+        self.e_att = nn.Linear(edge_dim, heads, bias=False)    # 边特征 → 每头注意力 logit
+        self.e_msg = nn.Linear(edge_dim, out_dim, bias=False)  # 边特征 → message 增量
+        self.leaky = nn.LeakyReLU(0.2)
+        self.dropout = nn.Dropout(dropout)
+
+        self.update = nn.Sequential(
             nn.Linear(node_dim + out_dim, out_dim),
             nn.ReLU(),
             nn.Dropout(dropout),
             nn.Linear(out_dim, out_dim),
         )
         self.norm = nn.LayerNorm(out_dim)
-        self.out_dim = out_dim
 
     def forward(self, x, edge_index, edge_attr):
-        src, dst = edge_index  # [E]
-        msg_in = torch.cat([x[src], x[dst], edge_attr], dim=-1)  # [E, 2N+F]
-        msg = self.msg_net(msg_in)                                # [E, D]
+        src, dst = edge_index
+        H, d = self.heads, self.head_dim
 
-        agg = torch.zeros(x.size(0), self.out_dim, device=x.device, dtype=x.dtype)
-        agg = agg.index_add_(0, dst, msg)  # 高效 scatter-sum
+        q = self.q(x).view(-1, H, d)            # [N, H, d]
+        k = self.k(x).view(-1, H, d)
+        v = self.v(x).view(-1, H, d)
 
-        out = self.update_net(torch.cat([x, agg], dim=-1))        # [N, D]
-        out = self.norm(out + x)                                   # 残差 + LayerNorm
-        return out
+        # 注意力 logits: 缩放点积 + 边特征贡献
+        a = (q[dst] * k[src]).sum(-1) / (d ** 0.5)   # [E, H]
+        a = a + self.e_att(edge_attr)                 # [E, H]
+        a = self.leaky(a)
+
+        alpha = scatter_softmax(a, dst, x.size(0))    # [E, H] 按目标节点 softmax
+
+        # message = value + 边特征增量,按注意力加权
+        msg = v[src] + self.e_msg(edge_attr).view(-1, H, d)   # [E, H, d]
+        msg = self.dropout(alpha.unsqueeze(-1) * msg)         # [E, H, d]
+
+        agg = torch.zeros(x.size(0), H, d, device=x.device, dtype=x.dtype)
+        agg = agg.index_add_(0, dst, msg).view(x.size(0), self.out_dim)  # [N, out_dim]
+
+        out = self.update(torch.cat([x, agg], dim=-1))        # [N, out_dim]
+        return self.norm(out + x)                              # 残差 + LayerNorm
 
 
 # ----------------------------------------------------------------------------
@@ -72,12 +96,25 @@ def scatter_sum(src, index, dim_size):
     return out.index_add_(0, index, src)
 
 
+def scatter_softmax(logits, index, dim_size):
+    """按目标节点做 softmax(logits)。logits: [E, H], index: [E] 目标节点 id。"""
+    H = logits.size(1)
+    idx = index.unsqueeze(1).expand(-1, H)
+    maxes = torch.full((dim_size, H), -1e9, device=logits.device, dtype=logits.dtype)
+    maxes = maxes.scatter_reduce(0, idx, logits, reduce="amax")
+    exp = torch.exp(logits - maxes[index])
+    sums = torch.zeros(dim_size, H, device=logits.device, dtype=logits.dtype)
+    sums = sums.scatter_add(0, idx, exp)
+    return exp / (sums[index] + 1e-8)
+
+
 # ----------------------------------------------------------------------------
 # 主模型
 # ----------------------------------------------------------------------------
 class WirelengthGNN(nn.Module):
-    def __init__(self, node_dim: int = 14, edge_dim: int = 2, global_dim: int = 4,
-                 hidden: int = 128, num_layers: int = 4, dropout: float = 0.0,
+    def __init__(self, node_dim: int = 18, edge_dim: int = 2, global_dim: int = 4,
+                 cong_dim: int = 8, hidden: int = 256, num_layers: int = 6,
+                 heads: int = 4, dropout: float = 0.1,
                  use_residual: bool = True, use_global: bool = True):
         super().__init__()
         self.use_residual = use_residual
@@ -93,13 +130,19 @@ class WirelengthGNN(nn.Module):
             nn.ReLU(),
             nn.Linear(hidden, hidden),
         )
+        # 每侧拥塞原始信号(每侧容量+偏好需求)单独编码, 供 correction 直接使用
+        self.cong_encoder = nn.Sequential(
+            nn.Linear(cong_dim, hidden),
+            nn.ReLU(),
+            nn.Linear(hidden, hidden),
+        )
         self.convs = nn.ModuleList(
-            [MessagePassingLayer(hidden, hidden, hidden, dropout) for _ in range(num_layers)]
+            [GATLayer(hidden, hidden, hidden, heads, dropout) for _ in range(num_layers)]
         )
 
-        # 边级读出:每根线的"实际布线距离" d_edge > 0
+        # 边级读出: correction = f(e, h_src, h_dst, cong_src, cong_dst)
         self.edge_score = nn.Sequential(
-            nn.Linear(hidden * 3, hidden),
+            nn.Linear(hidden * 5, hidden),
             nn.ReLU(),
             nn.Linear(hidden, 1),
         )
@@ -136,7 +179,7 @@ class WirelengthGNN(nn.Module):
         manhattan = (cs.unsqueeze(2) - cd.unsqueeze(1)).abs().sum(-1)  # [E, 4, 4]
         return manhattan.min(dim=-1).values.min(dim=-1).values  # [E]
 
-    def forward(self, x, edge_index, edge_attr, edge_weight, node_geom, batch, global_attr):
+    def forward(self, x, edge_index, edge_attr, edge_weight, node_geom, batch, global_attr, cong):
         num_graphs = int(batch.max().item()) + 1
 
         # 图级标量拼进每个节点(全局拥塞尺度),再做节点编码
@@ -148,8 +191,10 @@ class WirelengthGNN(nn.Module):
             h = conv(h, edge_index, e)
 
         src, dst = edge_index
+        # 每侧拥塞信号(容量+偏好需求)单独编码, 让 correction 直接看到"两端哪侧超载"
+        c = self.cong_encoder(cong)  # [N, hidden]
         correction = F.softplus(
-            self.edge_score(torch.cat([e, h[src], h[dst]], dim=-1))).squeeze(-1)
+            self.edge_score(torch.cat([e, h[src], h[dst], c[src], c[dst]], dim=-1))).squeeze(-1)
         # 残差读出: d_edge = dmin(无容量下界, 从几何在线算, 位置可微) + 容量膨胀修正(≥0)
         dmin = self._min_clump_manhattan(node_geom, edge_index)
         d_edge = dmin + correction if self.use_residual else correction
@@ -186,10 +231,11 @@ def evaluate(model, loader, device):
             ew = item["edge_weight"].to(device)
             ng = item["node_geom"].to(device)
             ga = item["global_attr"].to(device)
+            cong = item["cong"].to(device)
             batch = item["batch"].to(device)
             y = item["y"].to(device)  # log(total)
 
-            total_pred, _, _ = model(x, ei, ea, ew, ng, batch, ga)
+            total_pred, _, _ = model(x, ei, ea, ew, ng, batch, ga, cong)
             log_pred = torch.log(total_pred + 1e-8)
             total_true = torch.exp(y)
 
@@ -215,22 +261,28 @@ def train(config: dict):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"device = {device}")
 
-    use_congestion = config.get("node_features", 14) == 14
+    use_congestion = config.get("node_features", 18) == 18
     train_loader, val_loader, test_loader, _ = get_dataloaders(
         batch_size=config["batch_size"], num_workers=config["num_workers"],
         seed=config["seed"], use_congestion=use_congestion)
 
-    model = WirelengthGNN(node_dim=config.get("node_features", 14),
+    model = WirelengthGNN(node_dim=config.get("node_features", 18),
                           hidden=config["hidden"], num_layers=config["num_layers"],
-                          dropout=config.get("dropout", 0.0),
+                          heads=config.get("heads", 4),
+                          dropout=config.get("dropout", 0.1),
                           use_residual=not config.get("no_residual", False),
                           use_global=not config.get("no_global", False)).to(device)
+    if config.get("resume"):
+        resume_path = os.path.abspath(config["resume"])
+        model.load_state_dict(torch.load(resume_path, map_location=device))
+        print(f"warm start: 已加载 {resume_path}")
     opt = torch.optim.AdamW(model.parameters(), lr=config["lr"], weight_decay=config["wd"])
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=config["epochs"])
 
     best_val = float("inf")
-    best_path = config.get("save", os.path.join(os.path.dirname(__file__), "checkpoint", "best_wlmodel.pt"))
-    os.makedirs(os.path.dirname(os.path.abspath(best_path)), exist_ok=True)
+    best_path = os.path.abspath(config.get("save", os.path.join(os.path.dirname(__file__), "checkpoint", "best_wlmodel.pt")))
+    os.makedirs(os.path.dirname(best_path), exist_ok=True)
+    snapshot_every = config.get("snapshot_every", 0)
 
     for epoch in range(1, config["epochs"] + 1):
         model.train()
@@ -244,11 +296,12 @@ def train(config: dict):
             ew = item["edge_weight"].to(device)
             ng = item["node_geom"].to(device)
             ga = item["global_attr"].to(device)
+            cong = item["cong"].to(device)
             batch = item["batch"].to(device)
             y = item["y"].to(device)  # log(total)
             edge_label = item["edge_label"]
 
-            total_pred, d_edge, flow_pred = model(x, ei, ea, ew, ng, batch, ga)
+            total_pred, d_edge, flow_pred = model(x, ei, ea, ew, ng, batch, ga, cong)
             loss = F.mse_loss(torch.log(total_pred + 1e-8), y)
             if edge_label is not None:
                 el = edge_label.to(device)
@@ -275,6 +328,10 @@ def train(config: dict):
             best_val = val_metrics["mae_log"]
             torch.save(model.state_dict(), best_path)
 
+        if snapshot_every and epoch % snapshot_every == 0:
+            snap_path = best_path.replace(".pt", f"_epoch{epoch}.pt")
+            torch.save(model.state_dict(), snap_path)
+
         if epoch % config["log_every"] == 0 or epoch == 1:
             print(f"[epoch {epoch:3d}] loss={epoch_loss / nb:.4f}  "
                   f"train(mae_log={train_metrics['mae_log']:.4f}, med_rel={train_metrics['med_rel']:.3%})  "
@@ -299,17 +356,20 @@ def parse_args():
     p.add_argument("--batch_size", type=int, default=128)
     p.add_argument("--num_workers", type=int, default=0)
     p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--hidden", type=int, default=128)
-    p.add_argument("--num_layers", type=int, default=4)
-    p.add_argument("--node_features", type=int, default=14, choices=[7, 14],
-                   help="节点特征维数: 14=含拥塞特征(需求/容量/每侧边容量), 7=不含")
+    p.add_argument("--hidden", type=int, default=256)
+    p.add_argument("--num_layers", type=int, default=6)
+    p.add_argument("--heads", type=int, default=4, help="GAT 注意力头数")
+    p.add_argument("--node_features", type=int, default=18, choices=[7, 18],
+                   help="节点特征维数: 18=含拥塞特征(需求/容量/每侧容量/每侧偏好需求), 7=不含")
     p.add_argument("--no_residual", action="store_true", help="关闭残差读出(d_edge 退化为纯 softplus)")
     p.add_argument("--no_global", action="store_true", help="关闭 global_attr 注入")
     p.add_argument("--edge_loss_weight", type=float, default=1.0,
                    help="每边监督损失权重 λ(0 = 仅总线长监督, 回到 baseline)")
     p.add_argument("--side_loss_weight", type=float, default=1.0,
                    help="每侧边流量监督损失权重 μ(0 = 关闭 side flow 监督)")
-    p.add_argument("--dropout", type=float, default=0.0)
+    p.add_argument("--dropout", type=float, default=0.1)
+    p.add_argument("--resume", type=str, default="", help="warm start: 加载 checkpoint 权重后继续训练")
+    p.add_argument("--snapshot_every", type=int, default=50, help="每 N 个 epoch 保存一次模型快照(0=关闭)")
     p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--wd", type=float, default=1e-5)
     p.add_argument("--epochs", type=int, default=60)
