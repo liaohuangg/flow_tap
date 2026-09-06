@@ -18,6 +18,8 @@ hubump 说明 (与 TAP-2.5D routing.py get_input 完全一致):
   avg_wirelength/   system_avg_wirelength_{i}.csv    标量(平均线长, mm = 总线长/wire_count)
   max_wirelength/   system_max_wirelength_{i}.csv    标量(最大线长, mm, 仅 --variant maxL/both)
   solve_time/       system_wirelength_time_{i}.csv   标量(求解耗时, s)
+  edge_wirelength/  system_edge_wirelength_{i}.json  每条互联边(无向)的路由距离标签(mm)
+  side_flow/        system_side_flow_{i}.json        每个 chiplet 每侧边的 bump 流量/容量(原始计数, 非比值)
   summary.csv       汇总(每布局一行, 含 chiplet 数 / net 数 / 线长 / 耗时)
 
 用法:
@@ -47,6 +49,11 @@ AVG_DIR = OUT_DIR / "avg_wirelength"
 TOTAL_DIR = OUT_DIR / "total_wirelength"
 MAX_DIR = OUT_DIR / "max_wirelength"
 TIME_DIR = OUT_DIR / "solve_time"
+EDGE_DIR = OUT_DIR / "edge_wirelength"
+SIDE_DIR = OUT_DIR / "side_flow"
+
+# 侧边顺序 (与 get_input 里 clump h=0..3 一致): 左/上/右/下
+SIDES = ["left", "top", "right", "bottom"]
 
 CHUNK = 5000            # 每个 chiplet_dataset_{k}.json 含 5000 systems
 UBUMP_PITCH = 0.045     # 45um microbump 节距, mm
@@ -54,7 +61,7 @@ NCLUMP = 4              # 每个 chiplet 4 个 pin clump (上下左右)
 TIMELIMIT_AVG = 500.0   # avg 变体的 CPLEX 时间上限 (s), 与 routing.py 一致
 TIMELIMIT_MAX = 300.0   # maxL 变体的 CPLEX 时间上限 (s), 与 routing_maxL.py 一致
 
-for _d in (AVG_DIR, TOTAL_DIR, MAX_DIR, TIME_DIR):
+for _d in (AVG_DIR, TOTAL_DIR, MAX_DIR, TIME_DIR, EDGE_DIR, SIDE_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
 
@@ -239,8 +246,15 @@ def translate_index(f_index, Nchiplet, Nclump, Nmax):
     return i, h, j, k, n
 
 
-def solve_cplex_avg(system) -> tuple[float, float | None]:
-    """求解平均线长 (routing.py 版): 最小化 Σ d·f(总线长), 返回 (avg_wirelength, total_wirelength)。"""
+def solve_cplex_avg(system):
+    """求解平均线长 (routing.py 版): 最小化 Σ d·f(总线长)。
+
+    返回 (avg_wirelength, total_wirelength, d_net, side_data):
+      d_net[(i, j)] = 有向 net i→j 的单根线平均路由距离 (mm) = Σ_{h,k} f[i][h][j][k][n]·d / R[i][j]。
+                      其中 (i, j) 是 chiplet 下标 (与 record["chiplets"] 顺序一致)。
+      side_data[i]   = {"flow_out": [4], "flow_in": [4], "capacity": [4]}, 侧边顺序 = SIDES (左/上/右/下)。
+                      flow_out/flow_in = 走该侧边的原始线数 (计数), capacity = pmax 该侧 bump 容量。
+    """
     xl, xc, yl, yc, R, Nchiplet, Nclump, pmax, Hopmax = get_input(system)
 
     problem = cplex.Cplex()
@@ -398,9 +412,37 @@ def solve_cplex_avg(system) -> tuple[float, float | None]:
     try:
         total_wirelength = problem.solution.get_objective_value()
         avg_wirelength = total_wirelength / wire_count
-        return avg_wirelength, total_wirelength
     except Exception:
-        return 100.0, None
+        return 100.0, None, {}
+
+    # 抽取每个有向 net 的单根线平均路由距离: d_net[n] = Σ_{i,h,j,k} f[i][h][j][k][n]·d[i][h][j][k] / R[s][t]
+    # get_values() 返回的变量顺序与 Eq.11 添加顺序 (i,h,j,k,n 嵌套) 一致, 即 get_index 的展平索引。
+    # 同时记录每个 chiplet 每侧边的原始 bump 流量 (计数): f[i][h][j][k][n] 既离开 i 的侧边 h, 也进入 j 的侧边 k。
+    vals = problem.solution.get_values()
+    dsum = [0.0] * Nmax
+    flow_out = [[0] * Nclump for _ in range(Nchiplet)]
+    flow_in = [[0] * Nclump for _ in range(Nchiplet)]
+    for i in range(Nchiplet):
+        for h in range(Nclump):
+            for j in range(Nchiplet):
+                for k in range(Nclump):
+                    for _n in range(Nmax):
+                        f = vals[get_index(i, h, j, k, _n, Nchiplet, Nclump, Nmax)]
+                        if f == 0.0:
+                            continue
+                        dsum[_n] += f * d[i][h][j][k]
+                        flow_out[i][h] += f
+                        flow_in[j][k] += f
+    d_net = {(s[_n], t[_n]): dsum[_n] / R[s[_n]][t[_n]] for _n in range(Nmax)}
+    side_data = [
+        {
+            "flow_out": [int(round(flow_out[i][h])) for h in range(Nclump)],
+            "flow_in": [int(round(flow_in[i][h])) for h in range(Nclump)],
+            "capacity": [int(pmax[i][h]) for h in range(Nclump)],
+        }
+        for i in range(Nchiplet)
+    ]
+    return avg_wirelength, total_wirelength, d_net, side_data
 
 
 # --------------------------------------------------------------------------- #
@@ -642,10 +684,42 @@ def process_layout(args) -> tuple[int, dict]:
 
         # avg wirelength (routing.py): min Σ d·f = 总线长, avg = 总线长 / wire_count
         t0 = time.time()
-        avg_wl, total_wl = solve_cplex_avg(system)
+        avg_wl, total_wl, d_net, side_data = solve_cplex_avg(system)
         result["avg_solve_time"] = time.time() - t0
         result["avg_wirelength"] = float(avg_wl)
         result["total_wirelength"] = None if total_wl is None else float(total_wl)
+
+        # 每条互联边(无向)的路由距离标签 = 两个方向 d_net 的平均 = 单方向每根线的路由距离(mm)。
+        # 这样模型对有向边求和 Σ w·d_edge = Σ_conn w·(d_net[i→j]+d_net[j→i]) = 总线长。
+        if total_wl is not None:
+            names = [str(c.get("name", f"C{idx}")) for idx, c in enumerate(record["chiplets"])]
+            name2idx = {nm: idx for idx, nm in enumerate(names)}
+            edge_labels = []
+            for conn in record.get("connections", []):
+                n1 = str(conn.get("node1", ""))
+                n2 = str(conn.get("node2", ""))
+                a = name2idx.get(n1)
+                b = name2idx.get(n2)
+                if a is None or b is None:
+                    continue
+                de = 0.5 * (d_net.get((a, b), 0.0) + d_net.get((b, a), 0.0))
+                edge_labels.append({
+                    "node1": n1, "node2": n2,
+                    "wireCount": float(conn.get("wireCount", 0.0)),
+                    "distance": float(de),
+                })
+            (EDGE_DIR / f"system_edge_wirelength_{i}.json").write_text(
+                json.dumps(edge_labels, ensure_ascii=False), encoding="utf-8")
+
+            # 每个 chiplet 每侧边的原始 bump 流量/容量 (计数, 非比值; 利用率可自行算 flow/capacity)
+            side_payload = {
+                "sides": SIDES,
+                "chiplets": [
+                    {"name": names[idx], **sd} for idx, sd in enumerate(side_data)
+                ],
+            }
+            (SIDE_DIR / f"system_side_flow_{i}.json").write_text(
+                json.dumps(side_payload, ensure_ascii=False), encoding="utf-8")
 
         # max wirelength (routing_maxL.py), 仅 maxL/both 变体需求时求解
         if variant in ("maxL", "both"):

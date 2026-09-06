@@ -76,7 +76,7 @@ def scatter_sum(src, index, dim_size):
 # 主模型
 # ----------------------------------------------------------------------------
 class WirelengthGNN(nn.Module):
-    def __init__(self, node_dim: int = 10, edge_dim: int = 2, global_dim: int = 4,
+    def __init__(self, node_dim: int = 14, edge_dim: int = 2, global_dim: int = 4,
                  hidden: int = 128, num_layers: int = 4, dropout: float = 0.0,
                  use_residual: bool = True, use_global: bool = True):
         super().__init__()
@@ -104,7 +104,39 @@ class WirelengthGNN(nn.Module):
             nn.Linear(hidden, 1),
         )
 
-    def forward(self, x, edge_index, edge_attr, edge_weight, edge_dmin, batch, global_attr):
+        # 节点级读出:每个 chiplet 4 个侧边(左/上/右/下)的 bump 流量 (原始计数, >0)
+        self.node_flow_head = nn.Sequential(
+            nn.Linear(hidden, hidden),
+            nn.ReLU(),
+            nn.Linear(hidden, 4),
+        )
+
+    def _min_clump_manhattan(self, node_geom, edge_index):
+        """从原始几何 (x,y,w,h,hubump) 在线计算每条边两端 4×4 clump 的最小曼哈顿距离。
+
+        与 dataloader._clumps 的 4 个 clump(左/上/右/下)定义一致, 且对 x/y 可微
+        (min 把次梯度传到 argmin 的 clump 对)。这是 flow-matching 引导项位置可微的关键。
+        """
+        src, dst = edge_index
+        x = node_geom[:, 0]
+        y = node_geom[:, 1]
+        w = node_geom[:, 2]
+        h = node_geom[:, 3]
+        hu = node_geom[:, 4]
+        cx = x + w / 2.0
+        cy = y + h / 2.0
+        clumps = torch.stack([
+            torch.stack([x - hu / 2.0, cy], dim=-1),          # 左
+            torch.stack([cx, y + h + hu / 2.0], dim=-1),      # 上
+            torch.stack([x + w + hu / 2.0, cy], dim=-1),      # 右
+            torch.stack([cx, y - hu / 2.0], dim=-1),          # 下
+        ], dim=1)  # [N, 4, 2]
+        cs = clumps[src]  # [E, 4, 2]
+        cd = clumps[dst]  # [E, 4, 2]
+        manhattan = (cs.unsqueeze(2) - cd.unsqueeze(1)).abs().sum(-1)  # [E, 4, 4]
+        return manhattan.min(dim=-1).values.min(dim=-1).values  # [E]
+
+    def forward(self, x, edge_index, edge_attr, edge_weight, node_geom, batch, global_attr):
         num_graphs = int(batch.max().item()) + 1
 
         # 图级标量拼进每个节点(全局拥塞尺度),再做节点编码
@@ -118,13 +150,17 @@ class WirelengthGNN(nn.Module):
         src, dst = edge_index
         correction = F.softplus(
             self.edge_score(torch.cat([e, h[src], h[dst]], dim=-1))).squeeze(-1)
-        # 残差读出: d_edge = dmin(无容量下界) + 容量膨胀修正(≥0)
-        d_edge = edge_dmin + correction if self.use_residual else correction
+        # 残差读出: d_edge = dmin(无容量下界, 从几何在线算, 位置可微) + 容量膨胀修正(≥0)
+        dmin = self._min_clump_manhattan(node_geom, edge_index)
+        d_edge = dmin + correction if self.use_residual else correction
         weighted = edge_weight * d_edge  # [E]
 
         edge_batch = batch[src]
         total = scatter_sum(weighted.unsqueeze(1), edge_batch, num_graphs).squeeze(-1)  # [num_graphs]
-        return total
+
+        # 节点级:每 chiplet 每侧边 bump 流量 (原始计数)
+        flow_pred = F.softplus(self.node_flow_head(h))  # [N, 4]
+        return total, d_edge, flow_pred
 
     def predict_wirelength(self, total, wcount):
         """由总线长推出平均线长。"""
@@ -148,12 +184,12 @@ def evaluate(model, loader, device):
             ei = item["edge_index"].to(device)
             ea = item["edge_attr"].to(device)
             ew = item["edge_weight"].to(device)
-            ed = item["edge_dmin"].to(device)
+            ng = item["node_geom"].to(device)
             ga = item["global_attr"].to(device)
             batch = item["batch"].to(device)
             y = item["y"].to(device)  # log(total)
 
-            total_pred = model(x, ei, ea, ew, ed, batch, ga)
+            total_pred, _, _ = model(x, ei, ea, ew, ng, batch, ga)
             log_pred = torch.log(total_pred + 1e-8)
             total_true = torch.exp(y)
 
@@ -179,12 +215,12 @@ def train(config: dict):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"device = {device}")
 
-    use_congestion = config.get("node_features", 10) == 10
+    use_congestion = config.get("node_features", 14) == 14
     train_loader, val_loader, test_loader, _ = get_dataloaders(
         batch_size=config["batch_size"], num_workers=config["num_workers"],
         seed=config["seed"], use_congestion=use_congestion)
 
-    model = WirelengthGNN(node_dim=config.get("node_features", 10),
+    model = WirelengthGNN(node_dim=config.get("node_features", 14),
                           hidden=config["hidden"], num_layers=config["num_layers"],
                           dropout=config.get("dropout", 0.0),
                           use_residual=not config.get("no_residual", False),
@@ -206,13 +242,23 @@ def train(config: dict):
             ei = item["edge_index"].to(device)
             ea = item["edge_attr"].to(device)
             ew = item["edge_weight"].to(device)
-            ed = item["edge_dmin"].to(device)
+            ng = item["node_geom"].to(device)
             ga = item["global_attr"].to(device)
             batch = item["batch"].to(device)
             y = item["y"].to(device)  # log(total)
+            edge_label = item["edge_label"]
 
-            total_pred = model(x, ei, ea, ew, ed, batch, ga)
+            total_pred, d_edge, flow_pred = model(x, ei, ea, ew, ng, batch, ga)
             loss = F.mse_loss(torch.log(total_pred + 1e-8), y)
+            if edge_label is not None:
+                el = edge_label.to(device)
+                loss_edge = F.mse_loss(torch.log(d_edge + 1e-8), torch.log(el + 1e-8))
+                loss = loss + config.get("edge_loss_weight", 1.0) * loss_edge
+            node_flow = item["node_flow"]
+            if node_flow is not None:
+                nf = node_flow.to(device)
+                loss_side = F.mse_loss(torch.log1p(flow_pred), torch.log1p(nf))
+                loss = loss + config.get("side_loss_weight", 1.0) * loss_side
 
             opt.zero_grad()
             loss.backward()
@@ -255,10 +301,14 @@ def parse_args():
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--hidden", type=int, default=128)
     p.add_argument("--num_layers", type=int, default=4)
-    p.add_argument("--node_features", type=int, default=10, choices=[7, 10],
-                   help="节点特征维数: 10=含拥塞特征(log_demand/log_capacity/load_ratio), 7=不含")
+    p.add_argument("--node_features", type=int, default=14, choices=[7, 14],
+                   help="节点特征维数: 14=含拥塞特征(需求/容量/每侧边容量), 7=不含")
     p.add_argument("--no_residual", action="store_true", help="关闭残差读出(d_edge 退化为纯 softplus)")
     p.add_argument("--no_global", action="store_true", help="关闭 global_attr 注入")
+    p.add_argument("--edge_loss_weight", type=float, default=1.0,
+                   help="每边监督损失权重 λ(0 = 仅总线长监督, 回到 baseline)")
+    p.add_argument("--side_loss_weight", type=float, default=1.0,
+                   help="每侧边流量监督损失权重 μ(0 = 关闭 side flow 监督)")
     p.add_argument("--dropout", type=float, default=0.0)
     p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--wd", type=float, default=1e-5)
