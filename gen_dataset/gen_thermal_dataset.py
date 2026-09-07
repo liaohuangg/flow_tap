@@ -30,6 +30,7 @@ import time
 import traceback
 from multiprocessing import Pool
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 
@@ -61,6 +62,23 @@ MAXT_DIR = THERMAL / "max_temp"
 TEMP_DIR = THERMAL / "thermal_map"
 AVGT_DIR = THERMAL / "avg_temp"
 MASK_DIR = THERMAL / "layout_mask"
+
+
+def _set_output_dirs(thermal_dir: str, grid: int) -> None:
+    """按 CLI 参数重定向输出根目录与网格尺寸(默认 thermal_dataset / 128)。"""
+    global CONFIG_DIR, POWER_DIR, TOTAL_DIR, MAXT_DIR, TEMP_DIR, AVGT_DIR, MASK_DIR, GRID
+    GRID = int(grid)
+    root = DATASET / thermal_dir
+    CONFIG_DIR = root / "config"
+    POWER_DIR = root / "power_map"
+    TOTAL_DIR = root / "total_power"
+    MAXT_DIR = root / "max_temp"
+    TEMP_DIR = root / "thermal_map"
+    AVGT_DIR = root / "avg_temp"
+    MASK_DIR = root / "layout_mask"
+    for _d in (CONFIG_DIR, POWER_DIR, TOTAL_DIR, MAXT_DIR, TEMP_DIR, AVGT_DIR, MASK_DIR):
+        _d.mkdir(parents=True, exist_ok=True)
+
 
 for _d in (CONFIG_DIR, POWER_DIR, TOTAL_DIR, MAXT_DIR, TEMP_DIR, AVGT_DIR, MASK_DIR):
     _d.mkdir(parents=True, exist_ok=True)
@@ -97,13 +115,15 @@ def record_powers(record: dict) -> list[float]:
 # --------------------------------------------------------------------------- #
 # 小工具
 # --------------------------------------------------------------------------- #
-def _read_grid_steady(path: Path, grid: int = GRID) -> np.ndarray:
-    """读取 grid_steady (扁平单层, 每行 '<idx>\t<temp_K>', 每 128 行一个空行)。
+def _read_grid_steady(path: Path, grid: Optional[int] = None) -> np.ndarray:
+    """读取 grid_steady (扁平单层, 每行 '<idx>\t<temp_K>')。
     返回 shape (grid, grid) 的 float64 (Kelvin), row 0 = 底部(y=min)。
 
     HotSpot grid_steady 按 row 0 = 顶部 输出; 这里垂直翻转, 使其与
     power_map / dataLoader.flp_to_mask 的 bottom-origin 约定对齐。
     """
+    if grid is None:
+        grid = GRID
     vals = []
     with open(path, "r", encoding="utf-8") as f:
         for raw in f:
@@ -132,9 +152,11 @@ def _write_scalar_csv(path: Path, v: float) -> None:
     path.write_text(f"{float(v):.6f}\n", encoding="utf-8")
 
 
-def _power_map_128(rects: list[tuple[float, float, float, float, float]], intp_size_mm: float, grid: int = GRID) -> np.ndarray:
+def _power_map_128(rects: list[tuple[float, float, float, float, float]], intp_size_mm: float, grid: Optional[int] = None) -> np.ndarray:
     """把 chiplet 功耗按面积比例分摊到 grid×grid (覆盖 [0, intp_size_mm]² 方形)。
     rects: (x_mm, y_mm, w_mm, h_mm, power_w), 已平移到方形内。"""
+    if grid is None:
+        grid = GRID
     cell = intp_size_mm / grid
     acc = np.zeros((grid, grid), dtype=np.float64)
     for (x, y, w, h, p) in rects:
@@ -166,11 +188,13 @@ def _power_map_128(rects: list[tuple[float, float, float, float, float]], intp_s
     return acc
 
 
-def _layout_mask_128(rects: list[tuple[float, float, float, float, float]], intp_size_mm: float, grid: int = GRID) -> np.ndarray:
-    """chiplet body 占位 mask (128×128, 0/1), 与 power/temp 同 interposer [0,intp_size]² 坐标系。
+def _layout_mask_128(rects: list[tuple[float, float, float, float, float]], intp_size_mm: float, grid: Optional[int] = None) -> np.ndarray:
+    """chiplet body 占位 mask (grid×grid, 0/1), 与 power/temp 同 interposer [0,intp_size]² 坐标系。
 
     rects: (x_mm, y_mm, w_mm, h_mm, power_w), 已平移到方形内。仅 body, 不含 bump ring。
     """
+    if grid is None:
+        grid = GRID
     cell = intp_size_mm / grid
     mask = np.zeros((grid, grid), dtype=np.float32)
     for (x, y, w, h, _p) in rects:
@@ -255,7 +279,7 @@ def _run_one(i: int, j: int, record: dict, case_dir: Path, case: str) -> str:
         lcf.write("\n# Layer 5: TIM\n5\nY\nN\n4.00E+06\n0.25\n2.00E-05\n" + str(case_dir / f"{case}L5_TIM.flp") + "\n")
 
     derived_cfg = case_dir / "new_hotspot.config"
-    rh._derive_hotspot_config(rh.HOTSPOT_TEMPLATE_CONFIG, derived_cfg, intp_size_mm)
+    rh._derive_hotspot_config(rh.HOTSPOT_TEMPLATE_CONFIG, derived_cfg, intp_size_mm, grid=GRID)
 
     ptrace = case_dir / f"{case}_{j}.ptrace"
     powers_by_name = {f"Chiplet_{k}": ch.power_w for k, ch in enumerate(chiplets)}
@@ -311,11 +335,16 @@ def main() -> None:
     ap.add_argument("--start", type=int, default=300001)
     ap.add_argument("--end", type=int, default=340000)
     ap.add_argument("--workers", type=int, default=28)
+    ap.add_argument("--grid", type=int, default=128, help="热仿真网格尺寸 (128 或 64)")
+    ap.add_argument("--thermal_dir", type=str, default="thermal_dataset", help="输出根目录名 (相对于 Dataset/dataset)")
     args = ap.parse_args()
+
+    _set_output_dirs(args.thermal_dir, args.grid)
 
     records = load_range(args.start, args.end)
     items = sorted(records.items())
     print(f"[thermal] 读取布局 {args.start}..{args.end}: {len(items)} 个 (单功耗, 共 {len(items)} 份)", flush=True)
+    print(f"[thermal] 输出目录: {TEMP_DIR.parent} | 网格: {GRID}x{GRID}", flush=True)
     if not items:
         print("[thermal] 无数据, 退出")
         return

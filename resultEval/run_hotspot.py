@@ -308,7 +308,7 @@ def _replace_flag_value(config_text: str, flag: str, new_value: float) -> str:
     return out
 
 
-def _derive_hotspot_config(template_config: Path, out_config: Path, intp_size_mm: float) -> None:
+def _derive_hotspot_config(template_config: Path, out_config: Path, intp_size_mm: float, grid: int = 128) -> None:
     cfg = template_config.read_text(encoding="utf-8", errors="replace")
     size_spreader = 2.0 * intp_size_mm / 1000.0
     size_heatsink = 2.0 * size_spreader
@@ -317,6 +317,8 @@ def _derive_hotspot_config(template_config: Path, out_config: Path, intp_size_mm
     cfg = _replace_flag_value(cfg, "-s_spreader", size_spreader)
     cfg = _replace_flag_value(cfg, "-s_sink", size_heatsink)
     cfg = _replace_flag_value(cfg, "-r_convec", r_convec)
+    cfg = re.sub(r"(-grid_rows\s+)\d+", rf"\g<1>{int(grid)}", cfg)
+    cfg = re.sub(r"(-grid_cols\s+)\d+", rf"\g<1>{int(grid)}", cfg)
 
     out_config.parent.mkdir(parents=True, exist_ok=True)
     out_config.write_text(cfg, encoding="utf-8")
