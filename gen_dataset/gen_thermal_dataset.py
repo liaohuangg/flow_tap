@@ -60,8 +60,9 @@ TOTAL_DIR = THERMAL / "total_power"
 MAXT_DIR = THERMAL / "max_temp"
 TEMP_DIR = THERMAL / "thermal_map"
 AVGT_DIR = THERMAL / "avg_temp"
+MASK_DIR = THERMAL / "layout_mask"
 
-for _d in (CONFIG_DIR, POWER_DIR, TOTAL_DIR, MAXT_DIR, TEMP_DIR, AVGT_DIR):
+for _d in (CONFIG_DIR, POWER_DIR, TOTAL_DIR, MAXT_DIR, TEMP_DIR, AVGT_DIR, MASK_DIR):
     _d.mkdir(parents=True, exist_ok=True)
 
 
@@ -165,6 +166,29 @@ def _power_map_128(rects: list[tuple[float, float, float, float, float]], intp_s
     return acc
 
 
+def _layout_mask_128(rects: list[tuple[float, float, float, float, float]], intp_size_mm: float, grid: int = GRID) -> np.ndarray:
+    """chiplet body 占位 mask (128×128, 0/1), 与 power/temp 同 interposer [0,intp_size]² 坐标系。
+
+    rects: (x_mm, y_mm, w_mm, h_mm, power_w), 已平移到方形内。仅 body, 不含 bump ring。
+    """
+    cell = intp_size_mm / grid
+    mask = np.zeros((grid, grid), dtype=np.float32)
+    for (x, y, w, h, _p) in rects:
+        if w <= 0 or h <= 0:
+            continue
+        ix0 = int(np.floor(x / cell))
+        iy0 = int(np.floor(y / cell))
+        ix1 = int(np.ceil((x + w) / cell))
+        iy1 = int(np.ceil((y + h) / cell))
+        ix0 = max(0, min(grid, ix0))
+        iy0 = max(0, min(grid, iy0))
+        ix1 = max(0, min(grid, ix1))
+        iy1 = max(0, min(grid, iy1))
+        if ix1 > ix0 and iy1 > iy0:
+            mask[iy0:iy1, ix0:ix1] = 1.0
+    return mask
+
+
 def _write_system_flp(path: Path, rects: list[tuple[float, float, float, float, float]]) -> None:
     """写 system.flp (仅 chiplet 矩形, 米单位), 供 dataLoader.flp_to_mask 生成布局 mask。"""
     lines = ["# chiplet layout for occupancy mask (meters)", "# <name>\t<width>\t<height>\t<x>\t<y>"]
@@ -259,9 +283,10 @@ def _run_one(i: int, j: int, record: dict, case_dir: Path, case: str) -> str:
     # 6) 总功耗
     _write_scalar_csv(TOTAL_DIR / f"system_totalpower_{i}_{j}.csv", float(sum(c.power_w for c in chiplets)))
 
-    # 7) system.flp (布局 mask, 仅 j=0 写一次)
+    # 7) system.flp + layout mask (布局占位, 仅 j=0 写一次; mask 与 power/temp 同 interposer 坐标系)
     if j == 0:
         _write_system_flp(case_dir / "system.flp", chiplet_rects_mm)
+        _write_index_value_csv(MASK_DIR / f"system_mask_{i}.csv", _layout_mask_128(chiplet_rects_mm, intp_size_mm))
 
     return "ok"
 

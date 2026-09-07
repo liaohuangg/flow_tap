@@ -92,6 +92,7 @@ def plot_thermal_grid_overlay(
     vmin: Optional[float] = None,
     vmax: Optional[float] = None,
     cmap_name: str = "hotspot",
+    side_mm: Optional[float] = None,
 ) -> None:
     """Plot a 2D thermal grid with chiplet rectangle overlay.
 
@@ -113,31 +114,34 @@ def plot_thermal_grid_overlay(
 
     chiplets = _load_chiplet_rects_mm(flp_path)
 
-    # Compute layout bounding box (mm). We draw in a square canvas whose side is the
-    # longest edge of the layout bounding box, and pad equally on both sides so the
-    # chiplet layout is centered (left/right and up/down).
-    min_x = min_y = 0.0
-    max_x = max_y = 0.0
-    if chiplets:
-        min_x = min(x for _n, _w, _h, x, _y in chiplets)
-        min_y = min(y for _n, _w, _h, _x, y in chiplets)
-        max_x = max(x + w for _n, w, _h, x, _y in chiplets)
-        max_y = max(y + h for _n, _w, h, _x, y in chiplets)
-
-    total_w = max_x - min_x
-    total_h = max_y - min_y
-    if total_w <= 0 or total_h <= 0:
-        total_w = total_h = float(max(grid.shape[-1], grid.shape[-2]))
+    # 坐标系: 若给出 side_mm, 直接按 interposer 方形 [0, side_mm]² 取范围
+    # (与 power/temp 128×128 网格同坐标系, chiplet 边框才能对齐热图);
+    # 否则回退旧行为: 按 chiplet 紧包围盒居中画方画布(可能与网格错位)。
+    if side_mm is not None and side_mm > 0:
+        x0, y0, x1, y1 = 0.0, 0.0, float(side_mm), float(side_mm)
+    else:
         min_x = min_y = 0.0
-        max_x = total_w
-        max_y = total_h
+        max_x = max_y = 0.0
+        if chiplets:
+            min_x = min(x for _n, _w, _h, x, _y in chiplets)
+            min_y = min(y for _n, _w, _h, _x, y in chiplets)
+            max_x = max(x + w for _n, w, _h, x, _y in chiplets)
+            max_y = max(y + h for _n, _w, h, _x, y in chiplets)
 
-    side = max(total_w, total_h)
-    pad_x = (side - total_w) / 2.0
-    pad_y = (side - total_h) / 2.0
+        total_w = max_x - min_x
+        total_h = max_y - min_y
+        if total_w <= 0 or total_h <= 0:
+            total_w = total_h = float(max(grid.shape[-1], grid.shape[-2]))
+            min_x = min_y = 0.0
+            max_x = total_w
+            max_y = total_h
 
-    x0, x1 = (min_x - pad_x), (max_x + pad_x)
-    y0, y1 = (min_y - pad_y), (max_y + pad_y)
+        side = max(total_w, total_h)
+        pad_x = (side - total_w) / 2.0
+        pad_y = (side - total_h) / 2.0
+
+        x0, x1 = (min_x - pad_x), (max_x + pad_x)
+        y0, y1 = (min_y - pad_y), (max_y + pad_y)
 
     if cmap_name == "hotspot":
         cmap = _hotspot_cmap()
@@ -146,7 +150,7 @@ def plot_thermal_grid_overlay(
 
     fig, ax = plt.subplots(1, figsize=(10, 8))
     im = ax.imshow(
-        np.flipud(grid),
+        grid,
         cmap=cmap,
         extent=(x0, x1, y0, y1),
         origin="lower",

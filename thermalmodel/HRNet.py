@@ -5,6 +5,7 @@ from typing import Dict, Optional, Tuple
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.utils.checkpoint import checkpoint as _checkpoint
 
 
 def _device() -> torch.device:
@@ -141,6 +142,13 @@ class ExchangeUnit(nn.Module):
         return f_hi, f_mid, f_lo
 
 
+def _run_stage(stage, x128, x64, x32):
+    x128 = stage["b128"](x128)
+    x64 = stage["b64"](x64)
+    x32 = stage["b32"](x32)
+    return stage["ex"](x128, x64, x32)
+
+
 class ThermalGuidanceHRNet(nn.Module):
     """HRNet-style thermal guidance model.
 
@@ -262,10 +270,7 @@ class ThermalGuidanceHRNet(nn.Module):
         x32 = self.film32(x32, cond)
 
         for st in self.stages:
-            x128 = st["b128"](x128)
-            x64 = st["b64"](x64)
-            x32 = st["b32"](x32)
-            x128, x64, x32 = st["ex"](x128, x64, x32)
+            x128, x64, x32 = _checkpoint(_run_stage, st, x128, x64, x32, use_reentrant=False)
 
         # aux avg head from lowest-res branch
         pooled = self.avg_pool(x32).flatten(1)
@@ -323,7 +328,7 @@ def guidance_loss(
     topk_w: float = 0.0,
     topk_k: int = 0,
     peak_w: float = 0.0,
-) -> Tuple[torch.Tensor, Dict[str, float]]:
+) -> Tuple[torch.Tensor, Dict[str, torch.Tensor]]:
     err = pred_grid - target_grid
     err2 = err * err
     if under_w != 1.0:
@@ -344,10 +349,10 @@ def guidance_loss(
     grad = spatial_gradient_loss(pred_grid, target_grid)
 
     loss = weighted_mse + grad_w * grad
-    out: Dict[str, float] = {
-        "mse": float(weighted_mse.detach().cpu()),
-        "grad": float(grad.detach().cpu()),
-        "loss": float(loss.detach().cpu()),
+    out: Dict[str, torch.Tensor] = {
+        "mse": weighted_mse.detach(),
+        "grad": grad.detach(),
+        "loss": loss.detach(),
     }
 
     if topk_w and topk_w > 0 and topk_k and topk_k > 0:
@@ -358,8 +363,8 @@ def guidance_loss(
         idx = torch.topk(flat_t, k=k, dim=1, largest=True, sorted=False).indices
         topk_mse = flat_e.gather(1, idx).mean()
         loss = loss + float(topk_w) * topk_mse
-        out["topk_mse"] = float(topk_mse.detach().cpu())
-        out["loss"] = float(loss.detach().cpu())
+        out["topk_mse"] = topk_mse.detach()
+        out["loss"] = loss.detach()
 
     if maxpool_w and maxpool_w > 0:
         ks = int(max(1, maxpool_ks))
@@ -367,30 +372,30 @@ def guidance_loss(
         t_max = F.max_pool2d(target_grid, kernel_size=ks, stride=ks)
         maxpool_mse = F.mse_loss(p_max, t_max)
         loss = loss + float(maxpool_w) * maxpool_mse
-        out["maxpool_mse"] = float(maxpool_mse.detach().cpu())
-        out["loss"] = float(loss.detach().cpu())
+        out["maxpool_mse"] = maxpool_mse.detach()
+        out["loss"] = loss.detach()
 
     if peak_w and peak_w > 0:
         pred_peak = pred_grid.amax(dim=(2, 3)).view(-1, 1)
         tgt_peak = target_grid.amax(dim=(2, 3)).view(-1, 1)
         peak_mse = F.mse_loss(pred_peak, tgt_peak)
         loss = loss + float(peak_w) * peak_mse
-        out["peak_mse"] = float(peak_mse.detach().cpu())
-        out["loss"] = float(loss.detach().cpu())
+        out["peak_mse"] = peak_mse.detach()
+        out["loss"] = loss.detach()
 
     if pred_avg is not None and target_avg is not None:
         pred_avg = pred_avg.view(-1, 1)
         target_avg = target_avg.view(-1, 1)
         avg_mse = F.mse_loss(pred_avg, target_avg)
         loss = loss + avg_w * avg_mse
-        out["avg_mse"] = float(avg_mse.detach().cpu())
-        out["loss"] = float(loss.detach().cpu())
+        out["avg_mse"] = avg_mse.detach()
+        out["loss"] = loss.detach()
 
         grid_mean = pred_grid.mean(dim=(2, 3), keepdim=False).view(-1, 1)
         mean_cons = F.l1_loss(grid_mean, pred_avg)
         loss = loss + mean_consistency_w * mean_cons
-        out["mean_cons"] = float(mean_cons.detach().cpu())
-        out["loss"] = float(loss.detach().cpu())
+        out["mean_cons"] = mean_cons.detach()
+        out["loss"] = loss.detach()
 
     return loss, out
 

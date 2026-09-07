@@ -96,20 +96,52 @@ def parse_flp_rects(flp_path: str) -> List[Tuple[float, float, float, float, str
     return rects
 
 
-def flp_to_mask(flp_path: str, grid_size: int = 128) -> np.ndarray:
+def interposer_side_m(flp_path: str) -> float:
+    """Interposer 方形边长(米) = FLP 所有块的最大覆盖范围 [0, side]。
+
+    L4_ChipLayer.flp 的 Edge_* 块横跨 [0, side_m], 故所有块 (x+w)/(y+h) 的最大值即
+    intp_size_mm / 1000, 与 power/temp 的 128×128 网格范围一致。
+    """
+    side = 0.0
+    try:
+        with open(flp_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                parts = re.split(r"\s+", line)
+                if len(parts) < 5:
+                    continue
+                try:
+                    w = float(parts[1])
+                    h = float(parts[2])
+                    x = float(parts[3])
+                    y = float(parts[4])
+                except ValueError:
+                    continue
+                side = max(side, x + w, y + h)
+    except OSError:
+        pass
+    return side
+
+
+def flp_to_mask(flp_path: str, grid_size: int = 128, side_m: Optional[float] = None) -> np.ndarray:
     rects = parse_flp_rects(flp_path)
     if not rects:
         return np.zeros((grid_size, grid_size), dtype=np.float32)
 
-    # Use bounding box to map meters -> grid indices
-    xs = [x for x, _, w, _, _ in rects] + [x + w for x, _, w, _, _ in rects]
-    ys = [y for _, y, _, h, _ in rects] + [y + h for _, y, _, h, _ in rects]
-    minx, maxx = min(xs), max(xs)
-    miny, maxy = min(ys), max(ys)
-
-    # avoid degenerate
-    spanx = max(maxx - minx, 1e-12)
-    spany = max(maxy - miny, 1e-12)
+    if side_m is not None and side_m > 0:
+        # 与 power/temp 网格统一: 覆盖整块 interposer 方形 [0, side_m]²
+        minx = miny = 0.0
+        spanx = spany = side_m
+    else:
+        # 兼容旧行为: 按 chiplet 紧包围盒归一化
+        xs = [x for x, _, w, _, _ in rects] + [x + w for x, _, w, _, _ in rects]
+        ys = [y for _, y, _, h, _ in rects] + [y + h for _, y, _, h, _ in rects]
+        minx, maxx = min(xs), max(xs)
+        miny, maxy = min(ys), max(ys)
+        spanx = max(maxx - minx, 1e-12)
+        spany = max(maxy - miny, 1e-12)
 
     mask = np.zeros((grid_size, grid_size), dtype=np.float32)
     for x, y, w, h, _name in rects:
@@ -249,6 +281,7 @@ class ThermalDataset(Dataset):
         self.totalp_dir = os.path.join(self.data_root, "total_power")
         self.avgtemp_dir = os.path.join(self.data_root, "avg_temp")
         self.temp_dir = os.path.join(self.data_root, "thermal_map")
+        self.mask_dir = os.path.join(self.data_root, "layout_mask")
 
         self.cases = cases if cases is not None else list_cases(self.power_dir)
         if stats is None:
@@ -261,8 +294,17 @@ class ThermalDataset(Dataset):
         return len(self.cases)
 
     def _layout_mask(self, i: int) -> np.ndarray:
-        flp_path = os.path.join(self.hotspot_root, f"system_{i}_config", "system.flp")
-        return flp_to_mask(flp_path, grid_size=self.power_grid_size)
+        # 优先读 gen_dataset 预生成的 mask(与 power/temp 同 interposer [0,intp_size]² 坐标系);
+        # 缺失时回退到按 L4_ChipLayer.flp 推导 side_m 的现场计算。
+        mask_path = os.path.join(self.mask_dir, f"system_mask_{i}.csv")
+        if os.path.exists(mask_path):
+            m_vec = read_index_value_csv(mask_path)
+            return vec_to_grid(m_vec, grid_size=self.power_grid_size)
+        cfg_dir = os.path.join(self.hotspot_root, f"system_{i}_config")
+        flp_path = os.path.join(cfg_dir, "system.flp")
+        l4_path = os.path.join(cfg_dir, f"system_{i}L4_ChipLayer.flp")
+        side_m = interposer_side_m(l4_path)
+        return flp_to_mask(flp_path, grid_size=self.power_grid_size, side_m=side_m)
 
     def __getitem__(self, idx: int):
         i, j = self.cases[idx]
