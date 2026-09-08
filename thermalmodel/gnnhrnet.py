@@ -1,24 +1,18 @@
 """
 GNN + HRNet 组合热预测模型 (gnnhrnet.py)
 
-动机
-----
-纯 GNN + U-Net 已把热图 RMSE 压到 ~0.55°C (8w 数据), 但 U-Net 的瓶颈在 8×8 会丢失
-尖锐热点的细节。HRNet 的核心优势是「全程保留高分辨率 64×64 分支 + 多尺度交换单元」,
-既能有全局感受野 (16×16 分支), 又不抹平峰值细节。
+GNN (GATv2) 编码 chiplet 级物理/交互信息 -> 全局图向量 global_cond;
+HRNet 多尺度场头 (64/32/16 分支 + 交换单元) 用 global_cond 做 FiLM 调制, 输出 64×64 温度场。
 
-本模型把两者结合:
-
-    GNN  (GATv2)   → 节点嵌入 → 全局图向量 global_cond (chiplet 级物理/交互信息)
-    HRNet 场头      → 多尺度 64/32/16 分支, 用 global_cond 做 FiLM 调制 (取代 HRNet
-                      原来只喂 total_power 单标量的弱条件)
-    peak head      → 每节点峰值回归 + hard max 池化 (直接打热点短板)
+损失 = MSE + 梯度差(grad_w) + 二阶曲率(laplace_w) + 峰值 3x3 邻域监督(peak_window_w)。
+默认配置即全量验证最优的 q_l1_pwin: grad_w=0.15 / laplace_w=0.2 / peak_window_w=0.4
+(全量 5-epoch val: rmse 0.658 / peak_mae 1.022 / peak_bias -0.169 / hotspot 1.486)。
 
 输入:
   - 图: node 特征 (功率/尺寸/位置/hubump 环宽与面积), 全连接边 (中心距离)
   - 场栅格: [功率密度, chiplet 掩码, hubump 环掩码] 3 通道 64×64
 
-输出: heatmap [B,1,64,64], peak [B,1], node_peak [N,1]
+输出: heatmap [B,1,64,64]
 """
 
 from __future__ import annotations
@@ -28,7 +22,7 @@ import math
 import os
 import re
 import time
-from typing import Dict, List, Optional, Tuple
+from dataclasses import dataclass
 
 import numpy as np
 import torch
@@ -36,7 +30,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 from torch_geometric.nn import GATv2Conv
-from scipy.ndimage import zoom as _scipy_zoom
 
 import dataLoader as dl
 
@@ -55,7 +48,7 @@ POWER_GRID_SCALE = 10.0      # 功率密度 (W/mm²)
 
 
 # --------------------------------------------------------------------------- #
-# GNN 编码器 + 峰值头
+# GNN 编码器
 # --------------------------------------------------------------------------- #
 class GNNEncoder(nn.Module):
     """GATv2 堆叠编码器,每层带残差 + LayerNorm。"""
@@ -79,84 +72,17 @@ class GNNEncoder(nn.Module):
         return self.out_norm(h)
 
 
-class GlobalPool(nn.Module):
-    """图全局池化: (可选注意力加权) mean + max 拼接 [B, 2H]。
-
-    use_attn=False: 朴素 mean + max (原实现)。
-    use_attn=True : 用可学习注意力对节点加权求和取代朴素 mean, 让与热点峰值最相关的
-                    节点主导全局条件向量; 仍拼接 max, cond_dim 保持 2H 不变, 下游
-                    FiLM / PeakHead 无需改维度。
-    """
-
-    def __init__(self, hidden, use_attn=False):
-        super().__init__()
-        self.use_attn = use_attn
-        if use_attn:
-            self.attn = nn.Linear(hidden, 1)
-
-    def forward(self, node_emb, batch, num_graphs):
-        B, H = num_graphs, node_emb.size(1)
-        if self.use_attn:
-            w = self.attn(node_emb).squeeze(-1)  # [N]
-            wmax = torch.full((B,), float("-inf"), device=node_emb.device, dtype=w.dtype)
-            wmax.index_reduce_(0, batch, w, "amax", include_self=False)
-            e = (w - wmax[batch]).exp()
-            denom = torch.zeros(B, device=node_emb.device, dtype=w.dtype)
-            denom.index_add_(0, batch, e)
-            a = e / (denom[batch] + 1e-8)  # [N] 每图 softmax 归一化权重
-            mean = torch.zeros(B, H, device=node_emb.device, dtype=node_emb.dtype)
-            mean.index_add_(0, batch, a.unsqueeze(-1) * node_emb)
-        else:
-            mean = torch.zeros(B, H, device=node_emb.device, dtype=node_emb.dtype)
-            mean.index_add_(0, batch, node_emb)
-            counts = torch.zeros(B, 1, device=node_emb.device, dtype=node_emb.dtype)
-            counts.index_add_(0, batch, torch.ones_like(node_emb[:, :1]))
-            mean = mean / counts.clamp_min(1.0)
-        maxv = torch.full((B, H), float("-inf"), device=node_emb.device, dtype=node_emb.dtype)
-        maxv.index_reduce_(0, batch, node_emb, "amax", include_self=False)
-        return torch.cat([mean, maxv], dim=-1)  # [B, 2H]
-
-
-class PeakHead(nn.Module):
-    """每节点峰值回归 + hard max 池化得全局峰值。"""
-
-    def __init__(self, hidden, pooling="hard"):
-        super().__init__()
-        self.node_peak = nn.Sequential(
-            nn.Linear(hidden, hidden), nn.ReLU(),
-            nn.Linear(hidden, hidden // 2), nn.ReLU(),
-            nn.Linear(hidden // 2, 1),
-        )
-        # 峰值位置回归分支: 每个 chiplet 体内热点坐标 (x,y) ∈ [-1,1]
-        self.node_pos = nn.Sequential(
-            nn.Linear(hidden, hidden), nn.ReLU(),
-            nn.Linear(hidden, hidden // 2), nn.ReLU(),
-            nn.Linear(hidden // 2, 2),
-        )
-        self.pooling = pooling
-
-    def forward(self, node_emb, batch, num_graphs):
-        node_peak = self.node_peak(node_emb).squeeze(-1)  # [N]
-        node_pos = self.node_pos(node_emb)  # [N, 2]
-        B = num_graphs
-        maxv = torch.full((B,), float("-inf"), device=node_emb.device, dtype=node_peak.dtype)
-        maxv.index_reduce_(0, batch, node_peak, "amax", include_self=False)
-        if self.pooling == "hard":
-            global_peak = maxv
-        elif self.pooling == "lse":
-            tau = 0.1
-            e = ((node_peak - maxv[batch]) / tau).exp()
-            s = torch.zeros(B, device=node_emb.device, dtype=node_peak.dtype)
-            s.index_add_(0, batch, e)
-            global_peak = maxv + tau * (s + 1e-8).log()
-        else:  # softmean
-            tau = 0.1
-            w = ((node_peak - maxv[batch]) / tau).exp()
-            denom = torch.zeros(B, device=node_emb.device, dtype=node_peak.dtype)
-            denom.index_add_(0, batch, w)
-            global_peak = torch.zeros(B, device=node_emb.device, dtype=node_peak.dtype)
-            global_peak.index_add_(0, batch, (w / (denom + 1e-8)) * node_peak)
-        return global_peak.view(-1, 1), node_peak.view(-1, 1), node_pos
+def _global_pool(node_emb, batch, num_graphs):
+    """mean+max 池化得到每个图的全局向量 [B, 2H]。"""
+    B, H = num_graphs, node_emb.size(1)
+    mean = torch.zeros(B, H, device=node_emb.device, dtype=node_emb.dtype)
+    mean.index_add_(0, batch, node_emb)
+    counts = torch.zeros(B, 1, device=node_emb.device, dtype=node_emb.dtype)
+    counts.index_add_(0, batch, torch.ones_like(node_emb[:, :1]))
+    mean = mean / counts.clamp_min(1.0)
+    maxv = torch.full((B, H), float("-inf"), device=node_emb.device, dtype=node_emb.dtype)
+    maxv.index_reduce_(0, batch, node_emb, "amax", include_self=False)
+    return torch.cat([mean, maxv], dim=-1)  # [B, 2H]
 
 
 class FiLM(nn.Module):
@@ -237,9 +163,9 @@ class HRBranch(nn.Module):
 
 
 class ExchangeUnit(nn.Module):
-    """64/32/16 分支间的多尺度融合。"""
+    """64/32/16 分支间的多尺度融合 (等权相加)。"""
 
-    def __init__(self, c64, c32, c16, alpha_init=1.0, learnable_alpha=False):
+    def __init__(self, c64, c32, c16):
         super().__init__()
         self.up_32_to_64 = ConvGNAct(c32, c64, k=1, s=1, p=0)
         self.up_16_to_64 = ConvGNAct(c16, c64, k=1, s=1, p=0)
@@ -250,23 +176,15 @@ class ExchangeUnit(nn.Module):
             ConvGNAct(c64, c32, k=3, s=2, p=1),
             ConvGNAct(c32, c16, k=3, s=2, p=1),
         )
-        # 跨尺度项缩放系数: learnable_alpha=False 时固定 1.0 (等价原等权相加);
-        # True 时用可学习 nn.Parameter 让网络自行决定注入强度 (实测 4-epoch 会伤 RMSE)
-        names = ("alpha_32to64", "alpha_16to64", "alpha_16to32",
-                 "alpha_64to32", "alpha_32to16", "alpha_64to16")
-        for n in names:
-            setattr(self, n, nn.Parameter(torch.tensor(alpha_init)) if learnable_alpha else 1.0)
 
     def forward(self, x64, x32, x16):
         f64 = x64 \
-            + self.alpha_32to64 * self.up_32_to_64(F.interpolate(x32, scale_factor=2, mode="bilinear", align_corners=False)) \
-            + self.alpha_16to64 * self.up_16_to_64(F.interpolate(x16, scale_factor=4, mode="bilinear", align_corners=False))
+            + self.up_32_to_64(F.interpolate(x32, scale_factor=2, mode="bilinear", align_corners=False)) \
+            + self.up_16_to_64(F.interpolate(x16, scale_factor=4, mode="bilinear", align_corners=False))
         f32 = x32 \
-            + self.alpha_64to32 * self.down_64_to_32(x64) \
-            + self.alpha_16to32 * self.up_16_to_32(F.interpolate(x16, scale_factor=2, mode="bilinear", align_corners=False))
-        f16 = x16 \
-            + self.alpha_32to16 * self.down_32_to_16(x32) \
-            + self.alpha_64to16 * self.down_64_to_16(x64)
+            + self.down_64_to_32(x64) \
+            + self.up_16_to_32(F.interpolate(x16, scale_factor=2, mode="bilinear", align_corners=False))
+        f16 = x16 + self.down_32_to_16(x32) + self.down_64_to_16(x64)
         return f64, f32, f16
 
 
@@ -284,13 +202,11 @@ class HRNetFieldHead(nn.Module):
     """
 
     def __init__(self, in_channels=3, base=64, cond_dim=256, stages=4,
-                 blocks_per_stage=2, expand_ratio=2, stage_film=False,
-                 alpha_init=1.0, learnable_alpha=False):
+                 blocks_per_stage=2, expand_ratio=2):
         super().__init__()
         c64, c32, c16 = base, base * 2, base * 4
         self._c64, self._c32, self._c16 = c64, c32, c16
         self.in_channels = in_channels
-        self.stage_film = stage_film
 
         # stem: 输入已在 64×64, stride 1 (+2 坐标图)
         self.stem = nn.Sequential(
@@ -311,13 +227,7 @@ class HRNetFieldHead(nn.Module):
                 "b64": HRBranch(c64, n_blocks=blocks_per_stage, expand_ratio=expand_ratio),
                 "b32": HRBranch(c32, n_blocks=blocks_per_stage, expand_ratio=expand_ratio),
                 "b16": HRBranch(c16, n_blocks=blocks_per_stage, expand_ratio=expand_ratio),
-                # 每 stage 内部 HRBranch 输出后再次注入 global_cond (逐级条件化,
-                # 而非只在输入时调制一次)
-                "film64": FiLM(cond_dim, c64),
-                "film32": FiLM(cond_dim, c32),
-                "film16": FiLM(cond_dim, c16),
-                "ex": ExchangeUnit(c64=c64, c32=c32, c16=c16,
-                                   alpha_init=alpha_init, learnable_alpha=learnable_alpha),
+                "ex": ExchangeUnit(c64=c64, c32=c32, c16=c16),
             }))
 
         # 头部融合: 上采样到 64×64 + concat 原始栅格作 hint
@@ -351,14 +261,9 @@ class HRNetFieldHead(nn.Module):
         x16 = self.film16(x16, global_cond)
 
         for st in self.stages:
-            if self.stage_film:
-                x64 = st["film64"](st["b64"](x64), global_cond)
-                x32 = st["film32"](st["b32"](x32), global_cond)
-                x16 = st["film16"](st["b16"](x16), global_cond)
-            else:
-                x64 = st["b64"](x64)
-                x32 = st["b32"](x32)
-                x16 = st["b16"](x16)
+            x64 = st["b64"](x64)
+            x32 = st["b32"](x32)
+            x16 = st["b16"](x16)
             x64, x32, x16 = st["ex"](x64, x32, x16)
 
         u32 = F.interpolate(x32, scale_factor=2, mode="bilinear", align_corners=False)
@@ -368,102 +273,25 @@ class HRNetFieldHead(nn.Module):
         return self.head_out(feat)  # [B,1,H,W]
 
 
-def _render_peak_prior(node_peak, node_pos, batch, hi, B, device, dtype):
-    """把每节点预测的 (峰值, 位置) 渲染成 hi×hi 高斯先验图。
-
-    节点位置 node_pos ∈ [-1,1] 映射到 hi 网格; 幅值取节点预测峰值 (已归一化)。
-    逐节点 splat 小高斯, 按 batch 归属累加。N<=20, 循环开销可忽略。
-    """
-    prior = torch.zeros(B, 1, hi, hi, device=device, dtype=dtype)
-    px = (node_pos[:, 0] + 1.0) / 2.0 * (hi - 1)
-    py = (node_pos[:, 1] + 1.0) / 2.0 * (hi - 1)
-    amp = node_peak.squeeze(-1)
-    sig = max(float(hi) * 0.03, 1.0)
-    gy, gx = torch.meshgrid(
-        torch.arange(hi, device=device, dtype=dtype),
-        torch.arange(hi, device=device, dtype=dtype), indexing="ij")
-    for n in range(node_peak.size(0)):
-        b = int(batch[n].item())
-        g = amp[n] * torch.exp(-((gx - px[n]) ** 2 + (gy - py[n]) ** 2) / (2.0 * sig * sig))
-        prior[b, 0] = prior[b, 0] + g
-    return prior
-
-
-class PeakRefineHead(nn.Module):
-    """峰值专属高分辨率残差分支 (小网络专门修峰值)。
-
-    动机: 64×64 场头里, 尖锐热点只有 1~3 格, 被多尺度下采样/上采样抹平了峰值。
-    本分支把粗 heatmap [B,1,H,W] 上采样到 hi×hi (128/256), 用一个很小的 CNN
-    (ch 通道) 学一个残差 Δ, 专门恢复被抹平的尖锐峰值, 而不改动主场的分辨率。
-
-    输出 [B,1,hi,hi] = 上采样粗图 + Δ。每层用 global_cond 做 FiLM 调制。
-    use_peak_prior=True 时把 GNN 预测的节点峰值/位置渲染成高斯先验图拼进输入,
-    给 refine 分支一个明确的空间提示 (热点在哪、多热), 而非只靠粗图盲猜。
-    """
-
-    def __init__(self, cond_dim, ch=16, n_blocks=2, expand_ratio=2, use_peak_prior=True):
-        super().__init__()
-        self.use_peak_prior = use_peak_prior
-        in_ch = 1 + 2 + (1 if use_peak_prior else 0)  # 粗图 + xy 坐标图 [+ 峰值先验图]
-        self.in_conv = ConvGNAct(in_ch, ch, k=3, s=1, p=1)
-        self.film0 = FiLM(cond_dim, ch)
-        self.blocks = nn.ModuleList([
-            nn.ModuleDict({
-                "res": LiteInvertedResidual(ch, ch, stride=1, expand_ratio=expand_ratio),
-                "film": FiLM(cond_dim, ch),
-            }) for _ in range(n_blocks)
-        ])
-        self.out_conv = nn.Conv2d(ch, 1, kernel_size=1)
-
-    def forward(self, coarse, global_cond, hi, node_peak=None, node_pos=None, batch=None):
-        b = coarse.size(0)
-        up = F.interpolate(coarse, size=(hi, hi), mode="bilinear", align_corners=False)
-        xmap, ymap = _make_coord_maps(hi, hi, coarse.device, coarse.dtype)
-        x = torch.cat([up, xmap.expand(b, -1, -1, -1), ymap.expand(b, -1, -1, -1)], dim=1)
-        if self.use_peak_prior and node_peak is not None and node_pos is not None and batch is not None:
-            prior = _render_peak_prior(node_peak, node_pos, batch, hi, b, coarse.device, coarse.dtype)
-            x = torch.cat([x, prior], dim=1)
-        h = self.film0(self.in_conv(x), global_cond)
-        for blk in self.blocks:
-            h = blk["film"](blk["res"](h), global_cond)
-        return up + self.out_conv(h)
-
-
 class GNNHRNetModel(nn.Module):
-    """GNN (图编码 + 峰值) + HRNet (多尺度场解码)。"""
+    """GNN (图编码) + HRNet (多尺度场解码)。"""
 
     def __init__(self, node_dim=8, hidden=128, heads=4, num_layers=3, edge_dim=1,
-                 grid=64, hi_grid=None, base=64, stages=4, blocks_per_stage=2,
-                 expand_ratio=2, dropout=0.1, peak_branch=False,
-                 peak_branch_ch=16, peak_branch_blocks=2, attn_pool=False,
-                 stage_film=False, alpha_init=1.0, learnable_alpha=False):
+                 grid=64, base=64, stages=4, blocks_per_stage=2,
+                 expand_ratio=2, dropout=0.1):
         super().__init__()
         self.grid = grid
-        self.hi_grid = hi_grid if hi_grid else grid
         self.encoder = GNNEncoder(node_dim, hidden=hidden, heads=heads, num_layers=num_layers,
                                   edge_dim=edge_dim, dropout=dropout)
         self.field_head = HRNetFieldHead(in_channels=3, base=base, cond_dim=2 * hidden,
                                          stages=stages, blocks_per_stage=blocks_per_stage,
-                                         expand_ratio=expand_ratio, stage_film=stage_film,
-                                         alpha_init=alpha_init, learnable_alpha=learnable_alpha)
-        self.global_pool = GlobalPool(hidden=hidden, use_attn=attn_pool)
-        self.peak_head = PeakHead(hidden=hidden, pooling="hard")
-        self.peak_refine = (PeakRefineHead(cond_dim=2 * hidden, ch=peak_branch_ch,
-                                           n_blocks=peak_branch_blocks, expand_ratio=expand_ratio)
-                            if peak_branch else None)
+                                         expand_ratio=expand_ratio)
 
     def forward(self, x, edge_index, batch, edge_attr=None, field_raster=None):
         num_graphs = int(batch.max().item()) + 1 if batch.numel() else 1
         node_emb = self.encoder(x, edge_index, edge_attr)
-        global_cond = self.global_pool(node_emb, batch, num_graphs)
-        global_peak, node_peak, node_pos = self.peak_head(node_emb, batch, num_graphs)
-
-        heatmap = self.field_head(field_raster, global_cond)
-        if self.peak_refine is not None:
-            heatmap = self.peak_refine(heatmap, global_cond, self.hi_grid,
-                                       node_peak=node_peak, node_pos=node_pos, batch=batch)
-        return {"heatmap": heatmap, "node_peak": node_peak, "node_pos": node_pos,
-                "global_peak": global_peak}
+        global_cond = _global_pool(node_emb, batch, num_graphs)
+        return self.field_head(field_raster, global_cond)
 
 
 # --------------------------------------------------------------------------- #
@@ -484,7 +312,6 @@ def _laplacian_loss(pred, target):
     """二阶曲率损失: 匹配拉普拉斯 (∇²T)。
 
     峰值处曲率大且为负, 匹配它 = 锐化峰值; 平滑区曲率小, 匹配它 = 约束平滑。
-    结构先验, 不针对单格加权。
     """
     k = torch.tensor([[0.0, 1.0, 0.0], [1.0, -4.0, 1.0], [0.0, 1.0, 0.0]],
                      device=pred.device, dtype=pred.dtype).view(1, 1, 3, 3)
@@ -512,62 +339,31 @@ def _peak_window_loss(pred, target, peak_loc, window=1):
     return total / B
 
 
-def gnn_thermal_loss(out, target_heatmap, target_peak, *, heatmap_w=1.0, grad_w=0.1,
-                     peak_w=0.0, peak_loc=None, laplace_w=0.0, peak_window_w=0.0,
-                     node_peak_w=0.0, node_peak_gt=None, power_weight_w=0.0,
-                     raster=None, focal_gamma=0.0):
-    """热图损失: (可选加权/focal) MSE + 梯度差 + 二阶曲率 + 峰值邻域监督 + 节点峰值监督。
+def gnn_thermal_loss(pred, target, peak_loc=None, *, grad_w=0.15, laplace_w=0.2,
+                     peak_window_w=0.4):
+    """热图损失 = MSE + 梯度差 + 二阶曲率 + 峰值 3x3 邻域监督。
 
-    - power_weight_w: 按功率密度加权 MSE (raster 第0通道), 热点区域权重 1~1+power_weight_w 倍。
-    - peak_window_w: 峰值 (2*window+1)² 邻域 MSE (推荐, 替代单点 peak_w)。
-    - focal_gamma: focal-MSE, w=(1-exp(-sq))^gamma, 对大误差像素加大权重。
-    - node_peak_w: GNN 节点峰值 head 监督 (需 out["node_peak"] / out["node_peak_gt"])。
+    默认权重即 q_l1_pwin 配置 (全量 val rmse 0.658 / peak_bias -0.169)。
     """
-    pred = out["heatmap"]
-    sq = (pred - target_heatmap) ** 2
-
-    if focal_gamma > 0.0:
-        w = (1.0 - torch.exp(-sq)) ** focal_gamma
-        hm = (w * sq).mean()
-    elif power_weight_w > 0.0 and raster is not None:
-        wmap = 1.0 + power_weight_w * raster[:, 0:1, :, :]
-        if wmap.size(2) != pred.size(2) or wmap.size(3) != pred.size(3):
-            wmap = F.interpolate(wmap, size=pred.shape[2:], mode="bilinear",
-                                 align_corners=False)
-        hm = (wmap * sq).mean()
-    else:
-        hm = sq.mean()
-
-    loss = heatmap_w * hm
+    sq = (pred - target) ** 2
+    hm = sq.mean()
+    loss = hm
     info = {"hm": float(hm.detach()), "loss": float(loss.detach())}
 
     if grad_w > 0.0:
-        grad = _spatial_gradient_loss(pred, target_heatmap)
+        grad = _spatial_gradient_loss(pred, target)
         loss = loss + grad_w * grad
         info["grad"] = float(grad.detach())
 
     if laplace_w > 0.0:
-        lap = _laplacian_loss(pred, target_heatmap)
+        lap = _laplacian_loss(pred, target)
         loss = loss + laplace_w * lap
         info["lap"] = float(lap.detach())
 
     if peak_window_w > 0.0 and peak_loc is not None:
-        pw = _peak_window_loss(pred, target_heatmap, peak_loc)
+        pw = _peak_window_loss(pred, target, peak_loc)
         loss = loss + peak_window_w * pw
         info["peak_win"] = float(pw.detach())
-
-    if peak_w > 0.0 and peak_loc is not None:
-        B = pred.size(0)
-        hm_peak = pred[torch.arange(B, device=pred.device), 0,
-                       peak_loc[:, 0], peak_loc[:, 1]].view(B, 1)
-        pl = F.mse_loss(hm_peak, target_peak)
-        loss = loss + peak_w * pl
-        info["peak"] = float(pl.detach())
-
-    if node_peak_w > 0.0 and out.get("node_peak") is not None and node_peak_gt is not None:
-        npl = F.mse_loss(out["node_peak"], node_peak_gt)
-        loss = loss + node_peak_w * npl
-        info["node_peak"] = float(npl.detach())
 
     info["loss"] = float(loss.detach())
     return loss, info
@@ -576,9 +372,6 @@ def gnn_thermal_loss(out, target_heatmap, target_peak, *, heatmap_w=1.0, grad_w=
 # --------------------------------------------------------------------------- #
 # 图构建
 # --------------------------------------------------------------------------- #
-from dataclasses import dataclass, field  # noqa: E402
-
-
 @dataclass
 class GraphData:
     x: torch.Tensor
@@ -586,15 +379,10 @@ class GraphData:
     edge_attr: torch.Tensor
     cell_node: torch.Tensor
     side_mm: float
-    node_peak: Optional[torch.Tensor] = None  # [N] 每 chiplet 峰值温度(归一化)
 
 
-def _build_graph_from_rects(rects, powers, side_mm, grid, hubump_mm=None, dist_thr_mm=0.0):
-    """构建 chiplet 图。
-
-    dist_thr_mm > 0 时按芯片中心距离阈值截断边 (稀疏化), 否则全连接。
-    距离阈值的物理依据: 热耦合随距离快速衰减, 远距离弱耦合是噪声边。
-    """
+def _build_graph_from_rects(rects, powers, side_mm, grid, hubump_mm=None):
+    """构建 chiplet 全连接图 (边 = 中心距离)。"""
     N = len(rects)
     if hubump_mm is None:
         hubump_mm = [0.0] * N
@@ -615,7 +403,6 @@ def _build_graph_from_rects(rects, powers, side_mm, grid, hubump_mm=None, dist_t
         ])
     x = torch.tensor(feats, dtype=torch.float32)
 
-    # 中心距用 mm 阈值截断 (阈值 0 = 全连接)
     src, dst, dists = [], [], []
     for i in range(N):
         for j in range(N):
@@ -623,8 +410,6 @@ def _build_graph_from_rects(rects, powers, side_mm, grid, hubump_mm=None, dist_t
                 continue
             d_mm = math.hypot(rects[i][0] + rects[i][2] / 2.0 - (rects[j][0] + rects[j][2] / 2.0),
                               rects[i][1] + rects[i][3] / 2.0 - (rects[j][1] + rects[j][3] / 2.0))
-            if dist_thr_mm > 0.0 and d_mm >= dist_thr_mm:
-                continue
             src.append(i)
             dst.append(j)
             dists.append(d_mm / side_mm)
@@ -645,29 +430,13 @@ def _build_graph_from_rects(rects, powers, side_mm, grid, hubump_mm=None, dist_t
                      cell_node=cell_node, side_mm=side_mm)
 
 
-def build_graph_from_rects(rects_mm, powers_w, side_mm, grid=64, hubump_mm=None,
-                           dist_thr_mm=0.0):
-    return _build_graph_from_rects(rects_mm, powers_w, side_mm, grid, hubump_mm, dist_thr_mm)
-
-
-def _node_peak_gt(rects_mm, side_mm, grid, temp_field):
-    """每个 chiplet 体内最大温度 (未归一化 °C), temp_field: [grid, grid] float32。"""
-    N = len(rects_mm)
-    cell = side_mm / grid
-    peaks = []
-    for (x, y, w, h) in rects_mm:
-        ix0 = max(0, int(math.floor(x / cell)))
-        iy0 = max(0, int(math.floor(y / cell)))
-        ix1 = min(grid, int(math.ceil((x + w) / cell)))
-        iy1 = min(grid, int(math.ceil((y + h) / cell)))
-        region = temp_field[iy0:iy1, ix0:ix1]
-        peaks.append(float(region.max()) if region.size else 0.0)
-    return np.asarray(peaks, dtype=np.float32)
+def build_graph_from_rects(rects_mm, powers_w, side_mm, grid=64, hubump_mm=None):
+    return _build_graph_from_rects(rects_mm, powers_w, side_mm, grid, hubump_mm)
 
 
 def collate_graphs(graphs):
     grid = graphs[0].cell_node.shape[0]
-    xs, eis, eas, batches, cell_nodes, node_peaks = [], [], [], [], [], []
+    xs, eis, eas, batches, cell_nodes = [], [], [], [], []
     node_offset = 0
     for b, g in enumerate(graphs):
         n = g.x.size(0)
@@ -678,19 +447,14 @@ def collate_graphs(graphs):
         cn = g.cell_node.clone()
         cn[cn >= 0] += node_offset
         cell_nodes.append(cn)
-        if g.node_peak is not None:
-            node_peaks.append(g.node_peak)
         node_offset += n
-    out = {
+    return {
         "x": torch.cat(xs, dim=0),
         "edge_index": torch.cat(eis, dim=1),
         "edge_attr": torch.cat(eas, dim=0),
         "batch": torch.cat(batches, dim=0),
         "cell_node": torch.stack(cell_nodes, dim=0),
     }
-    if node_peaks:
-        out["node_peak"] = torch.cat(node_peaks, dim=0).view(-1, 1)
-    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -756,11 +520,7 @@ def rasterize_rects_mm(rects_mm, side_mm, grid, values=None):
     return out
 
 
-def load_case(i, j, grid=64, hi_grid=None, dist_thr_mm=0.0):
-    # grid        = 场头/场栅格输入分辨率
-    # hi_grid     = 目标(输出)温度场分辨率; None 则同 grid (峰值专属高分辨率分支用它)
-    # dist_thr_mm = 图边中心距阈值(mm), 0 = 全连接
-    hi = hi_grid if hi_grid else grid
+def load_case(i, j, grid=64):
     cfg = os.path.join(CFG_ROOT, f"system_{i}_config")
     flp = os.path.join(cfg, "system.flp")
     l4 = os.path.join(cfg, f"system_{i}L4_ChipLayer.flp")
@@ -777,8 +537,7 @@ def load_case(i, j, grid=64, hi_grid=None, dist_thr_mm=0.0):
     powers_w = [pw[name] for (_, _, _, _, name) in rects]
     hubump_w, ubump_rects_mm = parse_l4_thermal(l4)
     hubump_mm = [hubump_w.get(name, 0.0) * 1000.0 for (_, _, _, _, name) in rects]
-    graph = build_graph_from_rects(rects_mm, powers_w, side_mm, grid=grid, hubump_mm=hubump_mm,
-                                   dist_thr_mm=dist_thr_mm)
+    graph = build_graph_from_rects(rects_mm, powers_w, side_mm, grid=grid, hubump_mm=hubump_mm)
 
     # 场栅格: [功率密度, chiplet 掩码, hubump 环掩码]
     areas_mm2 = [w * h for (_, _, w, h) in rects_mm]
@@ -790,18 +549,11 @@ def load_case(i, j, grid=64, hi_grid=None, dist_thr_mm=0.0):
     field_raster = np.stack([p_grid, mask_grid, hubump_grid], axis=0).astype(np.float32)
 
     t_raw = dl.read_index_value_csv(temp_csv).reshape(64, 64)
-    # 节点峰值 GT: 原生 64×64 下每个 chiplet 体内最大温度 (归一化), 供 GNN PeakHead 监督
-    node_peak_gt = (np.clip(_node_peak_gt(rects_mm, side_mm, 64, t_raw), TEMP_MIN, TEMP_MAX)
-                    - TEMP_MIN) / (TEMP_MAX - TEMP_MIN)
-    graph.node_peak = torch.from_numpy(node_peak_gt.astype(np.float32))
-    if hi != 64:
-        # 原生 64×64, 立方插值上采样到 hi (插值过原始采样点, 峰值精确保留)
-        t_raw = _scipy_zoom(t_raw.astype(np.float64), hi / 64.0, order=3)
     t01 = dl.minmax_scale(t_raw, TEMP_MIN, TEMP_MAX)
     peak_raw = dl.read_scalar_csv(peak_csv)
     peak01 = np.asarray([(peak_raw - TEMP_MIN) / (TEMP_MAX - TEMP_MIN)], dtype=np.float32)
 
-    # 真实峰值位置 (温度场 argmax 的 hi 坐标 [row, col])
+    # 真实峰值位置 (温度场 argmax [row, col])
     pr, pc = np.unravel_index(int(np.argmax(t_raw)), t_raw.shape)
     peak_loc = np.array([pr, pc], dtype=np.int64)
 
@@ -813,19 +565,16 @@ def load_case(i, j, grid=64, hi_grid=None, dist_thr_mm=0.0):
 
 
 class GNNThermalDataset(Dataset):
-    def __init__(self, cases, grid=64, hi_grid=None, dist_thr_mm=0.0):
+    def __init__(self, cases, grid=64):
         self.cases = cases
         self.grid = grid
-        self.hi_grid = hi_grid if hi_grid else grid
-        self.dist_thr_mm = dist_thr_mm
 
     def __len__(self):
         return len(self.cases)
 
     def __getitem__(self, idx):
         i, j = self.cases[idx]
-        graph, temp_t, peak_t, peak_loc_t, field_t = load_case(
-            i, j, self.grid, self.hi_grid, self.dist_thr_mm)
+        graph, temp_t, peak_t, peak_loc_t, field_t = load_case(i, j, self.grid)
         return {"graph": graph, "temp": temp_t, "peak": peak_t,
                 "peak_loc": peak_loc_t, "field": field_t, "i": i, "j": j}
 
@@ -852,18 +601,18 @@ def evaluate(model, loader, device, temp_span, hotspot_thr=0.0):
     hot_sq, hot_n = 0.0, 0
     for batch in loader:
         b = to_device(batch, device)
-        out = model(b["x"], b["edge_index"], b["batch"], b["edge_attr"], b["field"])
-        diff = out["heatmap"] - b["temp"]
+        heatmap = model(b["x"], b["edge_index"], b["batch"], b["edge_attr"], b["field"])
+        diff = heatmap - b["temp"]
         hm_sq += float((diff ** 2).sum())
-        pred_max = out["heatmap"].amax(dim=(2, 3))
+        pred_max = heatmap.amax(dim=(2, 3))
         hmax_ae += float((pred_max - b["peak"]).abs().sum())
         hmax_se += float((pred_max - b["peak"]).sum())
         n += b["temp"].numel()
         ncase += b["peak"].numel()
         if hotspot_thr > 0.0:
             mask = (b["field"][:, 0:1] > hotspot_thr).float()  # 功率密度 > 阈值 的热点像素
-            if mask.size(2) != out["heatmap"].size(2) or mask.size(3) != out["heatmap"].size(3):
-                mask = F.interpolate(mask, size=out["heatmap"].shape[2:], mode="nearest")
+            if mask.size(2) != heatmap.size(2) or mask.size(3) != heatmap.size(3):
+                mask = F.interpolate(mask, size=heatmap.shape[2:], mode="nearest")
             hot_sq += float((diff ** 2 * mask).sum())
             hot_n += int(mask.sum())
     hm_rmse_c = (hm_sq / n) ** 0.5 * temp_span
@@ -904,39 +653,25 @@ def main():
     ap.add_argument("--heads", type=int, default=4)
     ap.add_argument("--num_layers", type=int, default=3)
     ap.add_argument("--grid", type=int, default=64)
-    ap.add_argument("--hi_grid", type=int, default=None,
-                    help="峰值高分辨率分支输出分辨率 (默认同 grid; 128/256 让尖峰不被抹平)")
-    ap.add_argument("--peak_branch", action="store_true",
-                    help="峰值专属高分辨率残差分支 (小网络专门修峰值)")
-    ap.add_argument("--peak_branch_ch", type=int, default=16)
-    ap.add_argument("--peak_branch_blocks", type=int, default=2)
-    ap.add_argument("--attn_pool", action="store_true",
-                    help="图全局池化用注意力加权 mean (取代朴素 mean)")
-    ap.add_argument("--stage_film", action="store_true",
-                    help="逐 stage FiLM (默认关, 4-epoch 实测会伤 RMSE)")
-    ap.add_argument("--learnable_alpha", action="store_true",
-                    help="ExchangeUnit 跨尺度项可学习缩放系数 (默认关=固定 1.0 等权)")
-    ap.add_argument("--alpha_init", type=float, default=1.0,
-                    help="可学习缩放系数的初始值 (仅 --learnable_alpha 时生效)")
     ap.add_argument("--base", type=int, default=64)
     ap.add_argument("--stages", type=int, default=4)
     ap.add_argument("--blocks_per_stage", type=int, default=2)
     ap.add_argument("--expand_ratio", type=int, default=2)
-    ap.add_argument("--grad_w", type=float, default=0.1)
-    ap.add_argument("--laplace_w", type=float, default=0.0, help="二阶曲率(拉普拉斯)监督权重")
-    ap.add_argument("--peak_w", type=float, default=0.0, help="单点峰值监督权重 (实测会伤 RMSE, 不推荐)")
-    ap.add_argument("--peak_window_w", type=float, default=0.0, help="峰值 3x3 邻域监督权重 (推荐替代单点 peak_w)")
-    ap.add_argument("--node_peak_w", type=float, default=0.0, help="GNN 节点峰值 head 监督权重 (需接入 PeakHead)")
-    ap.add_argument("--power_weight_w", type=float, default=0.0,
-                    help="按功率密度加权 MSE 的权重 (热点区域放大)")
-    ap.add_argument("--focal_gamma", type=float, default=0.0, help="focal-MSE 的 gamma (0=关)")
+    ap.add_argument("--grad_w", type=float, default=0.15,
+                    help="梯度差损失权重 (q_l1_pwin 默认 0.15)")
+    ap.add_argument("--laplace_w", type=float, default=0.2,
+                    help="二阶曲率(拉普拉斯)损失权重 (q_l1_pwin 默认 0.2)")
+    ap.add_argument("--peak_window_w", type=float, default=0.4,
+                    help="峰值 3x3 邻域监督权重 (q_l1_pwin 默认 0.4)")
     ap.add_argument("--hotspot_thr", type=float, default=0.05,
                     help="hotspot RMSE 的归一化功率密度阈值 (ch0, 原始 W/mm2 = x10)")
-    ap.add_argument("--edge_dist_thr", type=float, default=0.0,
-                    help="图边中心距阈值(mm), >0 稀疏化, 0=全连接 (推荐 2.5)")
     ap.add_argument("--device", type=str, default="cuda")
     ap.add_argument("--out_dir", type=str, default="")
     ap.add_argument("--amp", action="store_true", help="混合精度 (bf16 autocast) 加速训练")
+    ap.add_argument("--eval_ckpt", type=str, default="",
+                    help="评估模式: 加载该 checkpoint 评估后退出 (不训练)")
+    ap.add_argument("--eval_split", type=str, default="val", choices=["val", "test"],
+                    help="评估模式用的数据划分 (默认 val)")
     args = ap.parse_args()
 
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
@@ -944,35 +679,47 @@ def main():
     temp_span = TEMP_MAX - TEMP_MIN
 
     all_cases = dl.list_cases(os.path.join(DATA_ROOT, "power_map"))
-    train_cases, val_cases, _ = dl.split_cases_by_i(all_cases, seed=args.seed)
+    train_cases, val_cases, test_cases = dl.split_cases_by_i(all_cases, seed=args.seed)
     train_cases = train_cases[:args.num_train]
     val_cases = val_cases[:args.num_val]
 
-    train_ds = GNNThermalDataset(train_cases, grid=args.grid, hi_grid=args.hi_grid,
-                                 dist_thr_mm=args.edge_dist_thr)
-    val_ds = GNNThermalDataset(val_cases, grid=args.grid, hi_grid=args.hi_grid,
-                               dist_thr_mm=args.edge_dist_thr)
+    model = GNNHRNetModel(node_dim=8, hidden=args.hidden, heads=args.heads,
+                          num_layers=args.num_layers, grid=args.grid,
+                          base=args.base, stages=args.stages,
+                          blocks_per_stage=args.blocks_per_stage,
+                          expand_ratio=args.expand_ratio).to(device)
+    nparams = sum(p.numel() for p in model.parameters())
+
+    # --- 评估模式: 加载 checkpoint 评估后退出 (不训练) ---
+    if args.eval_ckpt:
+        split_cases = test_cases if args.eval_split == "test" else val_cases
+        eval_ds = GNNThermalDataset(split_cases, grid=args.grid)
+        eval_loader = DataLoader(eval_ds, batch_size=args.batch_size, shuffle=False,
+                                 num_workers=args.num_workers, collate_fn=collate)
+        ck = torch.load(args.eval_ckpt, map_location=device)
+        # strict=False: 兼容清理前(checkpoint 含 peak_head/逐级 FiLM)与清理后的权重
+        missing, unexpected = model.load_state_dict(ck["model"], strict=False)
+        if missing:
+            print(f"[eval] missing keys ({len(missing)}), 示例: {missing[:3]}")
+        if unexpected:
+            print(f"[eval] unexpected keys ({len(unexpected)}), 示例: {unexpected[:3]}")
+        hm_rmse, hmax_mae, hmax_bias, hot_rmse = evaluate(model, eval_loader, device, temp_span,
+                                                          hotspot_thr=args.hotspot_thr)
+        print(f"[eval {args.eval_split}] cases={len(split_cases)} "
+              f"hm_rmse={hm_rmse:.3f}C  peak_mae={hmax_mae:.3f}C  "
+              f"peak_bias={hmax_bias:+.3f}C  hotspot_rmse={hot_rmse:.3f}C  "
+              f"(ckpt_epoch={ck.get('epoch')} best_rmse={ck.get('best_rmse')})")
+        return
+
+    train_ds = GNNThermalDataset(train_cases, grid=args.grid)
+    val_ds = GNNThermalDataset(val_cases, grid=args.grid)
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True,
                               num_workers=args.num_workers, collate_fn=collate)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False,
                             num_workers=args.num_workers, collate_fn=collate)
 
-    model = GNNHRNetModel(node_dim=8, hidden=args.hidden, heads=args.heads,
-                          num_layers=args.num_layers, grid=args.grid, hi_grid=args.hi_grid,
-                          base=args.base, stages=args.stages,
-                          blocks_per_stage=args.blocks_per_stage,
-                          expand_ratio=args.expand_ratio,
-                          peak_branch=args.peak_branch,
-                          peak_branch_ch=args.peak_branch_ch,
-                          peak_branch_blocks=args.peak_branch_blocks,
-                          attn_pool=args.attn_pool,
-                          stage_film=args.stage_film,
-                          alpha_init=args.alpha_init,
-                          learnable_alpha=args.learnable_alpha).to(device)
-    nparams = sum(p.numel() for p in model.parameters())
     print(f"[setup] train={len(train_cases)} val={len(val_cases)} "
-          f"params={nparams/1e6:.2f}M device={device} "
-          f"grid={args.grid} hi_grid={model.hi_grid} peak_branch={args.peak_branch}")
+          f"params={nparams/1e6:.2f}M device={device} grid={args.grid}")
 
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=args.epochs)
@@ -984,6 +731,12 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
     best_rmse = float("inf")
 
+    def run_batch(b):
+        pred = model(b["x"], b["edge_index"], b["batch"], b["edge_attr"], b["field"])
+        return gnn_thermal_loss(pred, b["temp"], b["peak_loc"],
+                                grad_w=args.grad_w, laplace_w=args.laplace_w,
+                                peak_window_w=args.peak_window_w)
+
     for ep in range(1, args.epochs + 1):
         model.train()
         t0 = time.time()
@@ -992,23 +745,9 @@ def main():
             b = to_device(batch, device)
             if use_amp:
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
-                    out = model(b["x"], b["edge_index"], b["batch"], b["edge_attr"], b["field"])
-                    loss, info = gnn_thermal_loss(
-                        out, b["temp"], b["peak"], grad_w=args.grad_w, peak_w=args.peak_w,
-                        peak_loc=b["peak_loc"], laplace_w=args.laplace_w,
-                        peak_window_w=args.peak_window_w, node_peak_w=args.node_peak_w,
-                        node_peak_gt=b.get("node_peak"),
-                        power_weight_w=args.power_weight_w, raster=b["field"],
-                        focal_gamma=args.focal_gamma)
+                    loss, info = run_batch(b)
             else:
-                out = model(b["x"], b["edge_index"], b["batch"], b["edge_attr"], b["field"])
-                loss, info = gnn_thermal_loss(
-                    out, b["temp"], b["peak"], grad_w=args.grad_w, peak_w=args.peak_w,
-                    peak_loc=b["peak_loc"], laplace_w=args.laplace_w,
-                    peak_window_w=args.peak_window_w, node_peak_w=args.node_peak_w,
-                    node_peak_gt=b.get("node_peak"),
-                    power_weight_w=args.power_weight_w, raster=b["field"],
-                    focal_gamma=args.focal_gamma)
+                loss, info = run_batch(b)
             opt.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
