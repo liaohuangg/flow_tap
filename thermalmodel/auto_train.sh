@@ -18,7 +18,7 @@ EPOCHS="${1:-200}"
 
 $PY -u gnnhrnet.py \
   --epochs "$EPOCHS" \
-  --batch_size 64 \
+  --batch_size 32 \
   --lr 2e-4 \
   --weight_decay 1e-4 \
   --grad_clip 1.0 \

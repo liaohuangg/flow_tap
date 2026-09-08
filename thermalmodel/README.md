@@ -186,7 +186,7 @@ loss = 1.0·MSE(heatmap)              # 全局热图均方误差
 | 类别 | 参数 | 值 |
 |---|---|---|
 | 训练量 | epochs | 200 |
-| 批量 | batch_size | 64 |
+| 批量 | batch_size | 32 |
 | 优化器 | optimizer / lr / weight_decay | AdamW / 2e-4 / 1e-4 |
 | 梯度 | grad_clip | 1.0 (max_norm) |
 | 学习率 | scheduler | CosineAnnealingLR(T_max=epochs),衰减到 0 |
