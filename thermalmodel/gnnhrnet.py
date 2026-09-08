@@ -410,34 +410,82 @@ def _laplacian_loss(pred, target):
     return torch.mean(torch.abs(lp - lt))
 
 
-def gnn_thermal_loss(out, target_heatmap, target_peak, *, heatmap_w=1.0, grad_w=0.1,
-                     peak_w=1.0, peak_loc=None, laplace_w=0.0):
-    """热图损失: MSE + 梯度差 + 二阶曲率 + 峰值位置监督。
+def _peak_window_loss(pred, target, peak_loc, window=1):
+    """峰值邻域损失: 对真实峰值位置周围 (2*window+1)² 窗口做 MSE, 而非单点。
 
-    峰值位置监督: 只在「真实峰值所在单元」监督热图值逼近真实峰值温度。
-    位置用 argmax 的真实坐标 (不是预测 argmax, 避免漂移), 只动一个单元。
-    二阶曲率 (laplace_w): 匹配拉普拉斯, 锐化峰值且约束平滑, 不单格加权。
+    真实仿真热点往往占 2~3 格, 单点监督容易震荡; 对整个小窗口监督更稳,
+    显著缓解打开 peak_w 后整体 RMSE 恶化的现象。
     """
-    hm = F.mse_loss(out["heatmap"], target_heatmap)
-    grad = _spatial_gradient_loss(out["heatmap"], target_heatmap)
-    loss = heatmap_w * hm + grad_w * grad
-    info = {"hm": float(hm.detach()), "grad": float(grad.detach()),
-            "loss": float(loss.detach())}
+    B = pred.size(0)
+    H, W = pred.size(2), pred.size(3)
+    total = 0.0
+    for b_idx in range(B):
+        r = int(peak_loc[b_idx, 0])
+        c = int(peak_loc[b_idx, 1])
+        r0, r1 = max(0, r - window), min(H, r + window + 1)
+        c0, c1 = max(0, c - window), min(W, c + window + 1)
+        total = total + F.mse_loss(pred[b_idx, 0, r0:r1, c0:c1],
+                                   target[b_idx, 0, r0:r1, c0:c1])
+    return total / B
 
-    if laplace_w > 0:
-        lap = _laplacian_loss(out["heatmap"], target_heatmap)
+
+def gnn_thermal_loss(out, target_heatmap, target_peak, *, heatmap_w=1.0, grad_w=0.1,
+                     peak_w=0.0, peak_loc=None, laplace_w=0.0, peak_window_w=0.0,
+                     node_peak_w=0.0, power_weight_w=0.0, raster=None, focal_gamma=0.0):
+    """热图损失: (可选加权/focal) MSE + 梯度差 + 二阶曲率 + 峰值邻域监督 + 节点峰值监督。
+
+    - power_weight_w: 按功率密度加权 MSE (raster 第0通道), 热点区域权重 1~1+power_weight_w 倍。
+    - peak_window_w: 峰值 (2*window+1)² 邻域 MSE (推荐, 替代单点 peak_w)。
+    - focal_gamma: focal-MSE, w=(1-exp(-sq))^gamma, 对大误差像素加大权重。
+    - node_peak_w: GNN 节点峰值 head 监督 (需 out["node_peak"] / out["node_peak_gt"])。
+    """
+    pred = out["heatmap"]
+    sq = (pred - target_heatmap) ** 2
+
+    if focal_gamma > 0.0:
+        w = (1.0 - torch.exp(-sq)) ** focal_gamma
+        hm = (w * sq).mean()
+    elif power_weight_w > 0.0 and raster is not None:
+        wmap = 1.0 + power_weight_w * raster[:, 0:1, :, :]
+        if wmap.size(2) != pred.size(2) or wmap.size(3) != pred.size(3):
+            wmap = F.interpolate(wmap, size=pred.shape[2:], mode="bilinear",
+                                 align_corners=False)
+        hm = (wmap * sq).mean()
+    else:
+        hm = sq.mean()
+
+    loss = heatmap_w * hm
+    info = {"hm": float(hm.detach()), "loss": float(loss.detach())}
+
+    if grad_w > 0.0:
+        grad = _spatial_gradient_loss(pred, target_heatmap)
+        loss = loss + grad_w * grad
+        info["grad"] = float(grad.detach())
+
+    if laplace_w > 0.0:
+        lap = _laplacian_loss(pred, target_heatmap)
         loss = loss + laplace_w * lap
         info["lap"] = float(lap.detach())
-        info["loss"] = float(loss.detach())
 
-    if peak_w > 0 and peak_loc is not None:
-        B = out["heatmap"].size(0)
-        hm_peak = out["heatmap"][torch.arange(B, device=out["heatmap"].device), 0,
-                                 peak_loc[:, 0], peak_loc[:, 1]].view(B, 1)
+    if peak_window_w > 0.0 and peak_loc is not None:
+        pw = _peak_window_loss(pred, target_heatmap, peak_loc)
+        loss = loss + peak_window_w * pw
+        info["peak_win"] = float(pw.detach())
+
+    if peak_w > 0.0 and peak_loc is not None:
+        B = pred.size(0)
+        hm_peak = pred[torch.arange(B, device=pred.device), 0,
+                       peak_loc[:, 0], peak_loc[:, 1]].view(B, 1)
         pl = F.mse_loss(hm_peak, target_peak)
         loss = loss + peak_w * pl
         info["peak"] = float(pl.detach())
-        info["loss"] = float(loss.detach())
+
+    if node_peak_w > 0.0 and out.get("node_peak") is not None and out.get("node_peak_gt") is not None:
+        npl = F.mse_loss(out["node_peak"], out["node_peak_gt"])
+        loss = loss + node_peak_w * npl
+        info["node_peak"] = float(npl.detach())
+
+    info["loss"] = float(loss.detach())
     return loss, info
 
 
@@ -675,22 +723,31 @@ def to_device(d, device):
 
 
 @torch.no_grad()
-def evaluate(model, loader, device, temp_span):
+def evaluate(model, loader, device, temp_span, hotspot_thr=0.0):
     model.eval()
     hm_sq, hmax_ae, hmax_se, n, ncase = 0.0, 0.0, 0.0, 0, 0
+    hot_sq, hot_n = 0.0, 0
     for batch in loader:
         b = to_device(batch, device)
         out = model(b["x"], b["edge_index"], b["batch"], b["edge_attr"], b["field"])
-        hm_sq += float(((out["heatmap"] - b["temp"]) ** 2).sum())
+        diff = out["heatmap"] - b["temp"]
+        hm_sq += float((diff ** 2).sum())
         pred_max = out["heatmap"].amax(dim=(2, 3))
         hmax_ae += float((pred_max - b["peak"]).abs().sum())
         hmax_se += float((pred_max - b["peak"]).sum())
         n += b["temp"].numel()
         ncase += b["peak"].numel()
+        if hotspot_thr > 0.0:
+            mask = (b["field"][:, 0:1] > hotspot_thr).float()  # 功率密度 > 阈值 的热点像素
+            if mask.size(2) != out["heatmap"].size(2) or mask.size(3) != out["heatmap"].size(3):
+                mask = F.interpolate(mask, size=out["heatmap"].shape[2:], mode="nearest")
+            hot_sq += float((diff ** 2 * mask).sum())
+            hot_n += int(mask.sum())
     hm_rmse_c = (hm_sq / n) ** 0.5 * temp_span
     hmax_mae_c = hmax_ae / max(ncase, 1) * temp_span
     hmax_bias_c = hmax_se / max(ncase, 1) * temp_span
-    return hm_rmse_c, hmax_mae_c, hmax_bias_c
+    hot_rmse_c = (hot_sq / max(hot_n, 1)) ** 0.5 * temp_span if hotspot_thr > 0.0 else 0.0
+    return hm_rmse_c, hmax_mae_c, hmax_bias_c, hot_rmse_c
 
 
 def benchmark_speed(model, loader, device, iters=50):
@@ -736,7 +793,14 @@ def main():
     ap.add_argument("--expand_ratio", type=int, default=2)
     ap.add_argument("--grad_w", type=float, default=0.1)
     ap.add_argument("--laplace_w", type=float, default=0.0, help="二阶曲率(拉普拉斯)监督权重")
-    ap.add_argument("--peak_w", type=float, default=0.0, help="峰值位置监督权重 (实测会伤 RMSE, 默认关)")
+    ap.add_argument("--peak_w", type=float, default=0.0, help="单点峰值监督权重 (实测会伤 RMSE, 不推荐)")
+    ap.add_argument("--peak_window_w", type=float, default=0.0, help="峰值 3x3 邻域监督权重 (推荐替代单点 peak_w)")
+    ap.add_argument("--node_peak_w", type=float, default=0.0, help="GNN 节点峰值 head 监督权重 (需接入 PeakHead)")
+    ap.add_argument("--power_weight_w", type=float, default=0.0,
+                    help="按功率密度加权 MSE 的权重 (热点区域放大)")
+    ap.add_argument("--focal_gamma", type=float, default=0.0, help="focal-MSE 的 gamma (0=关)")
+    ap.add_argument("--hotspot_thr", type=float, default=0.05,
+                    help="hotspot RMSE 的归一化功率密度阈值 (ch0, 原始 W/mm2 = x10)")
     ap.add_argument("--device", type=str, default="cuda")
     ap.add_argument("--out_dir", type=str, default="")
     ap.add_argument("--amp", action="store_true", help="混合精度 (bf16 autocast) 加速训练")
@@ -792,12 +856,18 @@ def main():
                     out = model(b["x"], b["edge_index"], b["batch"], b["edge_attr"], b["field"])
                     loss, info = gnn_thermal_loss(
                         out, b["temp"], b["peak"], grad_w=args.grad_w, peak_w=args.peak_w,
-                        peak_loc=b["peak_loc"], laplace_w=args.laplace_w)
+                        peak_loc=b["peak_loc"], laplace_w=args.laplace_w,
+                        peak_window_w=args.peak_window_w, node_peak_w=args.node_peak_w,
+                        power_weight_w=args.power_weight_w, raster=b["field"],
+                        focal_gamma=args.focal_gamma)
             else:
                 out = model(b["x"], b["edge_index"], b["batch"], b["edge_attr"], b["field"])
                 loss, info = gnn_thermal_loss(
                     out, b["temp"], b["peak"], grad_w=args.grad_w, peak_w=args.peak_w,
-                    peak_loc=b["peak_loc"], laplace_w=args.laplace_w)
+                    peak_loc=b["peak_loc"], laplace_w=args.laplace_w,
+                    peak_window_w=args.peak_window_w, node_peak_w=args.node_peak_w,
+                    power_weight_w=args.power_weight_w, raster=b["field"],
+                    focal_gamma=args.focal_gamma)
             opt.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -805,12 +875,14 @@ def main():
             tot_loss += info["loss"]
             steps += 1
         sched.step()
-        hm_rmse, hmax_mae, hmax_bias = evaluate(model, val_loader, device, temp_span)
+        hm_rmse, hmax_mae, hmax_bias, hot_rmse = evaluate(model, val_loader, device, temp_span,
+                                                          hotspot_thr=args.hotspot_thr)
         dt = time.time() - t0
         lr_now = opt.param_groups[0]["lr"]
         print(f"[epoch {ep}/{args.epochs}] loss={tot_loss/max(steps,1):.5f} "
               f"val_hm_rmse={hm_rmse:.3f}C  val_peak_mae={hmax_mae:.3f}C  "
-              f"val_peak_bias={hmax_bias:+.3f}C  lr={lr_now:.2e}  ({dt:.1f}s)")
+              f"val_peak_bias={hmax_bias:+.3f}C  val_hotspot_rmse={hot_rmse:.3f}C  "
+              f"lr={lr_now:.2e}  ({dt:.1f}s)")
 
         if hm_rmse < best_rmse:
             best_rmse = hm_rmse
