@@ -515,8 +515,8 @@ def main_train(args) -> None:
     device = _device()
 
     dataset_all = ThermalDataset(
-        thermal_map_rel="Dataset/dataset/thermal_dataset_64",
-        hotspot_cfg_rel="Dataset/dataset/thermal_dataset_64/config",
+        thermal_map_rel="Dataset/dataset/output/thermal/thermal_map",
+        hotspot_cfg_rel="Dataset/dataset/output/thermal/hotspot_config",
         power_grid_size=128,
         temp_grid_size=64,
     )
@@ -532,16 +532,16 @@ def main_train(args) -> None:
     train_stats = compute_minmax(dataset_all.data_root, grid_size=dataset_all.temp_grid_size, cases=train_cases)
 
     train_set = ThermalDataset(
-        thermal_map_rel="Dataset/dataset/thermal_dataset_64",
-        hotspot_cfg_rel="Dataset/dataset/thermal_dataset_64/config",
+        thermal_map_rel="Dataset/dataset/output/thermal/thermal_map",
+        hotspot_cfg_rel="Dataset/dataset/output/thermal/hotspot_config",
         power_grid_size=128,
         temp_grid_size=64,
         stats=train_stats,
         cases=train_cases,
     )
     val_set = ThermalDataset(
-        thermal_map_rel="Dataset/dataset/thermal_dataset_64",
-        hotspot_cfg_rel="Dataset/dataset/thermal_dataset_64/config",
+        thermal_map_rel="Dataset/dataset/output/thermal/thermal_map",
+        hotspot_cfg_rel="Dataset/dataset/output/thermal/hotspot_config",
         power_grid_size=128,
         temp_grid_size=64,
         stats=train_stats,
@@ -817,8 +817,8 @@ def main_test(args) -> None:
     device = _device()
 
     dataset_all = ThermalDataset(
-        thermal_map_rel="Dataset/dataset/thermal_dataset_64",
-        hotspot_cfg_rel="Dataset/dataset/thermal_dataset_64/config",
+        thermal_map_rel="Dataset/dataset/output/thermal/thermal_map",
+        hotspot_cfg_rel="Dataset/dataset/output/thermal/hotspot_config",
         power_grid_size=128,
         temp_grid_size=64,
     )
@@ -839,8 +839,8 @@ def main_test(args) -> None:
         eval_cases = eval_cases[: int(args.limit_test)]
 
     eval_set = ThermalDataset(
-        thermal_map_rel="Dataset/dataset/thermal_dataset_64",
-        hotspot_cfg_rel="Dataset/dataset/thermal_dataset_64/config",
+        thermal_map_rel="Dataset/dataset/output/thermal/thermal_map",
+        hotspot_cfg_rel="Dataset/dataset/output/thermal/hotspot_config",
         power_grid_size=128,
         temp_grid_size=64,
         stats=train_stats,
@@ -906,7 +906,7 @@ def main_test(args) -> None:
 
         flp = os.path.join(
             _PROJECT_ROOT,
-            "Dataset/dataset/thermal_dataset_64/config",
+            "Dataset/dataset/output/thermal/hotspot_config",
             f"system_{i}_config",
             "system.flp",
         )

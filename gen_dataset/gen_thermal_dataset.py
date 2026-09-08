@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-为 placement_dataset/placement_dataset_tw (body 坐标 + 每个 chiplet 的 hubump 字段) 生成 128×128 热仿真数据集,
-每个布局一份 (原功耗, 不再生成重随机功耗变体 j=1)。hubump 直接从 body 记录读取, 不重新计算。
+为 placement_dataset/placement_dataset_tw (body 坐标 + 每个 chiplet 的 hubump 字段) 生成热仿真数据集,
+每个布局两份: j=0 原功耗, j=1 随机重采样功耗 (每个 chiplet 独立均匀 U[1,200] W, 按布局 i 确定性 seed)。
+hubump 直接从 body 记录读取, 不重新计算。
 
 热模型参照 resultEval/run_hotspot.py: 6 层 TAP-2.5D 堆叠, -detailed_3D on, grid 128×128。
 HotSpot 二进制用 resultEval/util/hotspot (扁平单层 128×128 grid_steady = 芯片层 Layer 4 热图)。
@@ -16,13 +17,15 @@ HotSpot 二进制用 resultEval/util/hotspot (扁平单层 128×128 grid_steady 
   avg_temp/     system_avgtemp_{i}_{j}.csv    标量(芯片层平均温, ℃)
 
 用法:
-  python gen_thermal_dataset.py --start 300001 --end 300010 --workers 4     # 小样本
-  python gen_thermal_dataset.py --start 300001 --end 320000 --workers 28    # 2w 布局, 每份单功耗
+  python gen_thermal_dataset.py --start 300001 --end 300010 --workers 4      # 小样本
+  python gen_thermal_dataset.py --start 300001 --end 340000 --workers 28 \
+      --grid 64 --thermal_dir thermal_dataset_64                             # 4w 布局, 每份 j=0/1 两功耗
 """
 from __future__ import annotations
 
 import argparse
 import json
+import random
 import re
 import subprocess
 import sys
@@ -51,7 +54,10 @@ import run_hotspot as rh  # noqa: E402
 HOTSPOT_DIR = PROJECT / "hotspot"
 rh.HOTSPOT_BIN = HOTSPOT_DIR / "hotspot"
 
-GRID = 128
+GRID = 128  # 温度 / HotSpot 网格 (temp)
+POWER_GRID = 128  # power_map / layout_mask 网格
+TEMP_ONLY = False  # 只生成温度(热仿真), 跳过 power/mask
+POWER_ONLY = False  # 只生成 power_map + layout_mask, 跳过温度
 KELVIN = 273.15
 CHUNK = 5000  # 每个 chiplet_dataset_{k}.json 含 5000 systems
 
@@ -64,10 +70,11 @@ AVGT_DIR = THERMAL / "avg_temp"
 MASK_DIR = THERMAL / "layout_mask"
 
 
-def _set_output_dirs(thermal_dir: str, grid: int) -> None:
-    """按 CLI 参数重定向输出根目录与网格尺寸(默认 thermal_dataset / 128)。"""
-    global CONFIG_DIR, POWER_DIR, TOTAL_DIR, MAXT_DIR, TEMP_DIR, AVGT_DIR, MASK_DIR, GRID
+def _set_output_dirs(thermal_dir: str, grid: int, power_grid: int) -> None:
+    """按 CLI 参数重定向输出根目录与网格尺寸 (temp=grid, power/mask=power_grid)。"""
+    global CONFIG_DIR, POWER_DIR, TOTAL_DIR, MAXT_DIR, TEMP_DIR, AVGT_DIR, MASK_DIR, GRID, POWER_GRID
     GRID = int(grid)
+    POWER_GRID = int(power_grid)
     root = DATASET / thermal_dir
     CONFIG_DIR = root / "config"
     POWER_DIR = root / "power_map"
@@ -107,9 +114,16 @@ def load_range(start_sys: int, end_sys: int) -> dict:
     return records
 
 
-def record_powers(record: dict) -> list[float]:
-    """返回该布局每个 chiplet 的原始功耗 (不再生成重随机功耗变体)。"""
-    return [float(c.get("power", 0.0)) for c in record["chiplets"]]
+def record_powers(record: dict, j: int = 0, seed: int = 0) -> list[float]:
+    """返回该布局每个 chiplet 的功耗。
+
+    j=0: 原始功耗 (placement 记录里存好的)。
+    j=1: 随机重采样功耗 (每个 chiplet 独立均匀 U[1,200] W, 按布局 i 确定性 seed)。
+    """
+    if j == 0:
+        return [float(c.get("power", 0.0)) for c in record["chiplets"]]
+    rng = random.Random(seed)
+    return [float(rng.randint(1, 200)) for _c in record["chiplets"]]
 
 
 # --------------------------------------------------------------------------- #
@@ -224,15 +238,31 @@ def _write_system_flp(path: Path, rects: list[tuple[float, float, float, float, 
 # --------------------------------------------------------------------------- #
 # 单个 (i, j) 的完整流程
 # --------------------------------------------------------------------------- #
+def _csv_rows(path: Path) -> int:
+    """返回文件行数 (无表头), 用于判断 power/mask 是否已是目标网格分辨率。"""
+    if not path.exists():
+        return 0
+    with open(path, "r", encoding="utf-8") as f:
+        return sum(1 for _ in f)
+
+
 def _run_one(i: int, j: int, record: dict, case_dir: Path, case: str) -> str:
     t_csv = TEMP_DIR / f"system_temp_{i}_{j}.csv"
     p_csv = POWER_DIR / f"system_power_{i}_{j}.csv"
-    if t_csv.exists() and p_csv.exists():
+    m_csv = MASK_DIR / f"system_mask_{i}.csv"
+
+    # 温度(热仿真) / power_map / mask 分别判 skip:
+    #   temp 存在就不重跑 HotSpot(昂贵); power/mask 需精确到 POWER_GRID 分辨率, 不对(旧 64)就重写。
+    #   TEMP_ONLY / POWER_ONLY 模式分别强制跳过 power/mask 或 temp。
+    temp_done = t_csv.exists() or POWER_ONLY
+    power_done = (_csv_rows(p_csv) == POWER_GRID * POWER_GRID) or TEMP_ONLY
+    mask_done = (j != 0) or (_csv_rows(m_csv) == POWER_GRID * POWER_GRID) or TEMP_ONLY
+    if temp_done and power_done and mask_done:
         return "skip"
 
-    # 1) 构造 Chiplet 列表 (原功耗)
+    # 1) 构造 Chiplet 列表 (功耗按 j 选择)
     # 记录里已是 body 坐标(预处理后), 并带每个 chiplet 的 hubump 字段。
-    powers = record_powers(record)
+    powers = record_powers(record, j=j, seed=i)
     chiplets = []
     for idx, c in enumerate(record["chiplets"]):
         name = str(c.get("name", f"C{idx}"))
@@ -257,60 +287,66 @@ def _run_one(i: int, j: int, record: dict, case_dir: Path, case: str) -> str:
     shift_x = (rh.GRANULARITY_MM / 2.0) - min_left + (slack_x - rh.GRANULARITY_MM) / 2.0
     shift_y = (rh.GRANULARITY_MM / 2.0) - min_bottom + (slack_y - rh.GRANULARITY_MM) / 2.0
 
-    rh._write_simple_layer(case_dir / f"{case}L0_Substrate.flp",
-                           "Floorplan for Substrate Layer with size " + str(intp_size_mm / 1000.0) + "x" + str(intp_size_mm / 1000.0) + " m",
-                           "Substrate", intp_size_mm / 1000.0)
-    rh._write_simple_layer(case_dir / f"{case}L1_C4Layer.flp", "Floorplan for C4 Layer ", "C4Layer",
-                           intp_size_mm / 1000.0, rh.MATERIALS["mat_c4"])
-    rh._write_simple_layer(case_dir / f"{case}L2_Interposer.flp", "Floorplan for Silicon Interposer Layer", "Interposer",
-                           intp_size_mm / 1000.0, rh.MATERIALS["mat_tsv"])
-    l3_filled, l4_filled, _ = rh._write_l3_l4_sim(case_dir, case, chiplets, hubumps, shift_x, shift_y, intp_size_mm)
-    rh._write_simple_layer(case_dir / f"{case}L5_TIM.flp", "Floorplan for TIM Layer ", "TIM", intp_size_mm / 1000.0)
-
+    # 几何文件 (L0~L5 flp / layers.lcf / new_hotspot.config) 与功耗无关, 每个布局只写一次;
+    # 已存在 (j=0 已生成) 时直接复用, 绝不覆盖之前热仿真的几何文件。
+    l4_filled = case_dir / f"{case}L4_ChipLayer.flp"
     layers_lcf = case_dir / f"{case}layers.lcf"
-    with layers_lcf.open("w", encoding="utf-8") as lcf:
-        lcf.write("# File Format:\n#<Layer Number>\n#<Lateral heat flow Y/N?>\n#<Power Dissipation Y/N?>\n"
-                  "#<Specific heat capacity in J/(m^3K)>\n#<Resistivity in (m-K)/W>\n#<Thickness in m>\n#<floorplan file>\n")
-        lcf.write("\n# Layer 0: substrate\n0\nY\nN\n1.06E+06\n3.33\n0.0002\n" + str(case_dir / f"{case}L0_Substrate.flp") + "\n")
-        lcf.write("\n# Layer 1: Epoxy SiO2 underfill with C4 copper pillar\n1\nY\nN\n2.32E+06\n0.625\n0.00007\n" + str(case_dir / f"{case}L1_C4Layer.flp") + "\n")
-        lcf.write("\n# Layer 2: silicon interposer\n2\nY\nN\n1.75E+06\n0.01\n0.00011\n" + str(case_dir / f"{case}L2_Interposer.flp") + "\n")
-        lcf.write("\n# Layer 3: Underfill with ubump\n3\nY\nN\n2.32E+06\n0.625\n1.00E-05\n" + str(l3_filled) + "\n")
-        lcf.write("\n# Layer 4: Chip layer\n4\nY\nY\n1.75E+06\n0.01\n0.00015\n" + str(l4_filled) + "\n")
-        lcf.write("\n# Layer 5: TIM\n5\nY\nN\n4.00E+06\n0.25\n2.00E-05\n" + str(case_dir / f"{case}L5_TIM.flp") + "\n")
-
     derived_cfg = case_dir / "new_hotspot.config"
-    rh._derive_hotspot_config(rh.HOTSPOT_TEMPLATE_CONFIG, derived_cfg, intp_size_mm, grid=GRID)
+    if not (l4_filled.exists() and layers_lcf.exists() and derived_cfg.exists()):
+        rh._write_simple_layer(case_dir / f"{case}L0_Substrate.flp",
+                               "Floorplan for Substrate Layer with size " + str(intp_size_mm / 1000.0) + "x" + str(intp_size_mm / 1000.0) + " m",
+                               "Substrate", intp_size_mm / 1000.0)
+        rh._write_simple_layer(case_dir / f"{case}L1_C4Layer.flp", "Floorplan for C4 Layer ", "C4Layer",
+                               intp_size_mm / 1000.0, rh.MATERIALS["mat_c4"])
+        rh._write_simple_layer(case_dir / f"{case}L2_Interposer.flp", "Floorplan for Silicon Interposer Layer", "Interposer",
+                               intp_size_mm / 1000.0, rh.MATERIALS["mat_tsv"])
+        l3_filled, l4_filled, _ = rh._write_l3_l4_sim(case_dir, case, chiplets, hubumps, shift_x, shift_y, intp_size_mm)
+        rh._write_simple_layer(case_dir / f"{case}L5_TIM.flp", "Floorplan for TIM Layer ", "TIM", intp_size_mm / 1000.0)
 
-    ptrace = case_dir / f"{case}_{j}.ptrace"
-    powers_by_name = {f"Chiplet_{k}": ch.power_w for k, ch in enumerate(chiplets)}
-    rh._write_ptrace_from_flp(l4_filled, ptrace, powers_by_name)
+        with layers_lcf.open("w", encoding="utf-8") as lcf:
+            lcf.write("# File Format:\n#<Layer Number>\n#<Lateral heat flow Y/N?>\n#<Power Dissipation Y/N?>\n"
+                      "#<Specific heat capacity in J/(m^3K)>\n#<Resistivity in (m-K)/W>\n#<Thickness in m>\n#<floorplan file>\n")
+            lcf.write("\n# Layer 0: substrate\n0\nY\nN\n1.06E+06\n3.33\n0.0002\n" + str(case_dir / f"{case}L0_Substrate.flp") + "\n")
+            lcf.write("\n# Layer 1: Epoxy SiO2 underfill with C4 copper pillar\n1\nY\nN\n2.32E+06\n0.625\n0.00007\n" + str(case_dir / f"{case}L1_C4Layer.flp") + "\n")
+            lcf.write("\n# Layer 2: silicon interposer\n2\nY\nN\n1.75E+06\n0.01\n0.00011\n" + str(case_dir / f"{case}L2_Interposer.flp") + "\n")
+            lcf.write("\n# Layer 3: Underfill with ubump\n3\nY\nN\n2.32E+06\n0.625\n1.00E-05\n" + str(l3_filled) + "\n")
+            lcf.write("\n# Layer 4: Chip layer\n4\nY\nY\n1.75E+06\n0.01\n0.00015\n" + str(l4_filled) + "\n")
+            lcf.write("\n# Layer 5: TIM\n5\nY\nN\n4.00E+06\n0.25\n2.00E-05\n" + str(case_dir / f"{case}L5_TIM.flp") + "\n")
 
-    # 3) 跑 HotSpot
-    steady = case_dir / f"{case}_{j}.steady"
-    grid_steady = case_dir / f"{case}_{j}.grid.steady"
-    rc, stdout, stderr = rh._run_hotspot(rh.HOTSPOT_BIN, derived_cfg, l4_filled, ptrace, steady, grid_steady, layers_lcf, "grid")
-    if rc != 0:
-        raise RuntimeError(f"hotspot rc={rc}\nSTDERR:\n{stderr[:800]}")
+        rh._derive_hotspot_config(rh.HOTSPOT_TEMPLATE_CONFIG, derived_cfg, intp_size_mm, grid=GRID)
 
-    # 4) 提取温度 (芯片层 128×128, 开尔文 -> 摄氏度)
-    temp_K = _read_grid_steady(grid_steady)
-    temp_C = temp_K - KELVIN
-    _write_index_value_csv(TEMP_DIR / f"system_temp_{i}_{j}.csv", temp_C)
-    _write_scalar_csv(MAXT_DIR / f"system_maxtemp_{i}_{j}.csv", float(temp_C.max()))
-    _write_scalar_csv(AVGT_DIR / f"system_avgtemp_{i}_{j}.csv", float(temp_C.mean()))
+    # 3) 温度 (热仿真) —— 已存在则跳过, 不重跑 HotSpot
+    if not temp_done:
+        ptrace = case_dir / f"{case}_{j}.ptrace"
+        powers_by_name = {f"Chiplet_{k}": ch.power_w for k, ch in enumerate(chiplets)}
+        rh._write_ptrace_from_flp(l4_filled, ptrace, powers_by_name)
 
-    # 5) 功耗图 (128×128, 覆盖 interposer 方形)
+        steady = case_dir / f"{case}_{j}.steady"
+        grid_steady = case_dir / f"{case}_{j}.grid.steady"
+        rc, stdout, stderr = rh._run_hotspot(rh.HOTSPOT_BIN, derived_cfg, l4_filled, ptrace, steady, grid_steady, layers_lcf, "grid")
+        if rc != 0:
+            raise RuntimeError(f"hotspot rc={rc}\nSTDERR:\n{stderr[:800]}")
+
+        # 提取温度 (摄氏度)
+        temp_K = _read_grid_steady(grid_steady)
+        temp_C = temp_K - KELVIN
+        _write_index_value_csv(TEMP_DIR / f"system_temp_{i}_{j}.csv", temp_C)
+        _write_scalar_csv(MAXT_DIR / f"system_maxtemp_{i}_{j}.csv", float(temp_C.max()))
+        _write_scalar_csv(AVGT_DIR / f"system_avgtemp_{i}_{j}.csv", float(temp_C.mean()))
+
+    # 4) power_map (POWER_GRID×POWER_GRID, 覆盖 interposer 方形) + 总功耗
     chiplet_rects_mm = [(c.x_mm + shift_x, c.y_mm + shift_y, c.w_mm, c.h_mm, c.power_w) for c in chiplets]
-    acc = _power_map_128(chiplet_rects_mm, intp_size_mm)
-    _write_index_value_csv(POWER_DIR / f"system_power_{i}_{j}.csv", acc)
+    if not power_done:
+        acc = _power_map_128(chiplet_rects_mm, intp_size_mm, grid=POWER_GRID)
+        _write_index_value_csv(p_csv, acc)
+    tp_csv = TOTAL_DIR / f"system_totalpower_{i}_{j}.csv"
+    if not tp_csv.exists():
+        _write_scalar_csv(tp_csv, float(sum(c.power_w for c in chiplets)))
 
-    # 6) 总功耗
-    _write_scalar_csv(TOTAL_DIR / f"system_totalpower_{i}_{j}.csv", float(sum(c.power_w for c in chiplets)))
-
-    # 7) system.flp + layout mask (布局占位, 仅 j=0 写一次; mask 与 power/temp 同 interposer 坐标系)
-    if j == 0:
+    # 5) system.flp + layout mask (布局占位, 仅 j=0 写一次; mask 到 POWER_GRID)
+    if j == 0 and not mask_done:
         _write_system_flp(case_dir / "system.flp", chiplet_rects_mm)
-        _write_index_value_csv(MASK_DIR / f"system_mask_{i}.csv", _layout_mask_128(chiplet_rects_mm, intp_size_mm))
+        _write_index_value_csv(m_csv, _layout_mask_128(chiplet_rects_mm, intp_size_mm, grid=POWER_GRID))
 
     return "ok"
 
@@ -322,7 +358,8 @@ def process_layout(args) -> tuple[int, str]:
     case_dir.mkdir(parents=True, exist_ok=True)
     try:
         r0 = _run_one(i, 0, record, case_dir, case)
-        return i, f"j0={r0}"
+        r1 = _run_one(i, 1, record, case_dir, case)
+        return i, f"j0={r0} j1={r1}"
     except Exception as e:  # noqa: BLE001
         return i, f"ERROR: {e}\n{traceback.format_exc(limit=2)}"
 
@@ -335,16 +372,28 @@ def main() -> None:
     ap.add_argument("--start", type=int, default=300001)
     ap.add_argument("--end", type=int, default=340000)
     ap.add_argument("--workers", type=int, default=28)
-    ap.add_argument("--grid", type=int, default=128, help="热仿真网格尺寸 (128 或 64)")
+    ap.add_argument("--grid", type=int, default=128, help="温度/HotSpot 网格尺寸")
+    ap.add_argument("--power_grid", type=int, default=None, help="power_map/layout_mask 网格尺寸 (默认同 --grid)")
+    ap.add_argument("--temp_only", action="store_true", help="只生成温度(热仿真), 跳过 power/mask")
+    ap.add_argument("--power_only", action="store_true", help="只生成 power_map + layout_mask, 跳过温度")
     ap.add_argument("--thermal_dir", type=str, default="thermal_dataset", help="输出根目录名 (相对于 Dataset/dataset)")
     args = ap.parse_args()
 
-    _set_output_dirs(args.thermal_dir, args.grid)
+    if args.temp_only and args.power_only:
+        ap.error("--temp_only 与 --power_only 不能同时使用")
+
+    global TEMP_ONLY, POWER_ONLY
+    TEMP_ONLY = args.temp_only
+    POWER_ONLY = args.power_only
+
+    power_grid = args.power_grid if args.power_grid is not None else args.grid
+    _set_output_dirs(args.thermal_dir, args.grid, power_grid)
 
     records = load_range(args.start, args.end)
     items = sorted(records.items())
-    print(f"[thermal] 读取布局 {args.start}..{args.end}: {len(items)} 个 (单功耗, 共 {len(items)} 份)", flush=True)
-    print(f"[thermal] 输出目录: {TEMP_DIR.parent} | 网格: {GRID}x{GRID}", flush=True)
+    print(f"[thermal] 读取布局 {args.start}..{args.end}: {len(items)} 个 (j=0/1 两功耗, 共 {len(items)*2} 份)", flush=True)
+    mode = "temp_only" if TEMP_ONLY else ("power_only" if POWER_ONLY else "full")
+    print(f"[thermal] 输出目录: {TEMP_DIR.parent} | mode={mode} | temp网格: {GRID}x{GRID} | power/mask网格: {POWER_GRID}x{POWER_GRID}", flush=True)
     if not items:
         print("[thermal] 无数据, 退出")
         return
@@ -361,7 +410,7 @@ def main() -> None:
             else:
                 print(f"[thermal] [{done}/{len(items)}] system_{i}: {msg}", flush=True)
 
-    print(f"[thermal] DONE: {len(items)} 布局({len(items)} 份) 用时 {time.time() - t0:.1f}s, 失败 {errs}", flush=True)
+    print(f"[thermal] DONE: {len(items)} 布局({len(items)*2} 份) 用时 {time.time() - t0:.1f}s, 失败 {errs}", flush=True)
 
 
 if __name__ == "__main__":
