@@ -101,10 +101,17 @@ class PeakHead(nn.Module):
             nn.Linear(hidden, hidden // 2), nn.ReLU(),
             nn.Linear(hidden // 2, 1),
         )
+        # 峰值位置回归分支: 每个 chiplet 体内热点坐标 (x,y) ∈ [-1,1]
+        self.node_pos = nn.Sequential(
+            nn.Linear(hidden, hidden), nn.ReLU(),
+            nn.Linear(hidden, hidden // 2), nn.ReLU(),
+            nn.Linear(hidden // 2, 2),
+        )
         self.pooling = pooling
 
     def forward(self, node_emb, batch, num_graphs):
         node_peak = self.node_peak(node_emb).squeeze(-1)  # [N]
+        node_pos = self.node_pos(node_emb)  # [N, 2]
         B = num_graphs
         maxv = torch.full((B,), float("-inf"), device=node_emb.device, dtype=node_peak.dtype)
         maxv.index_reduce_(0, batch, node_peak, "amax", include_self=False)
@@ -123,7 +130,7 @@ class PeakHead(nn.Module):
             denom.index_add_(0, batch, w)
             global_peak = torch.zeros(B, device=node_emb.device, dtype=node_peak.dtype)
             global_peak.index_add_(0, batch, (w / (denom + 1e-8)) * node_peak)
-        return global_peak.view(-1, 1), node_peak.view(-1, 1)
+        return global_peak.view(-1, 1), node_peak.view(-1, 1), node_pos
 
 
 class FiLM(nn.Module):
@@ -322,7 +329,6 @@ class GNNHRNetModel(nn.Module):
         self.grid = grid
         self.encoder = GNNEncoder(node_dim, hidden=hidden, heads=heads, num_layers=num_layers,
                                   edge_dim=edge_dim, dropout=dropout)
-        self.peak_head = PeakHead(hidden)
         self.field_head = HRNetFieldHead(in_channels=3, base=base, cond_dim=2 * hidden,
                                          stages=stages, blocks_per_stage=blocks_per_stage,
                                          expand_ratio=expand_ratio)
@@ -333,8 +339,7 @@ class GNNHRNetModel(nn.Module):
         global_cond = _global_pool(node_emb, batch, num_graphs)
 
         heatmap = self.field_head(field_raster, global_cond)
-        peak, node_peak = self.peak_head(node_emb, batch, num_graphs)
-        return {"heatmap": heatmap, "peak": peak, "node_peak": node_peak}
+        return {"heatmap": heatmap}
 
 
 # --------------------------------------------------------------------------- #
@@ -351,18 +356,46 @@ def _spatial_gradient_loss(pred, target):
     return torch.mean(torch.abs(px - gx) + torch.abs(py - gy))
 
 
+def _laplacian_loss(pred, target):
+    """二阶曲率损失: 匹配拉普拉斯 (∇²T)。
+
+    峰值处曲率大且为负, 匹配它 = 锐化峰值; 平滑区曲率小, 匹配它 = 约束平滑。
+    结构先验, 不针对单格加权。
+    """
+    k = torch.tensor([[0.0, 1.0, 0.0], [1.0, -4.0, 1.0], [0.0, 1.0, 0.0]],
+                     device=pred.device, dtype=pred.dtype).view(1, 1, 3, 3)
+    lp = F.conv2d(pred, k, padding=1)
+    lt = F.conv2d(target, k, padding=1)
+    return torch.mean(torch.abs(lp - lt))
+
+
 def gnn_thermal_loss(out, target_heatmap, target_peak, *, heatmap_w=1.0, grad_w=0.1,
-                     peak_w=1.0, node_peak_w=1.0, node_peak_gt=None):
+                     peak_w=1.0, peak_loc=None, laplace_w=0.0):
+    """热图损失: MSE + 梯度差 + 二阶曲率 + 峰值位置监督。
+
+    峰值位置监督: 只在「真实峰值所在单元」监督热图值逼近真实峰值温度。
+    位置用 argmax 的真实坐标 (不是预测 argmax, 避免漂移), 只动一个单元。
+    二阶曲率 (laplace_w): 匹配拉普拉斯, 锐化峰值且约束平滑, 不单格加权。
+    """
     hm = F.mse_loss(out["heatmap"], target_heatmap)
     grad = _spatial_gradient_loss(out["heatmap"], target_heatmap)
-    peak = F.mse_loss(out["peak"], target_peak)
-    loss = heatmap_w * hm + grad_w * grad + peak_w * peak
+    loss = heatmap_w * hm + grad_w * grad
     info = {"hm": float(hm.detach()), "grad": float(grad.detach()),
-            "peak": float(peak.detach()), "loss": float(loss.detach())}
-    if node_peak_w > 0 and node_peak_gt is not None:
-        npeak = F.mse_loss(out["node_peak"], node_peak_gt)
-        loss = loss + node_peak_w * npeak
-        info["node_peak"] = float(npeak.detach())
+            "loss": float(loss.detach())}
+
+    if laplace_w > 0:
+        lap = _laplacian_loss(out["heatmap"], target_heatmap)
+        loss = loss + laplace_w * lap
+        info["lap"] = float(lap.detach())
+        info["loss"] = float(loss.detach())
+
+    if peak_w > 0 and peak_loc is not None:
+        B = out["heatmap"].size(0)
+        hm_peak = out["heatmap"][torch.arange(B, device=out["heatmap"].device), 0,
+                                 peak_loc[:, 0], peak_loc[:, 1]].view(B, 1)
+        pl = F.mse_loss(hm_peak, target_peak)
+        loss = loss + peak_w * pl
+        info["peak"] = float(pl.detach())
         info["loss"] = float(loss.detach())
     return loss, info
 
@@ -552,19 +585,15 @@ def load_case(i, j, grid=64):
     peak_raw = dl.read_scalar_csv(peak_csv)
     peak01 = np.asarray([(peak_raw - TEMP_MIN) / (TEMP_MAX - TEMP_MIN)], dtype=np.float32)
 
-    cell = graph.cell_node.numpy()
-    n_nodes = graph.x.size(0)
-    node_peak_raw = np.zeros(n_nodes, dtype=np.float32)
-    for nid in range(n_nodes):
-        m = cell == nid
-        node_peak_raw[nid] = t_raw[m].max() if m.any() else t_raw.mean()
-    node_peak01 = (node_peak_raw - TEMP_MIN) / (TEMP_MAX - TEMP_MIN)
+    # 真实峰值位置 (温度场 argmax 的 grid 坐标 [row, col])
+    pr, pc = np.unravel_index(int(np.argmax(t_raw)), t_raw.shape)
+    peak_loc = np.array([pr, pc], dtype=np.int64)
 
     temp_t = torch.from_numpy(t01).unsqueeze(0)
     peak_t = torch.tensor(peak01, dtype=torch.float32).view(1)
-    node_peak_t = torch.from_numpy(node_peak01.astype(np.float32)).view(-1, 1)
+    peak_loc_t = torch.from_numpy(peak_loc)
     field_t = torch.from_numpy(field_raster)
-    return graph, temp_t, peak_t, node_peak_t, field_t
+    return graph, temp_t, peak_t, peak_loc_t, field_t
 
 
 class GNNThermalDataset(Dataset):
@@ -577,16 +606,16 @@ class GNNThermalDataset(Dataset):
 
     def __getitem__(self, idx):
         i, j = self.cases[idx]
-        graph, temp_t, peak_t, node_peak_t, field_t = load_case(i, j, self.grid)
+        graph, temp_t, peak_t, peak_loc_t, field_t = load_case(i, j, self.grid)
         return {"graph": graph, "temp": temp_t, "peak": peak_t,
-                "node_peak": node_peak_t, "field": field_t, "i": i, "j": j}
+                "peak_loc": peak_loc_t, "field": field_t, "i": i, "j": j}
 
 
 def collate(batch):
     out = collate_graphs([b["graph"] for b in batch])
     out["temp"] = torch.stack([b["temp"] for b in batch])
     out["peak"] = torch.stack([b["peak"] for b in batch])
-    out["node_peak"] = torch.cat([b["node_peak"] for b in batch], dim=0)
+    out["peak_loc"] = torch.stack([b["peak_loc"] for b in batch])
     out["field"] = torch.stack([b["field"] for b in batch])
     out["i"] = torch.tensor([b["i"] for b in batch], dtype=torch.long)
     out["j"] = torch.tensor([b["j"] for b in batch], dtype=torch.long)
@@ -600,19 +629,16 @@ def to_device(d, device):
 @torch.no_grad()
 def evaluate(model, loader, device, temp_span):
     model.eval()
-    hm_sq, peak_ae, npeak_ae, n, nnode = 0.0, 0.0, 0.0, 0, 0
+    hm_sq, hmax_ae, n = 0.0, 0.0, 0
     for batch in loader:
         b = to_device(batch, device)
         out = model(b["x"], b["edge_index"], b["batch"], b["edge_attr"], b["field"])
         hm_sq += float(((out["heatmap"] - b["temp"]) ** 2).sum())
-        peak_ae += float((out["peak"] - b["peak"]).abs().sum())
-        npeak_ae += float((out["node_peak"] - b["node_peak"]).abs().sum())
+        hmax_ae += float((out["heatmap"].amax(dim=(2, 3)) - b["peak"]).abs().sum())
         n += b["temp"].numel()
-        nnode += b["node_peak"].numel()
     hm_rmse_c = (hm_sq / n) ** 0.5 * temp_span
-    peak_mae_c = peak_ae / len(loader.dataset) * temp_span
-    npeak_mae_c = npeak_ae / max(nnode, 1) * temp_span
-    return hm_rmse_c, peak_mae_c, npeak_mae_c
+    hmax_mae_c = hmax_ae / len(loader.dataset) * temp_span
+    return hm_rmse_c, hmax_mae_c
 
 
 def benchmark_speed(model, loader, device, iters=50):
@@ -651,8 +677,8 @@ def main():
     ap.add_argument("--blocks_per_stage", type=int, default=2)
     ap.add_argument("--expand_ratio", type=int, default=2)
     ap.add_argument("--grad_w", type=float, default=0.1)
-    ap.add_argument("--peak_w", type=float, default=1.0)
-    ap.add_argument("--node_peak_w", type=float, default=1.0)
+    ap.add_argument("--laplace_w", type=float, default=0.0, help="二阶曲率(拉普拉斯)监督权重")
+    ap.add_argument("--peak_w", type=float, default=1.0, help="峰值位置监督权重 (真实峰值单元)")
     ap.add_argument("--device", type=str, default="cuda")
     ap.add_argument("--out_dir", type=str, default="")
     ap.add_argument("--amp", action="store_true", help="混合精度 (bf16 autocast) 加速训练")
@@ -701,16 +727,14 @@ def main():
             if use_amp:
                 with torch.autocast(device_type="cuda", dtype=torch.bfloat16):
                     out = model(b["x"], b["edge_index"], b["batch"], b["edge_attr"], b["field"])
-                    loss, info = gnn_thermal_loss(out, b["temp"], b["peak"],
-                                                  grad_w=args.grad_w, peak_w=args.peak_w,
-                                                  node_peak_w=args.node_peak_w,
-                                                  node_peak_gt=b["node_peak"])
+                    loss, info = gnn_thermal_loss(
+                        out, b["temp"], b["peak"], grad_w=args.grad_w, peak_w=args.peak_w,
+                        peak_loc=b["peak_loc"], laplace_w=args.laplace_w)
             else:
                 out = model(b["x"], b["edge_index"], b["batch"], b["edge_attr"], b["field"])
-                loss, info = gnn_thermal_loss(out, b["temp"], b["peak"],
-                                              grad_w=args.grad_w, peak_w=args.peak_w,
-                                              node_peak_w=args.node_peak_w,
-                                              node_peak_gt=b["node_peak"])
+                loss, info = gnn_thermal_loss(
+                    out, b["temp"], b["peak"], grad_w=args.grad_w, peak_w=args.peak_w,
+                    peak_loc=b["peak_loc"], laplace_w=args.laplace_w)
             opt.zero_grad()
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -718,12 +742,12 @@ def main():
             tot_loss += info["loss"]
             steps += 1
         sched.step()
-        hm_rmse, peak_mae, npeak_mae = evaluate(model, val_loader, device, temp_span)
+        hm_rmse, hmax_mae = evaluate(model, val_loader, device, temp_span)
         dt = time.time() - t0
         lr_now = opt.param_groups[0]["lr"]
         print(f"[epoch {ep}/{args.epochs}] loss={tot_loss/max(steps,1):.5f} "
-              f"val_hm_rmse={hm_rmse:.3f}C  val_peak_mae={peak_mae:.3f}C  "
-              f"val_node_peak_mae={npeak_mae:.3f}C  lr={lr_now:.2e}  ({dt:.1f}s)")
+              f"val_hm_rmse={hm_rmse:.3f}C  val_peak_max_mae={hmax_mae:.3f}C  "
+              f"lr={lr_now:.2e}  ({dt:.1f}s)")
 
         if hm_rmse < best_rmse:
             best_rmse = hm_rmse
