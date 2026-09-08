@@ -181,29 +181,29 @@ loss = 1.0·MSE(heatmap)              # 全局热图均方误差
 
 ## 六、训练配置
 
-训练入口 `./auto_train.sh`(默认 80 epochs),全部超参如下:
+训练入口 `./auto_train.sh`(默认 200 epochs),全部超参如下:
 
 | 类别 | 参数 | 值 |
 |---|---|---|
-| 训练量 | epochs | 80 |
+| 训练量 | epochs | 200 |
 | 批量 | batch_size | 64 |
-| 优化器 | optimizer / lr / weight_decay | AdamW / 5e-4 / 1e-4 |
+| 优化器 | optimizer / lr / weight_decay | AdamW / 2e-4 / 1e-4 |
 | 梯度 | grad_clip | 1.0 (max_norm) |
 | 学习率 | scheduler | CosineAnnealingLR(T_max=epochs),衰减到 0 |
 | 数据 | num_train / num_val | 64000 / 8000(总 80000,8:1:1 按布局 `i` 划分,seed=0) |
 | 并行 | num_workers | 28 |
 | GNN | hidden / heads / num_layers | 128 / 4 / 3(GATv2) |
-| 场头 | grid / base / stages / blocks_per_stage / expand_ratio | 64 / 64 / 4 / 2 / 2 |
+| 场头 | grid / base / stages / blocks_per_stage / expand_ratio | 64 / 96 / 4 / 2 / 2 |
 | 损失 | grad_w / laplace_w / peak_window_w | 0.15 / 0.2 / 0.4(q_l1_pwin) |
 | 评估 | hotspot_thr | 0.05 |
 | 保存 | save_every | 5(每 5 epoch 存 `checkpoint_epXXX.pth`) |
 
-- 参数量:**7.32M**;推理 ~1.83 ms/样本(batch 64,RTX 5090)
+- 参数量:**15.71M**(场头 base=96 比 base=64 更宽)
 - 保存:每 5 个 epoch 存 `checkpoints/gnnhrnet_pwin/checkpoint_ep{ep:03d}.pth`;
   val 热图 RMSE 更优时另存 `best.pth`
 
 训练 / 评估入口:
 ```bash
-./auto_train.sh                                     # 训练 80 epochs
+./auto_train.sh                                     # 训练 200 epochs
 ./auto_val.sh checkpoints/gnnhrnet_pwin/best.pth    # 在 val/test 上评估
 ```

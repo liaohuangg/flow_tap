@@ -5,21 +5,21 @@
 #       (全量 5-epoch val: rmse 0.658 / peak_mae 1.022 / peak_bias -0.169 / hotspot 1.486)
 #
 # 用法:
-#   ./auto_train.sh            # 完整训练 80 epochs
+#   ./auto_train.sh            # 完整训练 200 epochs
 #   ./auto_train.sh 5          # 快速试跑 5 epochs
 #
-# 说明: 调度器为 CosineAnnealingLR(T_max=epochs), 在 gnnhrnet.py 内写死;
-#       每 5 个 epoch 保存一次 checkpoint_epXXX.pth (--save_every 5)。
+# 说明: base=96 (场头更宽), lr=2e-4; 调度器 CosineAnnealingLR(T_max=epochs) 在
+#       gnnhrnet.py 内写死; 每 5 个 epoch 保存一次 checkpoint_epXXX.pth (--save_every 5)。
 set -u
 cd "$(dirname "$0")"
 PY=/root/anaconda3/envs/chipdiffusion/bin/python
 
-EPOCHS="${1:-80}"
+EPOCHS="${1:-200}"
 
 $PY -u gnnhrnet.py \
   --epochs "$EPOCHS" \
   --batch_size 64 \
-  --lr 5e-4 \
+  --lr 2e-4 \
   --weight_decay 1e-4 \
   --grad_clip 1.0 \
   --num_train 64000 \
@@ -30,7 +30,7 @@ $PY -u gnnhrnet.py \
   --heads 4 \
   --num_layers 3 \
   --grid 64 \
-  --base 64 \
+  --base 96 \
   --stages 4 \
   --blocks_per_stage 2 \
   --expand_ratio 2 \
