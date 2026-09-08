@@ -239,7 +239,7 @@ class HRBranch(nn.Module):
 class ExchangeUnit(nn.Module):
     """64/32/16 分支间的多尺度融合。"""
 
-    def __init__(self, c64, c32, c16, alpha_init=0.5):
+    def __init__(self, c64, c32, c16, alpha_init=1.0, learnable_alpha=False):
         super().__init__()
         self.up_32_to_64 = ConvGNAct(c32, c64, k=1, s=1, p=0)
         self.up_16_to_64 = ConvGNAct(c16, c64, k=1, s=1, p=0)
@@ -250,14 +250,12 @@ class ExchangeUnit(nn.Module):
             ConvGNAct(c64, c32, k=3, s=2, p=1),
             ConvGNAct(c32, c16, k=3, s=2, p=1),
         )
-        # 可学习缩放系数: 让网络自行决定每个跨尺度项的注入强度,
-        # 而非固定等权相加 (热点峰值主要走 64 分支, 过强的下采样注入会抹平它)
-        self.alpha_32to64 = nn.Parameter(torch.tensor(alpha_init))
-        self.alpha_16to64 = nn.Parameter(torch.tensor(alpha_init))
-        self.alpha_16to32 = nn.Parameter(torch.tensor(alpha_init))
-        self.alpha_64to32 = nn.Parameter(torch.tensor(alpha_init))
-        self.alpha_32to16 = nn.Parameter(torch.tensor(alpha_init))
-        self.alpha_64to16 = nn.Parameter(torch.tensor(alpha_init))
+        # 跨尺度项缩放系数: learnable_alpha=False 时固定 1.0 (等价原等权相加);
+        # True 时用可学习 nn.Parameter 让网络自行决定注入强度 (实测 4-epoch 会伤 RMSE)
+        names = ("alpha_32to64", "alpha_16to64", "alpha_16to32",
+                 "alpha_64to32", "alpha_32to16", "alpha_64to16")
+        for n in names:
+            setattr(self, n, nn.Parameter(torch.tensor(alpha_init)) if learnable_alpha else 1.0)
 
     def forward(self, x64, x32, x16):
         f64 = x64 \
@@ -286,7 +284,8 @@ class HRNetFieldHead(nn.Module):
     """
 
     def __init__(self, in_channels=3, base=64, cond_dim=256, stages=4,
-                 blocks_per_stage=2, expand_ratio=2, stage_film=True, alpha_init=0.5):
+                 blocks_per_stage=2, expand_ratio=2, stage_film=False,
+                 alpha_init=1.0, learnable_alpha=False):
         super().__init__()
         c64, c32, c16 = base, base * 2, base * 4
         self._c64, self._c32, self._c16 = c64, c32, c16
@@ -317,7 +316,8 @@ class HRNetFieldHead(nn.Module):
                 "film64": FiLM(cond_dim, c64),
                 "film32": FiLM(cond_dim, c32),
                 "film16": FiLM(cond_dim, c16),
-                "ex": ExchangeUnit(c64=c64, c32=c32, c16=c16, alpha_init=alpha_init),
+                "ex": ExchangeUnit(c64=c64, c32=c32, c16=c16,
+                                   alpha_init=alpha_init, learnable_alpha=learnable_alpha),
             }))
 
         # 头部融合: 上采样到 64×64 + concat 原始栅格作 hint
@@ -436,7 +436,7 @@ class GNNHRNetModel(nn.Module):
                  grid=64, hi_grid=None, base=64, stages=4, blocks_per_stage=2,
                  expand_ratio=2, dropout=0.1, peak_branch=False,
                  peak_branch_ch=16, peak_branch_blocks=2, attn_pool=False,
-                 stage_film=True, alpha_init=0.5):
+                 stage_film=False, alpha_init=1.0, learnable_alpha=False):
         super().__init__()
         self.grid = grid
         self.hi_grid = hi_grid if hi_grid else grid
@@ -445,7 +445,7 @@ class GNNHRNetModel(nn.Module):
         self.field_head = HRNetFieldHead(in_channels=3, base=base, cond_dim=2 * hidden,
                                          stages=stages, blocks_per_stage=blocks_per_stage,
                                          expand_ratio=expand_ratio, stage_film=stage_film,
-                                         alpha_init=alpha_init)
+                                         alpha_init=alpha_init, learnable_alpha=learnable_alpha)
         self.global_pool = GlobalPool(hidden=hidden, use_attn=attn_pool)
         self.peak_head = PeakHead(hidden=hidden, pooling="hard")
         self.peak_refine = (PeakRefineHead(cond_dim=2 * hidden, ch=peak_branch_ch,
@@ -912,10 +912,12 @@ def main():
     ap.add_argument("--peak_branch_blocks", type=int, default=2)
     ap.add_argument("--attn_pool", action="store_true",
                     help="图全局池化用注意力加权 mean (取代朴素 mean)")
-    ap.add_argument("--no_stage_film", action="store_true",
-                    help="关闭逐 stage FiLM (只在输入时调制一次, 用于消融)")
-    ap.add_argument("--alpha_init", type=float, default=0.5,
-                    help="ExchangeUnit 跨尺度项可学习缩放系数的初始值 (1.0=等效原等权)")
+    ap.add_argument("--stage_film", action="store_true",
+                    help="逐 stage FiLM (默认关, 4-epoch 实测会伤 RMSE)")
+    ap.add_argument("--learnable_alpha", action="store_true",
+                    help="ExchangeUnit 跨尺度项可学习缩放系数 (默认关=固定 1.0 等权)")
+    ap.add_argument("--alpha_init", type=float, default=1.0,
+                    help="可学习缩放系数的初始值 (仅 --learnable_alpha 时生效)")
     ap.add_argument("--base", type=int, default=64)
     ap.add_argument("--stages", type=int, default=4)
     ap.add_argument("--blocks_per_stage", type=int, default=2)
@@ -964,8 +966,9 @@ def main():
                           peak_branch_ch=args.peak_branch_ch,
                           peak_branch_blocks=args.peak_branch_blocks,
                           attn_pool=args.attn_pool,
-                          stage_film=not args.no_stage_film,
-                          alpha_init=args.alpha_init).to(device)
+                          stage_film=args.stage_film,
+                          alpha_init=args.alpha_init,
+                          learnable_alpha=args.learnable_alpha).to(device)
     nparams = sum(p.numel() for p in model.parameters())
     print(f"[setup] train={len(train_cases)} val={len(val_cases)} "
           f"params={nparams/1e6:.2f}M device={device} "
