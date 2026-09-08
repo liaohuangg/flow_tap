@@ -657,6 +657,10 @@ def main():
     ap.add_argument("--stages", type=int, default=4)
     ap.add_argument("--blocks_per_stage", type=int, default=2)
     ap.add_argument("--expand_ratio", type=int, default=2)
+    ap.add_argument("--weight_decay", type=float, default=1e-4,
+                    help="AdamW 权重衰减 (默认 1e-4)")
+    ap.add_argument("--grad_clip", type=float, default=1.0,
+                    help="梯度裁剪 max_norm (默认 1.0)")
     ap.add_argument("--grad_w", type=float, default=0.15,
                     help="梯度差损失权重 (q_l1_pwin 默认 0.15)")
     ap.add_argument("--laplace_w", type=float, default=0.2,
@@ -721,7 +725,7 @@ def main():
     print(f"[setup] train={len(train_cases)} val={len(val_cases)} "
           f"params={nparams/1e6:.2f}M device={device} grid={args.grid}")
 
-    opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
+    opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=args.epochs)
 
     use_amp = bool(args.amp and device.type == "cuda")
@@ -750,7 +754,7 @@ def main():
                 loss, info = run_batch(b)
             opt.zero_grad()
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
             opt.step()
             tot_loss += info["loss"]
             steps += 1
