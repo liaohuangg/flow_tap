@@ -678,7 +678,7 @@ def main():
     ap.add_argument("--expand_ratio", type=int, default=2)
     ap.add_argument("--grad_w", type=float, default=0.1)
     ap.add_argument("--laplace_w", type=float, default=0.0, help="二阶曲率(拉普拉斯)监督权重")
-    ap.add_argument("--peak_w", type=float, default=1.0, help="峰值位置监督权重 (真实峰值单元)")
+    ap.add_argument("--peak_w", type=float, default=0.0, help="峰值位置监督权重 (实测会伤 RMSE, 默认关)")
     ap.add_argument("--device", type=str, default="cuda")
     ap.add_argument("--out_dir", type=str, default="")
     ap.add_argument("--amp", action="store_true", help="混合精度 (bf16 autocast) 加速训练")
