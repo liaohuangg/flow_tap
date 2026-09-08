@@ -671,6 +671,8 @@ def main():
                     help="hotspot RMSE 的归一化功率密度阈值 (ch0, 原始 W/mm2 = x10)")
     ap.add_argument("--device", type=str, default="cuda")
     ap.add_argument("--out_dir", type=str, default="")
+    ap.add_argument("--save_every", type=int, default=5,
+                    help="每隔 N 个 epoch 保存一次 checkpoint (0=关闭, 只存 best.pth)")
     ap.add_argument("--amp", action="store_true", help="混合精度 (bf16 autocast) 加速训练")
     ap.add_argument("--eval_ckpt", type=str, default="",
                     help="评估模式: 加载该 checkpoint 评估后退出 (不训练)")
@@ -773,6 +775,11 @@ def main():
             torch.save({"epoch": ep, "model": model.state_dict(), "best_rmse": best_rmse},
                        os.path.join(out_dir, "best.pth"))
             print(f"[ckpt] best saved (val_hm_rmse={best_rmse:.3f}C)")
+
+        if args.save_every > 0 and ep % args.save_every == 0:
+            torch.save({"epoch": ep, "model": model.state_dict(), "best_rmse": best_rmse},
+                       os.path.join(out_dir, f"checkpoint_ep{ep:03d}.pth"))
+            print(f"[ckpt] periodic saved (epoch {ep})")
 
     sps, ms = benchmark_speed(model, val_loader, device)
     print(f"[speed] {sps:.1f} samples/s  ({ms:.2f} ms/sample, GPU)")
