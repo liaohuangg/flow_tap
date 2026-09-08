@@ -368,6 +368,7 @@ class GNNHRNetModel(nn.Module):
         self.field_head = HRNetFieldHead(in_channels=3, base=base, cond_dim=2 * hidden,
                                          stages=stages, blocks_per_stage=blocks_per_stage,
                                          expand_ratio=expand_ratio)
+        self.peak_head = PeakHead(hidden=hidden, pooling="hard")
         self.peak_refine = (PeakRefineHead(cond_dim=2 * hidden, ch=peak_branch_ch,
                                            n_blocks=peak_branch_blocks, expand_ratio=expand_ratio)
                             if peak_branch else None)
@@ -376,11 +377,13 @@ class GNNHRNetModel(nn.Module):
         num_graphs = int(batch.max().item()) + 1 if batch.numel() else 1
         node_emb = self.encoder(x, edge_index, edge_attr)
         global_cond = _global_pool(node_emb, batch, num_graphs)
+        global_peak, node_peak, node_pos = self.peak_head(node_emb, batch, num_graphs)
 
         heatmap = self.field_head(field_raster, global_cond)
         if self.peak_refine is not None:
             heatmap = self.peak_refine(heatmap, global_cond, self.hi_grid)
-        return {"heatmap": heatmap}
+        return {"heatmap": heatmap, "node_peak": node_peak, "node_pos": node_pos,
+                "global_peak": global_peak}
 
 
 # --------------------------------------------------------------------------- #
@@ -431,7 +434,8 @@ def _peak_window_loss(pred, target, peak_loc, window=1):
 
 def gnn_thermal_loss(out, target_heatmap, target_peak, *, heatmap_w=1.0, grad_w=0.1,
                      peak_w=0.0, peak_loc=None, laplace_w=0.0, peak_window_w=0.0,
-                     node_peak_w=0.0, power_weight_w=0.0, raster=None, focal_gamma=0.0):
+                     node_peak_w=0.0, node_peak_gt=None, power_weight_w=0.0,
+                     raster=None, focal_gamma=0.0):
     """热图损失: (可选加权/focal) MSE + 梯度差 + 二阶曲率 + 峰值邻域监督 + 节点峰值监督。
 
     - power_weight_w: 按功率密度加权 MSE (raster 第0通道), 热点区域权重 1~1+power_weight_w 倍。
@@ -480,8 +484,8 @@ def gnn_thermal_loss(out, target_heatmap, target_peak, *, heatmap_w=1.0, grad_w=
         loss = loss + peak_w * pl
         info["peak"] = float(pl.detach())
 
-    if node_peak_w > 0.0 and out.get("node_peak") is not None and out.get("node_peak_gt") is not None:
-        npl = F.mse_loss(out["node_peak"], out["node_peak_gt"])
+    if node_peak_w > 0.0 and out.get("node_peak") is not None and node_peak_gt is not None:
+        npl = F.mse_loss(out["node_peak"], node_peak_gt)
         loss = loss + node_peak_w * npl
         info["node_peak"] = float(npl.detach())
 
@@ -502,9 +506,15 @@ class GraphData:
     edge_attr: torch.Tensor
     cell_node: torch.Tensor
     side_mm: float
+    node_peak: Optional[torch.Tensor] = None  # [N] 每 chiplet 峰值温度(归一化)
 
 
-def _build_graph_from_rects(rects, powers, side_mm, grid, hubump_mm=None):
+def _build_graph_from_rects(rects, powers, side_mm, grid, hubump_mm=None, dist_thr_mm=0.0):
+    """构建 chiplet 图。
+
+    dist_thr_mm > 0 时按芯片中心距离阈值截断边 (稀疏化), 否则全连接。
+    距离阈值的物理依据: 热耦合随距离快速衰减, 远距离弱耦合是噪声边。
+    """
     N = len(rects)
     if hubump_mm is None:
         hubump_mm = [0.0] * N
@@ -525,15 +535,19 @@ def _build_graph_from_rects(rects, powers, side_mm, grid, hubump_mm=None):
         ])
     x = torch.tensor(feats, dtype=torch.float32)
 
-    centers = [((rx + rw / 2.0) / side_mm, (ry + rh / 2.0) / side_mm) for rx, ry, rw, rh in rects]
+    # 中心距用 mm 阈值截断 (阈值 0 = 全连接)
     src, dst, dists = [], [], []
     for i in range(N):
         for j in range(N):
             if i == j:
                 continue
+            d_mm = math.hypot(rects[i][0] + rects[i][2] / 2.0 - (rects[j][0] + rects[j][2] / 2.0),
+                              rects[i][1] + rects[i][3] / 2.0 - (rects[j][1] + rects[j][3] / 2.0))
+            if dist_thr_mm > 0.0 and d_mm >= dist_thr_mm:
+                continue
             src.append(i)
             dst.append(j)
-            dists.append(math.hypot(centers[i][0] - centers[j][0], centers[i][1] - centers[j][1]))
+            dists.append(d_mm / side_mm)
     edge_index = torch.tensor([src, dst], dtype=torch.long)
     edge_attr = torch.tensor(dists, dtype=torch.float32).view(-1, 1)
 
@@ -551,13 +565,29 @@ def _build_graph_from_rects(rects, powers, side_mm, grid, hubump_mm=None):
                      cell_node=cell_node, side_mm=side_mm)
 
 
-def build_graph_from_rects(rects_mm, powers_w, side_mm, grid=64, hubump_mm=None):
-    return _build_graph_from_rects(rects_mm, powers_w, side_mm, grid, hubump_mm)
+def build_graph_from_rects(rects_mm, powers_w, side_mm, grid=64, hubump_mm=None,
+                           dist_thr_mm=0.0):
+    return _build_graph_from_rects(rects_mm, powers_w, side_mm, grid, hubump_mm, dist_thr_mm)
+
+
+def _node_peak_gt(rects_mm, side_mm, grid, temp_field):
+    """每个 chiplet 体内最大温度 (未归一化 °C), temp_field: [grid, grid] float32。"""
+    N = len(rects_mm)
+    cell = side_mm / grid
+    peaks = []
+    for (x, y, w, h) in rects_mm:
+        ix0 = max(0, int(math.floor(x / cell)))
+        iy0 = max(0, int(math.floor(y / cell)))
+        ix1 = min(grid, int(math.ceil((x + w) / cell)))
+        iy1 = min(grid, int(math.ceil((y + h) / cell)))
+        region = temp_field[iy0:iy1, ix0:ix1]
+        peaks.append(float(region.max()) if region.size else 0.0)
+    return np.asarray(peaks, dtype=np.float32)
 
 
 def collate_graphs(graphs):
     grid = graphs[0].cell_node.shape[0]
-    xs, eis, eas, batches, cell_nodes = [], [], [], [], []
+    xs, eis, eas, batches, cell_nodes, node_peaks = [], [], [], [], [], []
     node_offset = 0
     for b, g in enumerate(graphs):
         n = g.x.size(0)
@@ -568,14 +598,19 @@ def collate_graphs(graphs):
         cn = g.cell_node.clone()
         cn[cn >= 0] += node_offset
         cell_nodes.append(cn)
+        if g.node_peak is not None:
+            node_peaks.append(g.node_peak)
         node_offset += n
-    return {
+    out = {
         "x": torch.cat(xs, dim=0),
         "edge_index": torch.cat(eis, dim=1),
         "edge_attr": torch.cat(eas, dim=0),
         "batch": torch.cat(batches, dim=0),
         "cell_node": torch.stack(cell_nodes, dim=0),
     }
+    if node_peaks:
+        out["node_peak"] = torch.cat(node_peaks, dim=0).view(-1, 1)
+    return out
 
 
 # --------------------------------------------------------------------------- #
@@ -641,9 +676,10 @@ def rasterize_rects_mm(rects_mm, side_mm, grid, values=None):
     return out
 
 
-def load_case(i, j, grid=64, hi_grid=None):
-    # grid    = 场头/场栅格输入分辨率
-    # hi_grid = 目标(输出)温度场分辨率; None 则同 grid (峰值专属高分辨率分支用它)
+def load_case(i, j, grid=64, hi_grid=None, dist_thr_mm=0.0):
+    # grid        = 场头/场栅格输入分辨率
+    # hi_grid     = 目标(输出)温度场分辨率; None 则同 grid (峰值专属高分辨率分支用它)
+    # dist_thr_mm = 图边中心距阈值(mm), 0 = 全连接
     hi = hi_grid if hi_grid else grid
     cfg = os.path.join(CFG_ROOT, f"system_{i}_config")
     flp = os.path.join(cfg, "system.flp")
@@ -661,7 +697,8 @@ def load_case(i, j, grid=64, hi_grid=None):
     powers_w = [pw[name] for (_, _, _, _, name) in rects]
     hubump_w, ubump_rects_mm = parse_l4_thermal(l4)
     hubump_mm = [hubump_w.get(name, 0.0) * 1000.0 for (_, _, _, _, name) in rects]
-    graph = build_graph_from_rects(rects_mm, powers_w, side_mm, grid=grid, hubump_mm=hubump_mm)
+    graph = build_graph_from_rects(rects_mm, powers_w, side_mm, grid=grid, hubump_mm=hubump_mm,
+                                   dist_thr_mm=dist_thr_mm)
 
     # 场栅格: [功率密度, chiplet 掩码, hubump 环掩码]
     areas_mm2 = [w * h for (_, _, w, h) in rects_mm]
@@ -673,6 +710,10 @@ def load_case(i, j, grid=64, hi_grid=None):
     field_raster = np.stack([p_grid, mask_grid, hubump_grid], axis=0).astype(np.float32)
 
     t_raw = dl.read_index_value_csv(temp_csv).reshape(64, 64)
+    # 节点峰值 GT: 原生 64×64 下每个 chiplet 体内最大温度 (归一化), 供 GNN PeakHead 监督
+    node_peak_gt = (np.clip(_node_peak_gt(rects_mm, side_mm, 64, t_raw), TEMP_MIN, TEMP_MAX)
+                    - TEMP_MIN) / (TEMP_MAX - TEMP_MIN)
+    graph.node_peak = torch.from_numpy(node_peak_gt.astype(np.float32))
     if hi != 64:
         # 原生 64×64, 立方插值上采样到 hi (插值过原始采样点, 峰值精确保留)
         t_raw = _scipy_zoom(t_raw.astype(np.float64), hi / 64.0, order=3)
@@ -680,7 +721,7 @@ def load_case(i, j, grid=64, hi_grid=None):
     peak_raw = dl.read_scalar_csv(peak_csv)
     peak01 = np.asarray([(peak_raw - TEMP_MIN) / (TEMP_MAX - TEMP_MIN)], dtype=np.float32)
 
-    # 真实峰值位置 (温度场 argmax 的 grid 坐标 [row, col])
+    # 真实峰值位置 (温度场 argmax 的 hi 坐标 [row, col])
     pr, pc = np.unravel_index(int(np.argmax(t_raw)), t_raw.shape)
     peak_loc = np.array([pr, pc], dtype=np.int64)
 
@@ -692,17 +733,19 @@ def load_case(i, j, grid=64, hi_grid=None):
 
 
 class GNNThermalDataset(Dataset):
-    def __init__(self, cases, grid=64, hi_grid=None):
+    def __init__(self, cases, grid=64, hi_grid=None, dist_thr_mm=0.0):
         self.cases = cases
         self.grid = grid
         self.hi_grid = hi_grid if hi_grid else grid
+        self.dist_thr_mm = dist_thr_mm
 
     def __len__(self):
         return len(self.cases)
 
     def __getitem__(self, idx):
         i, j = self.cases[idx]
-        graph, temp_t, peak_t, peak_loc_t, field_t = load_case(i, j, self.grid, self.hi_grid)
+        graph, temp_t, peak_t, peak_loc_t, field_t = load_case(
+            i, j, self.grid, self.hi_grid, self.dist_thr_mm)
         return {"graph": graph, "temp": temp_t, "peak": peak_t,
                 "peak_loc": peak_loc_t, "field": field_t, "i": i, "j": j}
 
@@ -801,6 +844,8 @@ def main():
     ap.add_argument("--focal_gamma", type=float, default=0.0, help="focal-MSE 的 gamma (0=关)")
     ap.add_argument("--hotspot_thr", type=float, default=0.05,
                     help="hotspot RMSE 的归一化功率密度阈值 (ch0, 原始 W/mm2 = x10)")
+    ap.add_argument("--edge_dist_thr", type=float, default=0.0,
+                    help="图边中心距阈值(mm), >0 稀疏化, 0=全连接 (推荐 2.5)")
     ap.add_argument("--device", type=str, default="cuda")
     ap.add_argument("--out_dir", type=str, default="")
     ap.add_argument("--amp", action="store_true", help="混合精度 (bf16 autocast) 加速训练")
@@ -815,8 +860,10 @@ def main():
     train_cases = train_cases[:args.num_train]
     val_cases = val_cases[:args.num_val]
 
-    train_ds = GNNThermalDataset(train_cases, grid=args.grid, hi_grid=args.hi_grid)
-    val_ds = GNNThermalDataset(val_cases, grid=args.grid, hi_grid=args.hi_grid)
+    train_ds = GNNThermalDataset(train_cases, grid=args.grid, hi_grid=args.hi_grid,
+                                 dist_thr_mm=args.edge_dist_thr)
+    val_ds = GNNThermalDataset(val_cases, grid=args.grid, hi_grid=args.hi_grid,
+                               dist_thr_mm=args.edge_dist_thr)
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True,
                               num_workers=args.num_workers, collate_fn=collate)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False,
@@ -858,6 +905,7 @@ def main():
                         out, b["temp"], b["peak"], grad_w=args.grad_w, peak_w=args.peak_w,
                         peak_loc=b["peak_loc"], laplace_w=args.laplace_w,
                         peak_window_w=args.peak_window_w, node_peak_w=args.node_peak_w,
+                        node_peak_gt=b.get("node_peak"),
                         power_weight_w=args.power_weight_w, raster=b["field"],
                         focal_gamma=args.focal_gamma)
             else:
@@ -866,6 +914,7 @@ def main():
                     out, b["temp"], b["peak"], grad_w=args.grad_w, peak_w=args.peak_w,
                     peak_loc=b["peak_loc"], laplace_w=args.laplace_w,
                     peak_window_w=args.peak_window_w, node_peak_w=args.node_peak_w,
+                    node_peak_gt=b.get("node_peak"),
                     power_weight_w=args.power_weight_w, raster=b["field"],
                     focal_gamma=args.focal_gamma)
             opt.zero_grad()
