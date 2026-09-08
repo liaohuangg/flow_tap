@@ -36,6 +36,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 from torch_geometric.nn import GATv2Conv
+from scipy.ndimage import zoom as _scipy_zoom
 
 import dataLoader as dl
 
@@ -319,19 +320,57 @@ class HRNetFieldHead(nn.Module):
         return self.head_out(feat)  # [B,1,H,W]
 
 
+class PeakRefineHead(nn.Module):
+    """峰值专属高分辨率残差分支 (小网络专门修峰值)。
+
+    动机: 64×64 场头里, 尖锐热点只有 1~3 格, 被多尺度下采样/上采样抹平了峰值。
+    本分支把粗 heatmap [B,1,H,W] 上采样到 hi×hi (128/256), 用一个很小的 CNN
+    (ch 通道) 学一个残差 Δ, 专门恢复被抹平的尖锐峰值, 而不改动主场的分辨率。
+
+    输出 [B,1,hi,hi] = 上采样粗图 + Δ。每层用 global_cond 做 FiLM 调制。
+    """
+
+    def __init__(self, cond_dim, ch=16, n_blocks=2, expand_ratio=2):
+        super().__init__()
+        self.in_conv = ConvGNAct(1 + 2, ch, k=3, s=1, p=1)  # 上采样粗图 + xy 坐标图
+        self.film0 = FiLM(cond_dim, ch)
+        self.blocks = nn.ModuleList([
+            nn.ModuleDict({
+                "res": LiteInvertedResidual(ch, ch, stride=1, expand_ratio=expand_ratio),
+                "film": FiLM(cond_dim, ch),
+            }) for _ in range(n_blocks)
+        ])
+        self.out_conv = nn.Conv2d(ch, 1, kernel_size=1)
+
+    def forward(self, coarse, global_cond, hi):
+        b = coarse.size(0)
+        up = F.interpolate(coarse, size=(hi, hi), mode="bilinear", align_corners=False)
+        xmap, ymap = _make_coord_maps(hi, hi, coarse.device, coarse.dtype)
+        x = torch.cat([up, xmap.expand(b, -1, -1, -1), ymap.expand(b, -1, -1, -1)], dim=1)
+        h = self.film0(self.in_conv(x), global_cond)
+        for blk in self.blocks:
+            h = blk["film"](blk["res"](h), global_cond)
+        return up + self.out_conv(h)
+
+
 class GNNHRNetModel(nn.Module):
     """GNN (图编码 + 峰值) + HRNet (多尺度场解码)。"""
 
     def __init__(self, node_dim=8, hidden=128, heads=4, num_layers=3, edge_dim=1,
-                 grid=64, base=64, stages=4, blocks_per_stage=2, expand_ratio=2,
-                 dropout=0.1):
+                 grid=64, hi_grid=None, base=64, stages=4, blocks_per_stage=2,
+                 expand_ratio=2, dropout=0.1, peak_branch=False,
+                 peak_branch_ch=16, peak_branch_blocks=2):
         super().__init__()
         self.grid = grid
+        self.hi_grid = hi_grid if hi_grid else grid
         self.encoder = GNNEncoder(node_dim, hidden=hidden, heads=heads, num_layers=num_layers,
                                   edge_dim=edge_dim, dropout=dropout)
         self.field_head = HRNetFieldHead(in_channels=3, base=base, cond_dim=2 * hidden,
                                          stages=stages, blocks_per_stage=blocks_per_stage,
                                          expand_ratio=expand_ratio)
+        self.peak_refine = (PeakRefineHead(cond_dim=2 * hidden, ch=peak_branch_ch,
+                                           n_blocks=peak_branch_blocks, expand_ratio=expand_ratio)
+                            if peak_branch else None)
 
     def forward(self, x, edge_index, batch, edge_attr=None, field_raster=None):
         num_graphs = int(batch.max().item()) + 1 if batch.numel() else 1
@@ -339,6 +378,8 @@ class GNNHRNetModel(nn.Module):
         global_cond = _global_pool(node_emb, batch, num_graphs)
 
         heatmap = self.field_head(field_raster, global_cond)
+        if self.peak_refine is not None:
+            heatmap = self.peak_refine(heatmap, global_cond, self.hi_grid)
         return {"heatmap": heatmap}
 
 
@@ -552,7 +593,10 @@ def rasterize_rects_mm(rects_mm, side_mm, grid, values=None):
     return out
 
 
-def load_case(i, j, grid=64):
+def load_case(i, j, grid=64, hi_grid=None):
+    # grid    = 场头/场栅格输入分辨率
+    # hi_grid = 目标(输出)温度场分辨率; None 则同 grid (峰值专属高分辨率分支用它)
+    hi = hi_grid if hi_grid else grid
     cfg = os.path.join(CFG_ROOT, f"system_{i}_config")
     flp = os.path.join(cfg, "system.flp")
     l4 = os.path.join(cfg, f"system_{i}L4_ChipLayer.flp")
@@ -580,7 +624,10 @@ def load_case(i, j, grid=64):
     hubump_grid = rasterize_rects_mm(ubump_rects_mm, side_mm, grid)
     field_raster = np.stack([p_grid, mask_grid, hubump_grid], axis=0).astype(np.float32)
 
-    t_raw = dl.read_index_value_csv(temp_csv).reshape(grid, grid)
+    t_raw = dl.read_index_value_csv(temp_csv).reshape(64, 64)
+    if hi != 64:
+        # 原生 64×64, 立方插值上采样到 hi (插值过原始采样点, 峰值精确保留)
+        t_raw = _scipy_zoom(t_raw.astype(np.float64), hi / 64.0, order=3)
     t01 = dl.minmax_scale(t_raw, TEMP_MIN, TEMP_MAX)
     peak_raw = dl.read_scalar_csv(peak_csv)
     peak01 = np.asarray([(peak_raw - TEMP_MIN) / (TEMP_MAX - TEMP_MIN)], dtype=np.float32)
@@ -597,16 +644,17 @@ def load_case(i, j, grid=64):
 
 
 class GNNThermalDataset(Dataset):
-    def __init__(self, cases, grid=64):
+    def __init__(self, cases, grid=64, hi_grid=None):
         self.cases = cases
         self.grid = grid
+        self.hi_grid = hi_grid if hi_grid else grid
 
     def __len__(self):
         return len(self.cases)
 
     def __getitem__(self, idx):
         i, j = self.cases[idx]
-        graph, temp_t, peak_t, peak_loc_t, field_t = load_case(i, j, self.grid)
+        graph, temp_t, peak_t, peak_loc_t, field_t = load_case(i, j, self.grid, self.hi_grid)
         return {"graph": graph, "temp": temp_t, "peak": peak_t,
                 "peak_loc": peak_loc_t, "field": field_t, "i": i, "j": j}
 
@@ -629,16 +677,20 @@ def to_device(d, device):
 @torch.no_grad()
 def evaluate(model, loader, device, temp_span):
     model.eval()
-    hm_sq, hmax_ae, n = 0.0, 0.0, 0
+    hm_sq, hmax_ae, hmax_se, n, ncase = 0.0, 0.0, 0.0, 0, 0
     for batch in loader:
         b = to_device(batch, device)
         out = model(b["x"], b["edge_index"], b["batch"], b["edge_attr"], b["field"])
         hm_sq += float(((out["heatmap"] - b["temp"]) ** 2).sum())
-        hmax_ae += float((out["heatmap"].amax(dim=(2, 3)) - b["peak"]).abs().sum())
+        pred_max = out["heatmap"].amax(dim=(2, 3))
+        hmax_ae += float((pred_max - b["peak"]).abs().sum())
+        hmax_se += float((pred_max - b["peak"]).sum())
         n += b["temp"].numel()
+        ncase += b["peak"].numel()
     hm_rmse_c = (hm_sq / n) ** 0.5 * temp_span
-    hmax_mae_c = hmax_ae / len(loader.dataset) * temp_span
-    return hm_rmse_c, hmax_mae_c
+    hmax_mae_c = hmax_ae / max(ncase, 1) * temp_span
+    hmax_bias_c = hmax_se / max(ncase, 1) * temp_span
+    return hm_rmse_c, hmax_mae_c, hmax_bias_c
 
 
 def benchmark_speed(model, loader, device, iters=50):
@@ -672,6 +724,12 @@ def main():
     ap.add_argument("--heads", type=int, default=4)
     ap.add_argument("--num_layers", type=int, default=3)
     ap.add_argument("--grid", type=int, default=64)
+    ap.add_argument("--hi_grid", type=int, default=None,
+                    help="峰值高分辨率分支输出分辨率 (默认同 grid; 128/256 让尖峰不被抹平)")
+    ap.add_argument("--peak_branch", action="store_true",
+                    help="峰值专属高分辨率残差分支 (小网络专门修峰值)")
+    ap.add_argument("--peak_branch_ch", type=int, default=16)
+    ap.add_argument("--peak_branch_blocks", type=int, default=2)
     ap.add_argument("--base", type=int, default=64)
     ap.add_argument("--stages", type=int, default=4)
     ap.add_argument("--blocks_per_stage", type=int, default=2)
@@ -693,20 +751,25 @@ def main():
     train_cases = train_cases[:args.num_train]
     val_cases = val_cases[:args.num_val]
 
-    train_ds = GNNThermalDataset(train_cases, grid=args.grid)
-    val_ds = GNNThermalDataset(val_cases, grid=args.grid)
+    train_ds = GNNThermalDataset(train_cases, grid=args.grid, hi_grid=args.hi_grid)
+    val_ds = GNNThermalDataset(val_cases, grid=args.grid, hi_grid=args.hi_grid)
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True,
                               num_workers=args.num_workers, collate_fn=collate)
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False,
                             num_workers=args.num_workers, collate_fn=collate)
 
     model = GNNHRNetModel(node_dim=8, hidden=args.hidden, heads=args.heads,
-                          num_layers=args.num_layers, grid=args.grid, base=args.base,
-                          stages=args.stages, blocks_per_stage=args.blocks_per_stage,
-                          expand_ratio=args.expand_ratio).to(device)
+                          num_layers=args.num_layers, grid=args.grid, hi_grid=args.hi_grid,
+                          base=args.base, stages=args.stages,
+                          blocks_per_stage=args.blocks_per_stage,
+                          expand_ratio=args.expand_ratio,
+                          peak_branch=args.peak_branch,
+                          peak_branch_ch=args.peak_branch_ch,
+                          peak_branch_blocks=args.peak_branch_blocks).to(device)
     nparams = sum(p.numel() for p in model.parameters())
     print(f"[setup] train={len(train_cases)} val={len(val_cases)} "
-          f"params={nparams/1e6:.2f}M device={device}")
+          f"params={nparams/1e6:.2f}M device={device} "
+          f"grid={args.grid} hi_grid={model.hi_grid} peak_branch={args.peak_branch}")
 
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=args.epochs)
@@ -742,12 +805,12 @@ def main():
             tot_loss += info["loss"]
             steps += 1
         sched.step()
-        hm_rmse, hmax_mae = evaluate(model, val_loader, device, temp_span)
+        hm_rmse, hmax_mae, hmax_bias = evaluate(model, val_loader, device, temp_span)
         dt = time.time() - t0
         lr_now = opt.param_groups[0]["lr"]
         print(f"[epoch {ep}/{args.epochs}] loss={tot_loss/max(steps,1):.5f} "
-              f"val_hm_rmse={hm_rmse:.3f}C  val_peak_max_mae={hmax_mae:.3f}C  "
-              f"lr={lr_now:.2e}  ({dt:.1f}s)")
+              f"val_hm_rmse={hm_rmse:.3f}C  val_peak_mae={hmax_mae:.3f}C  "
+              f"val_peak_bias={hmax_bias:+.3f}C  lr={lr_now:.2e}  ({dt:.1f}s)")
 
         if hm_rmse < best_rmse:
             best_rmse = hm_rmse
