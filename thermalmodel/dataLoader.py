@@ -1,37 +1,16 @@
+"""dataLoader.py — GNN+HRNet 数据加载的底层工具函数。
+
+本文件只保留被 `gnnhrnet.py` 复用的小工具:case 枚举与划分、FLP 解析、
+CSV 读取、min-max 归一化。旧的 128×128 `ThermalDataset`(HRNet 专用数据类)
+及其配套(`compute_minmax` / `MinMaxStats` / `flp_to_mask` / `vec_to_grid` 等)
+已随纯 HRNet 管线一并删除。
+"""
 import os
 import random
 import re
-from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple
+from typing import List, Tuple
 
 import numpy as np
-import torch
-from torch.utils.data import Dataset
-
-
-def _project_root() -> str:
-    # thermalmodel/dataLoader.py -> project root
-    return os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-
-
-@dataclass
-class MinMaxStats:
-    power_min: float
-    power_max: float
-    total_power_min: float
-    total_power_max: float
-    temp_min: float
-    temp_max: float
-
-    def to_dict(self) -> Dict[str, float]:
-        return {
-            "power_min": float(self.power_min),
-            "power_max": float(self.power_max),
-            "total_power_min": float(self.total_power_min),
-            "total_power_max": float(self.total_power_max),
-            "temp_min": float(self.temp_min),
-            "temp_max": float(self.temp_max),
-        }
 
 
 def minmax_scale(x: np.ndarray, vmin: float, vmax: float) -> np.ndarray:
@@ -39,10 +18,6 @@ def minmax_scale(x: np.ndarray, vmin: float, vmax: float) -> np.ndarray:
     if denom == 0:
         return np.zeros_like(x, dtype=np.float32)
     return ((x - vmin) / denom).astype(np.float32)
-
-
-def minmax_unscale(x01: np.ndarray, vmin: float, vmax: float) -> np.ndarray:
-    return (x01 * (vmax - vmin) + vmin).astype(np.float32)
 
 
 def read_scalar_csv(path: str) -> float:
@@ -66,12 +41,6 @@ def read_index_value_csv(path: str) -> np.ndarray:
                 continue
             vals.append(float(parts[1]))
     return np.asarray(vals, dtype=np.float32)
-
-
-def vec_to_grid(vec: np.ndarray, grid_size: int = 128) -> np.ndarray:
-    if vec.size != grid_size * grid_size:
-        raise ValueError(f"Expected {grid_size*grid_size} values, got {vec.size}")
-    return vec.reshape(grid_size, grid_size)
 
 
 def parse_flp_rects(flp_path: str) -> List[Tuple[float, float, float, float, str]]:
@@ -100,7 +69,7 @@ def interposer_side_m(flp_path: str) -> float:
     """Interposer 方形边长(米) = FLP 所有块的最大覆盖范围 [0, side]。
 
     L4_ChipLayer.flp 的 Edge_* 块横跨 [0, side_m], 故所有块 (x+w)/(y+h) 的最大值即
-    intp_size_mm / 1000, 与 power/temp 的 128×128 网格范围一致。
+    intp_size_mm / 1000, 与 power/temp 网格范围一致。
     """
     side = 0.0
     try:
@@ -123,48 +92,6 @@ def interposer_side_m(flp_path: str) -> float:
     except OSError:
         pass
     return side
-
-
-def flp_to_mask(flp_path: str, grid_size: int = 128, side_m: Optional[float] = None) -> np.ndarray:
-    rects = parse_flp_rects(flp_path)
-    if not rects:
-        return np.zeros((grid_size, grid_size), dtype=np.float32)
-
-    if side_m is not None and side_m > 0:
-        # 与 power/temp 网格统一: 覆盖整块 interposer 方形 [0, side_m]²
-        minx = miny = 0.0
-        spanx = spany = side_m
-    else:
-        # 兼容旧行为: 按 chiplet 紧包围盒归一化
-        xs = [x for x, _, w, _, _ in rects] + [x + w for x, _, w, _, _ in rects]
-        ys = [y for _, y, _, h, _ in rects] + [y + h for _, y, _, h, _ in rects]
-        minx, maxx = min(xs), max(xs)
-        miny, maxy = min(ys), max(ys)
-        spanx = max(maxx - minx, 1e-12)
-        spany = max(maxy - miny, 1e-12)
-
-    mask = np.zeros((grid_size, grid_size), dtype=np.float32)
-    for x, y, w, h, _name in rects:
-        x0 = (x - minx) / spanx
-        x1 = (x + w - minx) / spanx
-        y0 = (y - miny) / spany
-        y1 = (y + h - miny) / spany
-
-        # map to indices [0, grid_size)
-        ix0 = int(np.floor(x0 * grid_size))
-        ix1 = int(np.ceil(x1 * grid_size))
-        iy0 = int(np.floor(y0 * grid_size))
-        iy1 = int(np.ceil(y1 * grid_size))
-
-        ix0 = max(0, min(grid_size, ix0))
-        ix1 = max(0, min(grid_size, ix1))
-        iy0 = max(0, min(grid_size, iy0))
-        iy1 = max(0, min(grid_size, iy1))
-
-        if ix1 > ix0 and iy1 > iy0:
-            mask[iy0:iy1, ix0:ix1] = 1.0
-
-    return mask
 
 
 def list_cases(powercsv_dir: str) -> List[Tuple[int, int]]:
@@ -221,130 +148,3 @@ def split_cases_by_i(
     test_cases = [(i, j) for (i, j) in cases if i in test_is]
 
     return train_cases, val_cases, test_cases
-
-
-def compute_minmax(
-    data_root: str,
-    grid_size: int = 128,
-    cases: Optional[List[Tuple[int, int]]] = None,
-) -> MinMaxStats:
-    power_dir = os.path.join(data_root, "power_map")
-    totalp_dir = os.path.join(data_root, "total_power")
-    temp_dir = os.path.join(data_root, "thermal_map")
-
-    pmins, pmaxs = [], []
-    tpmins, tpmaxs = [], []
-    tmins, tmaxs = [], []
-
-    it_cases = cases if cases is not None else list_cases(power_dir)
-
-    for i, j in it_cases:
-        p = read_index_value_csv(os.path.join(power_dir, f"system_power_{i}_{j}.csv"))
-        tt = read_index_value_csv(os.path.join(temp_dir, f"system_temp_{i}_{j}.csv"))
-
-        pmins.append(float(p.min()))
-        pmaxs.append(float(p.max()))
-        tmins.append(float(tt.min()))
-        tmaxs.append(float(tt.max()))
-
-        # total power is stored as a scalar per case
-        tp = read_scalar_csv(os.path.join(totalp_dir, f"system_totalpower_{i}_{j}.csv"))
-        tpmins.append(float(tp))
-        tpmaxs.append(float(tp))
-
-    return MinMaxStats(
-        power_min=float(np.min(pmins)),
-        power_max=float(np.max(pmaxs)),
-        total_power_min=float(np.min(tpmins)),
-        total_power_max=float(np.max(tpmaxs)),
-        temp_min=float(np.min(tmins)),
-        temp_max=float(np.max(tmaxs)),
-    )
-
-
-class ThermalDataset(Dataset):
-    def __init__(
-        self,
-        thermal_map_rel: str = "Dataset/dataset/thermal_dataset",
-        hotspot_cfg_rel: str = "Dataset/dataset/thermal_dataset/config",
-        power_grid_size: int = 128,
-        temp_grid_size: int = 128,
-        stats: Optional[MinMaxStats] = None,
-        cases: Optional[List[Tuple[int, int]]] = None,
-    ):
-        self.power_grid_size = power_grid_size
-        self.temp_grid_size = temp_grid_size
-        self.data_root = os.path.join(_project_root(), thermal_map_rel)
-        self.hotspot_root = os.path.join(_project_root(), hotspot_cfg_rel)
-
-        self.power_dir = os.path.join(self.data_root, "power_map")
-        self.totalp_dir = os.path.join(self.data_root, "total_power")
-        self.avgtemp_dir = os.path.join(self.data_root, "avg_temp")
-        self.temp_dir = os.path.join(self.data_root, "thermal_map")
-        self.mask_dir = os.path.join(self.data_root, "layout_mask")
-
-        self.cases = cases if cases is not None else list_cases(self.power_dir)
-        if stats is None:
-            # Power grid and temp grid may be different resolutions; stats are scalar min/max
-            # over all values, so they are still well-defined.
-            stats = compute_minmax(self.data_root, grid_size=self.temp_grid_size, cases=self.cases)
-        self.stats = stats
-
-    def __len__(self) -> int:
-        return len(self.cases)
-
-    def _layout_mask(self, i: int) -> np.ndarray:
-        # 优先读 gen_dataset 预生成的 mask(与 power/temp 同 interposer [0,intp_size]² 坐标系);
-        # 缺失时回退到按 L4_ChipLayer.flp 推导 side_m 的现场计算。
-        mask_path = os.path.join(self.mask_dir, f"system_mask_{i}.csv")
-        if os.path.exists(mask_path):
-            m_vec = read_index_value_csv(mask_path)
-            return vec_to_grid(m_vec, grid_size=self.power_grid_size)
-        cfg_dir = os.path.join(self.hotspot_root, f"system_{i}_config")
-        flp_path = os.path.join(cfg_dir, "system.flp")
-        l4_path = os.path.join(cfg_dir, f"system_{i}L4_ChipLayer.flp")
-        side_m = interposer_side_m(l4_path)
-        return flp_to_mask(flp_path, grid_size=self.power_grid_size, side_m=side_m)
-
-    def __getitem__(self, idx: int):
-        i, j = self.cases[idx]
-
-        p_vec = read_index_value_csv(os.path.join(self.power_dir, f"system_power_{i}_{j}.csv"))
-        t_vec = read_index_value_csv(os.path.join(self.temp_dir, f"system_temp_{i}_{j}.csv"))
-        tp = read_scalar_csv(os.path.join(self.totalp_dir, f"system_totalpower_{i}_{j}.csv"))
-        avg_t = read_scalar_csv(os.path.join(self.avgtemp_dir, f"system_avgtemp_{i}_{j}.csv"))
-
-        p_grid = vec_to_grid(p_vec, grid_size=self.power_grid_size)
-        t_grid = vec_to_grid(t_vec, grid_size=self.temp_grid_size)
-        mask = self._layout_mask(i)
-
-        p01 = minmax_scale(p_grid, self.stats.power_min, self.stats.power_max)
-        t01 = minmax_scale(t_grid, self.stats.temp_min, self.stats.temp_max)
-
-        # total power is a scalar; normalize it and also scale by (128*128) as requested
-        tp_scaled = tp / float(self.power_grid_size * self.power_grid_size)
-        tp01 = minmax_scale(
-            np.asarray(tp_scaled, dtype=np.float32),
-            self.stats.total_power_min / float(self.power_grid_size * self.power_grid_size),
-            self.stats.total_power_max / float(self.power_grid_size * self.power_grid_size),
-        )
-
-        # avg temp is a scalar in the same units as temp grid; normalize with temp stats
-        avg01 = minmax_scale(np.asarray(avg_t, dtype=np.float32), self.stats.temp_min, self.stats.temp_max)
-
-        # tensors
-        power = torch.from_numpy(p01).unsqueeze(0)  # (1,Hp,Wp)
-        layout = torch.from_numpy(mask).unsqueeze(0)  # (1,Hp,Wp)
-        temp = torch.from_numpy(t01).unsqueeze(0)  # (1,Ht,Wt)
-        total_power = torch.tensor([[float(tp01)]], dtype=torch.float32).view(1)  # (1,)
-        avg_temp = torch.tensor([[float(avg01)]], dtype=torch.float32).view(1)  # (1,)
-
-        return {
-            "i": i,
-            "j": j,
-            "power": power,
-            "layout": layout,
-            "temp": temp,
-            "total_power": total_power,
-            "avg_temp": avg_temp,
-        }
