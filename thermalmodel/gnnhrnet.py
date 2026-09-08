@@ -239,7 +239,7 @@ class HRBranch(nn.Module):
 class ExchangeUnit(nn.Module):
     """64/32/16 分支间的多尺度融合。"""
 
-    def __init__(self, c64, c32, c16):
+    def __init__(self, c64, c32, c16, alpha_init=0.5):
         super().__init__()
         self.up_32_to_64 = ConvGNAct(c32, c64, k=1, s=1, p=0)
         self.up_16_to_64 = ConvGNAct(c16, c64, k=1, s=1, p=0)
@@ -250,14 +250,14 @@ class ExchangeUnit(nn.Module):
             ConvGNAct(c64, c32, k=3, s=2, p=1),
             ConvGNAct(c32, c16, k=3, s=2, p=1),
         )
-        # 可学习缩放系数 (初始 0.5): 让网络自行决定每个跨尺度项的注入强度,
+        # 可学习缩放系数: 让网络自行决定每个跨尺度项的注入强度,
         # 而非固定等权相加 (热点峰值主要走 64 分支, 过强的下采样注入会抹平它)
-        self.alpha_32to64 = nn.Parameter(torch.tensor(0.5))
-        self.alpha_16to64 = nn.Parameter(torch.tensor(0.5))
-        self.alpha_16to32 = nn.Parameter(torch.tensor(0.5))
-        self.alpha_64to32 = nn.Parameter(torch.tensor(0.5))
-        self.alpha_32to16 = nn.Parameter(torch.tensor(0.5))
-        self.alpha_64to16 = nn.Parameter(torch.tensor(0.5))
+        self.alpha_32to64 = nn.Parameter(torch.tensor(alpha_init))
+        self.alpha_16to64 = nn.Parameter(torch.tensor(alpha_init))
+        self.alpha_16to32 = nn.Parameter(torch.tensor(alpha_init))
+        self.alpha_64to32 = nn.Parameter(torch.tensor(alpha_init))
+        self.alpha_32to16 = nn.Parameter(torch.tensor(alpha_init))
+        self.alpha_64to16 = nn.Parameter(torch.tensor(alpha_init))
 
     def forward(self, x64, x32, x16):
         f64 = x64 \
@@ -286,11 +286,12 @@ class HRNetFieldHead(nn.Module):
     """
 
     def __init__(self, in_channels=3, base=64, cond_dim=256, stages=4,
-                 blocks_per_stage=2, expand_ratio=2):
+                 blocks_per_stage=2, expand_ratio=2, stage_film=True, alpha_init=0.5):
         super().__init__()
         c64, c32, c16 = base, base * 2, base * 4
         self._c64, self._c32, self._c16 = c64, c32, c16
         self.in_channels = in_channels
+        self.stage_film = stage_film
 
         # stem: 输入已在 64×64, stride 1 (+2 坐标图)
         self.stem = nn.Sequential(
@@ -316,7 +317,7 @@ class HRNetFieldHead(nn.Module):
                 "film64": FiLM(cond_dim, c64),
                 "film32": FiLM(cond_dim, c32),
                 "film16": FiLM(cond_dim, c16),
-                "ex": ExchangeUnit(c64=c64, c32=c32, c16=c16),
+                "ex": ExchangeUnit(c64=c64, c32=c32, c16=c16, alpha_init=alpha_init),
             }))
 
         # 头部融合: 上采样到 64×64 + concat 原始栅格作 hint
@@ -350,9 +351,14 @@ class HRNetFieldHead(nn.Module):
         x16 = self.film16(x16, global_cond)
 
         for st in self.stages:
-            x64 = st["film64"](st["b64"](x64), global_cond)
-            x32 = st["film32"](st["b32"](x32), global_cond)
-            x16 = st["film16"](st["b16"](x16), global_cond)
+            if self.stage_film:
+                x64 = st["film64"](st["b64"](x64), global_cond)
+                x32 = st["film32"](st["b32"](x32), global_cond)
+                x16 = st["film16"](st["b16"](x16), global_cond)
+            else:
+                x64 = st["b64"](x64)
+                x32 = st["b32"](x32)
+                x16 = st["b16"](x16)
             x64, x32, x16 = st["ex"](x64, x32, x16)
 
         u32 = F.interpolate(x32, scale_factor=2, mode="bilinear", align_corners=False)
@@ -360,6 +366,27 @@ class HRNetFieldHead(nn.Module):
         feat = torch.cat([x64, u32, u16, raster], dim=1)
         feat = self.head_fuse(feat)
         return self.head_out(feat)  # [B,1,H,W]
+
+
+def _render_peak_prior(node_peak, node_pos, batch, hi, B, device, dtype):
+    """把每节点预测的 (峰值, 位置) 渲染成 hi×hi 高斯先验图。
+
+    节点位置 node_pos ∈ [-1,1] 映射到 hi 网格; 幅值取节点预测峰值 (已归一化)。
+    逐节点 splat 小高斯, 按 batch 归属累加。N<=20, 循环开销可忽略。
+    """
+    prior = torch.zeros(B, 1, hi, hi, device=device, dtype=dtype)
+    px = (node_pos[:, 0] + 1.0) / 2.0 * (hi - 1)
+    py = (node_pos[:, 1] + 1.0) / 2.0 * (hi - 1)
+    amp = node_peak.squeeze(-1)
+    sig = max(float(hi) * 0.03, 1.0)
+    gy, gx = torch.meshgrid(
+        torch.arange(hi, device=device, dtype=dtype),
+        torch.arange(hi, device=device, dtype=dtype), indexing="ij")
+    for n in range(node_peak.size(0)):
+        b = int(batch[n].item())
+        g = amp[n] * torch.exp(-((gx - px[n]) ** 2 + (gy - py[n]) ** 2) / (2.0 * sig * sig))
+        prior[b, 0] = prior[b, 0] + g
+    return prior
 
 
 class PeakRefineHead(nn.Module):
@@ -370,11 +397,15 @@ class PeakRefineHead(nn.Module):
     (ch 通道) 学一个残差 Δ, 专门恢复被抹平的尖锐峰值, 而不改动主场的分辨率。
 
     输出 [B,1,hi,hi] = 上采样粗图 + Δ。每层用 global_cond 做 FiLM 调制。
+    use_peak_prior=True 时把 GNN 预测的节点峰值/位置渲染成高斯先验图拼进输入,
+    给 refine 分支一个明确的空间提示 (热点在哪、多热), 而非只靠粗图盲猜。
     """
 
-    def __init__(self, cond_dim, ch=16, n_blocks=2, expand_ratio=2):
+    def __init__(self, cond_dim, ch=16, n_blocks=2, expand_ratio=2, use_peak_prior=True):
         super().__init__()
-        self.in_conv = ConvGNAct(1 + 2, ch, k=3, s=1, p=1)  # 上采样粗图 + xy 坐标图
+        self.use_peak_prior = use_peak_prior
+        in_ch = 1 + 2 + (1 if use_peak_prior else 0)  # 粗图 + xy 坐标图 [+ 峰值先验图]
+        self.in_conv = ConvGNAct(in_ch, ch, k=3, s=1, p=1)
         self.film0 = FiLM(cond_dim, ch)
         self.blocks = nn.ModuleList([
             nn.ModuleDict({
@@ -384,11 +415,14 @@ class PeakRefineHead(nn.Module):
         ])
         self.out_conv = nn.Conv2d(ch, 1, kernel_size=1)
 
-    def forward(self, coarse, global_cond, hi):
+    def forward(self, coarse, global_cond, hi, node_peak=None, node_pos=None, batch=None):
         b = coarse.size(0)
         up = F.interpolate(coarse, size=(hi, hi), mode="bilinear", align_corners=False)
         xmap, ymap = _make_coord_maps(hi, hi, coarse.device, coarse.dtype)
         x = torch.cat([up, xmap.expand(b, -1, -1, -1), ymap.expand(b, -1, -1, -1)], dim=1)
+        if self.use_peak_prior and node_peak is not None and node_pos is not None and batch is not None:
+            prior = _render_peak_prior(node_peak, node_pos, batch, hi, b, coarse.device, coarse.dtype)
+            x = torch.cat([x, prior], dim=1)
         h = self.film0(self.in_conv(x), global_cond)
         for blk in self.blocks:
             h = blk["film"](blk["res"](h), global_cond)
@@ -401,7 +435,8 @@ class GNNHRNetModel(nn.Module):
     def __init__(self, node_dim=8, hidden=128, heads=4, num_layers=3, edge_dim=1,
                  grid=64, hi_grid=None, base=64, stages=4, blocks_per_stage=2,
                  expand_ratio=2, dropout=0.1, peak_branch=False,
-                 peak_branch_ch=16, peak_branch_blocks=2, attn_pool=False):
+                 peak_branch_ch=16, peak_branch_blocks=2, attn_pool=False,
+                 stage_film=True, alpha_init=0.5):
         super().__init__()
         self.grid = grid
         self.hi_grid = hi_grid if hi_grid else grid
@@ -409,7 +444,8 @@ class GNNHRNetModel(nn.Module):
                                   edge_dim=edge_dim, dropout=dropout)
         self.field_head = HRNetFieldHead(in_channels=3, base=base, cond_dim=2 * hidden,
                                          stages=stages, blocks_per_stage=blocks_per_stage,
-                                         expand_ratio=expand_ratio)
+                                         expand_ratio=expand_ratio, stage_film=stage_film,
+                                         alpha_init=alpha_init)
         self.global_pool = GlobalPool(hidden=hidden, use_attn=attn_pool)
         self.peak_head = PeakHead(hidden=hidden, pooling="hard")
         self.peak_refine = (PeakRefineHead(cond_dim=2 * hidden, ch=peak_branch_ch,
@@ -424,7 +460,8 @@ class GNNHRNetModel(nn.Module):
 
         heatmap = self.field_head(field_raster, global_cond)
         if self.peak_refine is not None:
-            heatmap = self.peak_refine(heatmap, global_cond, self.hi_grid)
+            heatmap = self.peak_refine(heatmap, global_cond, self.hi_grid,
+                                       node_peak=node_peak, node_pos=node_pos, batch=batch)
         return {"heatmap": heatmap, "node_peak": node_peak, "node_pos": node_pos,
                 "global_peak": global_peak}
 
@@ -875,6 +912,10 @@ def main():
     ap.add_argument("--peak_branch_blocks", type=int, default=2)
     ap.add_argument("--attn_pool", action="store_true",
                     help="图全局池化用注意力加权 mean (取代朴素 mean)")
+    ap.add_argument("--no_stage_film", action="store_true",
+                    help="关闭逐 stage FiLM (只在输入时调制一次, 用于消融)")
+    ap.add_argument("--alpha_init", type=float, default=0.5,
+                    help="ExchangeUnit 跨尺度项可学习缩放系数的初始值 (1.0=等效原等权)")
     ap.add_argument("--base", type=int, default=64)
     ap.add_argument("--stages", type=int, default=4)
     ap.add_argument("--blocks_per_stage", type=int, default=2)
@@ -922,7 +963,9 @@ def main():
                           peak_branch=args.peak_branch,
                           peak_branch_ch=args.peak_branch_ch,
                           peak_branch_blocks=args.peak_branch_blocks,
-                          attn_pool=args.attn_pool).to(device)
+                          attn_pool=args.attn_pool,
+                          stage_film=not args.no_stage_film,
+                          alpha_init=args.alpha_init).to(device)
     nparams = sum(p.numel() for p in model.parameters())
     print(f"[setup] train={len(train_cases)} val={len(val_cases)} "
           f"params={nparams/1e6:.2f}M device={device} "
