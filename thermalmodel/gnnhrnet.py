@@ -79,17 +79,42 @@ class GNNEncoder(nn.Module):
         return self.out_norm(h)
 
 
-def _global_pool(node_emb, batch, num_graphs):
-    """mean+max 池化得到每个图的全局向量。"""
-    B, H = num_graphs, node_emb.size(1)
-    mean = torch.zeros(B, H, device=node_emb.device, dtype=node_emb.dtype)
-    mean.index_add_(0, batch, node_emb)
-    counts = torch.zeros(B, 1, device=node_emb.device, dtype=node_emb.dtype)
-    counts.index_add_(0, batch, torch.ones_like(node_emb[:, :1]))
-    mean = mean / counts.clamp_min(1.0)
-    maxv = torch.full((B, H), float("-inf"), device=node_emb.device, dtype=node_emb.dtype)
-    maxv.index_reduce_(0, batch, node_emb, "amax", include_self=False)
-    return torch.cat([mean, maxv], dim=-1)  # [B, 2H]
+class GlobalPool(nn.Module):
+    """图全局池化: (可选注意力加权) mean + max 拼接 [B, 2H]。
+
+    use_attn=False: 朴素 mean + max (原实现)。
+    use_attn=True : 用可学习注意力对节点加权求和取代朴素 mean, 让与热点峰值最相关的
+                    节点主导全局条件向量; 仍拼接 max, cond_dim 保持 2H 不变, 下游
+                    FiLM / PeakHead 无需改维度。
+    """
+
+    def __init__(self, hidden, use_attn=False):
+        super().__init__()
+        self.use_attn = use_attn
+        if use_attn:
+            self.attn = nn.Linear(hidden, 1)
+
+    def forward(self, node_emb, batch, num_graphs):
+        B, H = num_graphs, node_emb.size(1)
+        if self.use_attn:
+            w = self.attn(node_emb).squeeze(-1)  # [N]
+            wmax = torch.full((B,), float("-inf"), device=node_emb.device, dtype=w.dtype)
+            wmax.index_reduce_(0, batch, w, "amax", include_self=False)
+            e = (w - wmax[batch]).exp()
+            denom = torch.zeros(B, device=node_emb.device, dtype=w.dtype)
+            denom.index_add_(0, batch, e)
+            a = e / (denom[batch] + 1e-8)  # [N] 每图 softmax 归一化权重
+            mean = torch.zeros(B, H, device=node_emb.device, dtype=node_emb.dtype)
+            mean.index_add_(0, batch, a.unsqueeze(-1) * node_emb)
+        else:
+            mean = torch.zeros(B, H, device=node_emb.device, dtype=node_emb.dtype)
+            mean.index_add_(0, batch, node_emb)
+            counts = torch.zeros(B, 1, device=node_emb.device, dtype=node_emb.dtype)
+            counts.index_add_(0, batch, torch.ones_like(node_emb[:, :1]))
+            mean = mean / counts.clamp_min(1.0)
+        maxv = torch.full((B, H), float("-inf"), device=node_emb.device, dtype=node_emb.dtype)
+        maxv.index_reduce_(0, batch, node_emb, "amax", include_self=False)
+        return torch.cat([mean, maxv], dim=-1)  # [B, 2H]
 
 
 class PeakHead(nn.Module):
@@ -225,13 +250,25 @@ class ExchangeUnit(nn.Module):
             ConvGNAct(c64, c32, k=3, s=2, p=1),
             ConvGNAct(c32, c16, k=3, s=2, p=1),
         )
+        # 可学习缩放系数 (初始 0.5): 让网络自行决定每个跨尺度项的注入强度,
+        # 而非固定等权相加 (热点峰值主要走 64 分支, 过强的下采样注入会抹平它)
+        self.alpha_32to64 = nn.Parameter(torch.tensor(0.5))
+        self.alpha_16to64 = nn.Parameter(torch.tensor(0.5))
+        self.alpha_16to32 = nn.Parameter(torch.tensor(0.5))
+        self.alpha_64to32 = nn.Parameter(torch.tensor(0.5))
+        self.alpha_32to16 = nn.Parameter(torch.tensor(0.5))
+        self.alpha_64to16 = nn.Parameter(torch.tensor(0.5))
 
     def forward(self, x64, x32, x16):
-        f64 = x64 + self.up_32_to_64(F.interpolate(x32, scale_factor=2, mode="bilinear", align_corners=False)) \
-                   + self.up_16_to_64(F.interpolate(x16, scale_factor=4, mode="bilinear", align_corners=False))
-        f32 = x32 + self.down_64_to_32(x64) \
-                   + self.up_16_to_32(F.interpolate(x16, scale_factor=2, mode="bilinear", align_corners=False))
-        f16 = x16 + self.down_32_to_16(x32) + self.down_64_to_16(x64)
+        f64 = x64 \
+            + self.alpha_32to64 * self.up_32_to_64(F.interpolate(x32, scale_factor=2, mode="bilinear", align_corners=False)) \
+            + self.alpha_16to64 * self.up_16_to_64(F.interpolate(x16, scale_factor=4, mode="bilinear", align_corners=False))
+        f32 = x32 \
+            + self.alpha_64to32 * self.down_64_to_32(x64) \
+            + self.alpha_16to32 * self.up_16_to_32(F.interpolate(x16, scale_factor=2, mode="bilinear", align_corners=False))
+        f16 = x16 \
+            + self.alpha_32to16 * self.down_32_to_16(x32) \
+            + self.alpha_64to16 * self.down_64_to_16(x64)
         return f64, f32, f16
 
 
@@ -274,6 +311,11 @@ class HRNetFieldHead(nn.Module):
                 "b64": HRBranch(c64, n_blocks=blocks_per_stage, expand_ratio=expand_ratio),
                 "b32": HRBranch(c32, n_blocks=blocks_per_stage, expand_ratio=expand_ratio),
                 "b16": HRBranch(c16, n_blocks=blocks_per_stage, expand_ratio=expand_ratio),
+                # 每 stage 内部 HRBranch 输出后再次注入 global_cond (逐级条件化,
+                # 而非只在输入时调制一次)
+                "film64": FiLM(cond_dim, c64),
+                "film32": FiLM(cond_dim, c32),
+                "film16": FiLM(cond_dim, c16),
                 "ex": ExchangeUnit(c64=c64, c32=c32, c16=c16),
             }))
 
@@ -308,9 +350,9 @@ class HRNetFieldHead(nn.Module):
         x16 = self.film16(x16, global_cond)
 
         for st in self.stages:
-            x64 = st["b64"](x64)
-            x32 = st["b32"](x32)
-            x16 = st["b16"](x16)
+            x64 = st["film64"](st["b64"](x64), global_cond)
+            x32 = st["film32"](st["b32"](x32), global_cond)
+            x16 = st["film16"](st["b16"](x16), global_cond)
             x64, x32, x16 = st["ex"](x64, x32, x16)
 
         u32 = F.interpolate(x32, scale_factor=2, mode="bilinear", align_corners=False)
@@ -359,7 +401,7 @@ class GNNHRNetModel(nn.Module):
     def __init__(self, node_dim=8, hidden=128, heads=4, num_layers=3, edge_dim=1,
                  grid=64, hi_grid=None, base=64, stages=4, blocks_per_stage=2,
                  expand_ratio=2, dropout=0.1, peak_branch=False,
-                 peak_branch_ch=16, peak_branch_blocks=2):
+                 peak_branch_ch=16, peak_branch_blocks=2, attn_pool=False):
         super().__init__()
         self.grid = grid
         self.hi_grid = hi_grid if hi_grid else grid
@@ -368,6 +410,7 @@ class GNNHRNetModel(nn.Module):
         self.field_head = HRNetFieldHead(in_channels=3, base=base, cond_dim=2 * hidden,
                                          stages=stages, blocks_per_stage=blocks_per_stage,
                                          expand_ratio=expand_ratio)
+        self.global_pool = GlobalPool(hidden=hidden, use_attn=attn_pool)
         self.peak_head = PeakHead(hidden=hidden, pooling="hard")
         self.peak_refine = (PeakRefineHead(cond_dim=2 * hidden, ch=peak_branch_ch,
                                            n_blocks=peak_branch_blocks, expand_ratio=expand_ratio)
@@ -376,7 +419,7 @@ class GNNHRNetModel(nn.Module):
     def forward(self, x, edge_index, batch, edge_attr=None, field_raster=None):
         num_graphs = int(batch.max().item()) + 1 if batch.numel() else 1
         node_emb = self.encoder(x, edge_index, edge_attr)
-        global_cond = _global_pool(node_emb, batch, num_graphs)
+        global_cond = self.global_pool(node_emb, batch, num_graphs)
         global_peak, node_peak, node_pos = self.peak_head(node_emb, batch, num_graphs)
 
         heatmap = self.field_head(field_raster, global_cond)
@@ -830,6 +873,8 @@ def main():
                     help="峰值专属高分辨率残差分支 (小网络专门修峰值)")
     ap.add_argument("--peak_branch_ch", type=int, default=16)
     ap.add_argument("--peak_branch_blocks", type=int, default=2)
+    ap.add_argument("--attn_pool", action="store_true",
+                    help="图全局池化用注意力加权 mean (取代朴素 mean)")
     ap.add_argument("--base", type=int, default=64)
     ap.add_argument("--stages", type=int, default=4)
     ap.add_argument("--blocks_per_stage", type=int, default=2)
@@ -876,7 +921,8 @@ def main():
                           expand_ratio=args.expand_ratio,
                           peak_branch=args.peak_branch,
                           peak_branch_ch=args.peak_branch_ch,
-                          peak_branch_blocks=args.peak_branch_blocks).to(device)
+                          peak_branch_blocks=args.peak_branch_blocks,
+                          attn_pool=args.attn_pool).to(device)
     nparams = sum(p.numel() for p in model.parameters())
     print(f"[setup] train={len(train_cases)} val={len(val_cases)} "
           f"params={nparams/1e6:.2f}M device={device} "
