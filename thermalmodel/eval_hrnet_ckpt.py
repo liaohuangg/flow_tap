@@ -249,7 +249,7 @@ def main() -> None:
             stem = f"{tag}_r{rank:02d}_i{i}_j{j}"
             plot_thermal_grid_overlay(
                 flp, d["pred"],
-                os.path.join(args.out_fig_dir, f"{stem}_pred_rmse{d['rmse']:.4f}.png"),
+                os.path.join(args.out_fig_dir, f"{stem}_pred.png"),
                 title=f"Pred {tag} r={rank:02d} i={i} j={j} RMSE={d['rmse']:.4f}C",
                 vmin=vmin, vmax=vmax, side_mm=side_mm,
             )
