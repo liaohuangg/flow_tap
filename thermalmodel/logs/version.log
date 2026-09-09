@@ -1,0 +1,255 @@
+# gnnhrnet.py 优化版本日志
+# 工作流: 每次改代码 -> git commit + push -> 在此追加(改动说明 + 训练命令 + 结果)
+# 数据: 64×64 (thermal_dataset_64), 快测统一 seed=0 / 28 workers / 4 epoch
+
+================================================================================
+[2026-09-08] Stage1 — 损失函数优化 (commit e8d91171)
+--------------------------------------------------------------------------------
+改动:
+  - gnn_thermal_loss 新增:
+      * power_weight_w  按功率密度(raster ch0)加权 MSE, 热点区域权重放大
+      * peak_window_w   峰值 3x3 邻域 MSE (替代易伤 RMSE 的单点 peak_w)
+      * focal_gamma     focal-MSE, 大误差像素加大权重
+      * node_peak_w     预留 GNN 节点峰值 head 监督 (待 Stage2 接入 PeakHead)
+  - evaluate 新增 hotspot RMSE (功率密度 > --hotspot_thr 的像素)
+
+训练命令 (推荐配置, 4-epoch 快测):
+  python -u gnnhrnet.py --grid 64 --epochs 4 --num_train 1600 --num_val 400 \
+    --batch_size 16 --num_workers 28 --seed 0 \
+    --grad_w 0.15 --laplace_w 0.2 --peak_window_w 0.4 --power_weight_w 3.0 \
+    --out_dir checkpoints/q_l1_rec
+
+结果 (4-epoch 快测, val, 对照 baseline q_r64_ref: rmse 2.013 / peak_mae 4.008 / peak_bias -2.243):
+  q_l1_pw3   (power_weight_w=3.0):          rmse 2.068  peak_mae 3.499  peak_bias -1.597  hotspot 3.553
+  q_l1_pwin  (peak_window_w=0.4+lap0.2+gw.15): rmse 2.561  peak_mae 2.683  peak_bias -0.369  hotspot 3.591
+  q_l1_rec   (pw3+pwin 组合):                rmse 2.531  peak_mae 2.716  peak_bias -0.786  hotspot 3.639
+  q_l1_focal (gamma=0.5):                   NaN (发散, gamma<1 时 focal 权重导数在 sq→0 处爆炸)
+小结:
+  - peak_window_w 是压峰值低估最有效杠杆 (bias -2.24 -> -0.37), 但 4-epoch 下 RMSE 涨 ~0.55C
+    (0.4 权重偏大, 后续可降权/退火; 或配合两阶段训练)
+  - power_weight_w 温和改善峰值 (bias -1.60), RMSE 代价小
+  - focal gamma<1 不稳定, 若用需 gamma>=1.0
+
+================================================================================
+[2026-09-09] Stage2 — 接入 PeakHead + 节点峰值监督 + 图稀疏化 (commit eec0e8d9)
+--------------------------------------------------------------------------------
+改动:
+  - GNNHRNetModel 实例化 PeakHead, forward 输出 node_peak/node_pos/global_peak
+  - 节点峰值 GT: load_case 原生 64×64 上按 chiplet 体内 max 温度计算并归一化
+    (GraphData.node_peak + collate 汇聚), --node_peak_w 监督 GNN 每节点峰值
+  - 图稀疏化: --edge_dist_thr 中心距阈值截断 (默认 0=全连接)
+
+训练命令:
+  python -u gnnhrnet.py --grid 64 --epochs 4 --num_train 1600 --num_val 400 \
+    --batch_size 16 --num_workers 28 --seed 0 --node_peak_w 0.2 --grad_w 0.1 \
+    --out_dir checkpoints/q_s2_np
+
+结果 (4-epoch 快测, val; 对照 baseline rmse 2.013 / bias -2.243):
+  q_s2_np      (node_peak_w=0.2):            rmse 1.911  peak_mae 4.032  peak_bias -2.798  hotspot 3.546
+  q_s2_np_pwin (+pwin0.4+lap0.2):            rmse 2.638  peak_mae 3.277  peak_bias -1.909  hotspot 3.756
+小结:
+  - node_peak_w=0.2 是目前最优 RMSE (1.911), 干净降 RMSE, 但峰值低估略加深
+  - 与 peak_window 叠加反而不利 (权重需调低/退火)
+  - 图稀疏化不适用本数据集: chiplet 中心距 5~139mm (side 34~128mm), N<=20,
+    2.5mm 阈值会切断全部边; 代码已留, 面向未来更密布局
+================================================================================
+
+================================================================================
+[2026-09-09] Stage3 — 结构杠杆: per-stage FiLM + 可学习 alpha + attention pool
+              (commit 19d08fa1) 及 Stage4 — 峰值先验注入 PeakRefineHead
+              (commit f1f21f19 / 09e5f13f)
+--------------------------------------------------------------------------------
+改动:
+  - HRNetFieldHead 逐 stage FiLM (每个 stage HRBranch 输出后再注入 global_cond)
+      * 新增 ~1M 参数 (c16=256 的 FiLM 每条 256*256*2), 4-epoch 明显欠拟合
+  - ExchangeUnit 6 个跨尺度项改为可学习缩放系数 (默认关=固定 1.0 等权)
+  - GlobalPool: attention 加权 mean (--attn_pool), cond_dim 保持 2H
+  - PeakRefineHead 注入 GNN 预测的 node_peak/node_pos: 渲染成 hi×hi 高斯先验图
+    拼进输入, 给峰值分支明确"热点在哪/多热"的空间提示
+  - 结论后默认全部回退: stage_film=False / learnable_alpha=False (等价 Stage2 最优)
+
+训练命令 (4-epoch 快测, 统一 seed=0 / 28 workers / node_peak_w=0.2 / grad_w=0.1):
+  # Stage3 基座 (film + alpha0.5):
+  python -u gnnhrnet.py --grid 64 --epochs 4 --num_train 1600 --num_val 400 \
+    --batch_size 16 --num_workers 28 --seed 0 --node_peak_w 0.2 --grad_w 0.1 \
+    --stage_film --learnable_alpha --alpha_init 0.5 --out_dir checkpoints/q_s3_base
+  # attn_pool:
+  ... 同上去掉 stage_film/learnable_alpha, 加 --attn_pool --out_dir checkpoints/q_s3_attn
+  # Stage4 峰值分支:
+  ... --hi_grid 128 --peak_branch --out_dir checkpoints/q_s4_pb
+
+结果 (4-epoch 快测, val; 对照 Stage2 baseline q_s2_np rmse 1.911 / bias -2.798):
+  q_s3_base  (film + alpha0.5):        rmse 3.131  bias -1.665  hotspot 4.793
+  q_s3_attn  (attn_pool):              rmse 3.372  bias +0.248  hotspot 4.717
+  消融 (隔离归因):
+    film ON + alpha1.0:                rmse 2.738
+    film OFF + alpha0.5:               rmse 2.435
+    film OFF + alpha1.0 (=default 现在) rmse 2.443
+  q_s4_pb    (peak_branch + hi128):    rmse 4.309  bias -2.840  hotspot 5.681
+  default 复现 (== Stage2 配置):        rmse 2.440  bias -2.039  hotspot 3.845
+
+小结 (重要):
+  - 4-epoch 快测存在 ~0.5C 的 run-to-run 方差 (同一配置 1.911 vs 2.440), 因为
+    4 epoch 下 RMSE 仍在陡降 (epoch4 还在 2.44, 远未收敛)。小差异不可靠。
+  - per-stage FiLM / attn_pool 明确伤 RMSE (3.13/3.37 显著高于 2.44 基线带),
+    主因: FiLM 加 ~1M 参数 4-epoch 欠拟合; attn_pool 则峰值 bias 明显改善(+0.25),
+    但 RMSE 代价大 —— 属 bias/RMSE 权衡, 非净收益。
+  - 可学习 alpha (init 1.0) 在噪声带内 (2.443 vs 1.911), 无法判定为回归; 但
+    alpha 0.5 明显更差 (3.13), 说明交换单元对等权敏感, 半权会破坏多尺度融合。
+  - Stage4 峰值分支 + hi128 在 4-epoch 下 rmse 4.31 明显差, 且 128 分辨率 RMSE
+    与 64 分辨率不可直接比 (4x 像素、GT 三次上采样); refine 分支 (ch16/2block)
+    4-epoch 欠拟合。需两阶段训练 (先主模型收敛, 再冻结+单独训 refine) 才有意义。
+  - 结论: 一.2/一.4/一.6/一.3 这些"结构注入"杠杆在 4-epoch 冒烟下均无净收益,
+    最强杠杆仍是 Stage2 node_peak_w=0.2 (RMSE 最优) 与 Stage1 peak_window_w
+    (峰值 bias 最优 -0.37)。默认配置已回退到 Stage2 最优。
+  - 下一步建议: ① 加长训练 (>4 epoch) 收敛后再比; ② 两阶段训练 (Section 四.1);
+    ③ peak_window 损失权重退火 (Section 四.2); ④ 监控 hotspot RMSE 而非只看全局 RMSE。
+================================================================================
+
+================================================================================
+[2026-09-09] 全量数据 5-epoch 对比 (推翻 4-epoch 快测结论!)
+--------------------------------------------------------------------------------
+命令 (train 64000 + val 8000, batch 64, seed 0, 28 workers):
+  # q_l1_pwin (峰值邻域监督):
+  python -u gnnhrnet.py --grid 64 --epochs 5 --num_train 64000 --num_val 8000 \
+    --batch_size 64 --num_workers 28 --seed 0 --grad_w 0.15 --laplace_w 0.2 \
+    --peak_window_w 0.4 --out_dir checkpoints/q_full_pwin
+  # q_s2_np (节点峰值监督):
+  python -u gnnhrnet.py --grid 64 --epochs 5 --num_train 64000 --num_val 8000 \
+    --batch_size 64 --num_workers 28 --seed 0 --grad_w 0.1 --node_peak_w 0.2 \
+    --out_dir checkpoints/q_full_np
+
+结果 (val, best epoch):
+  q_full_pwin (peak_window):  rmse 0.658  peak_mae 1.022  peak_bias -0.169  hotspot 1.486
+  q_full_np   (node_peak):    rmse 0.630  peak_mae 1.205  peak_bias -0.477  hotspot 1.494
+  对照: 快测基线 rmse 2.013; base-96 HRNet 测试 rmse 1.22 (不同数据/分辨率)
+
+结论 (重要, 推翻之前快测):
+  - 4-epoch/1600-case 快测完全失真: 之前判 peak_window_w "伤 RMSE"(2.56) 是欠训练假象。
+    全量数据上 peak_window_w=0.4+lap0.2+grad0.15 收敛到 rmse 0.658 / bias -0.169。
+  - q_l1_pwin 是"峰值低估"问题的最优解: bias 从基线 -2.24 压到 -0.169 (几乎无偏),
+    rmse 0.658 也远好于基线 2.013。代价仅比 q_s2_np 的 rmse 高 0.028C。
+  - q_s2_np 是 RMSE 最优 (0.630), 但峰值 bias 略差 (-0.477)。
+  - 二者都是 5 epoch 即达, 且 rmse 已优于 base-96 HRNet 的 1.22 (虽不同分辨率)。
+  - 建议: 目标若为"峰值不失真", 选 q_l1_pwin; 若纯拼全局 RMSE, 选 q_s2_np;
+    更优做法是把两者结合 (peak_window + node_peak) 在低权重下重跑。
+
+推理速度 (GPU 空闲, 纯 forward, N=12 图):
+  batch=1 : 10.4 ms/sample (96/s)
+  batch=2 :  3.65 ms/sample (274/s)
+  batch=8 :  1.71 ms/sample (584/s)
+  batch=32:  1.61 ms/sample (622/s)   <- 吞吐饱和点
+  batch=64:  1.70 ms/sample (587/s)
+  模型 8.29M 参数; batch>=8 即 ~600/s, 单样本 10ms (图算子+卷积启动延迟主导)。
+================================================================================
+
+================================================================================
+[Stage5] 代码清理 + 训练/评估脚本固化 (q_l1_pwin 定版)
+日期: 2026-09-09
+改动: 将 q_l1_pwin 版本固化为唯一代码路径, 删除所有未使用的实验代码。
+  gnnhrnet.py 清理:
+    - 删除 PeakHead / PeakRefineHead 类、_render_peak_prior
+    - 删除 node_peak/node_pos/global_peak 回归分支、node_peak_w/power_weight_w/focal_gamma/peak_w
+    - 删除 per-stage FiLM、learnable ExchangeUnit alpha、attention global pool、
+      graph sparsification(dist_thr_mm)、hi_grid 上采样、peak_branch
+    - 恢复 _global_pool 函数; forward 直接返回 field_head 输出的 heatmap
+    - 参数 8.29M -> 7.32M
+    - 新增 --eval_ckpt / --eval_split 评估模式 (strict=False 兼容旧权重)
+  损失签名: gnn_thermal_loss(pred, target, peak_loc, grad_w=0.15, laplace_w=0.2, peak_window_w=0.4)
+  新增脚本:
+    - auto_train.sh : q_l1_pwin 训练 (默认 50 epochs, 可 ./auto_train.sh N 试跑)
+        --batch_size 64 --lr 5e-4 --num_train 64000 --num_val 8000 --num_workers 28 \
+        --grad_w 0.15 --laplace_w 0.2 --peak_window_w 0.4 --hotspot_thr 0.05 \
+        --out_dir checkpoints/gnnhrnet_pwin
+    - auto_val.sh   : 加载 checkpoint 在 val/test 上报 hm_rmse/peak_mae/peak_bias/hotspot
+        ./auto_val.sh [checkpoints/gnnhrnet_pwin/best.pth]
+  验证: bash -n 通过; 1-epoch 微型训练(128 case)+eval 模式端到端跑通
+    (7.32M 参数, 548.8 samples/s 推理)。
+训练命令: ./auto_train.sh 50
+评估命令: ./auto_val.sh checkpoints/gnnhrnet_pwin/best.pth
+
+[Stage5 追加] 训练超参全部显式化 (2026-09-09)
+改动:
+  - auto_train.sh 显式传入模型结构与优化器参数:
+      --hidden 128 --heads 4 --num_layers 3 --grid 64 --base 64 \
+      --stages 4 --blocks_per_stage 2 --expand_ratio 2 \
+      --weight_decay 1e-4 --grad_clip 1.0
+  - gnnhrnet.py 新增 --weight_decay / --grad_clip 参数,
+    AdamW weight_decay 与 clip_grad_norm_ 改为参数驱动 (默认值不变, 行为不变)。
+  - 调度器仍为 CosineAnnealingLR(T_max=epochs), 写死在代码中。
+训练命令 (不变): ./auto_train.sh 50
+验证: bash -n 通过; 显式全参数微型训练(64 case)跑通, params=7.32M。
+
+[Stage5 追加] 清理 dataLoader.py 旧代码 + 重写 README (2026-09-09)
+改动:
+  - dataLoader.py 只保留 gnnhrnet.py 复用的 7 个工具函数:
+      minmax_scale / read_scalar_csv / read_index_value_csv / parse_flp_rects /
+      interposer_side_m / list_cases / split_cases_by_i
+  - 删除旧 128x128 ThermalDataset 及配套: compute_minmax / MinMaxStats /
+    flp_to_mask / vec_to_grid / minmax_unscale / _project_root
+  - 删除未再使用的 import (torch / Dataset / dataclass / Dict / Optional)
+  - README 重写: 详细说明输入(dataLoader 工具函数 + GNNThermalDataset 原始文件
+    与 collate 后 batch 张量) 与模型输出(归一化 64x64 温度场 heatmap),
+    同步移除已删的 PeakHead / node_peak / peak 输出, 修正损失与 7.32M 参数。
+验证: gnnhrnet.py 与 dataLoader 的 7 个工具 import 通过。
+注意: thermalmodel/hrnet_hotspot_time.py 与 eval_hrnet_ckpt.py 仍 import 已删的
+      ThermalDataset / compute_minmax / MinMaxStats, 已失效 (见后续清理)。
+
+[Stage5 追加] 训练配置: 80 epochs + 每 5 epoch 周期保存 (2026-09-09)
+改动:
+  - gnnhrnet.py 新增 --save_every (默认 5): 每 N epoch 存 checkpoint_epXXX.pth,
+    best.pth 仍按 val RMSE 最优保存 (两者并存)。
+  - auto_train.sh 默认 80 epochs, 显式 --save_every 5。
+  - README 训练参数表补齐 (80 epochs / save_every 5 / 全量超参)。
+训练命令: ./auto_train.sh   (默认 80 epochs, 全量 64000+8000)
+验证: 3-epoch 微型训练 --save_every 2 跑通, 生成 best.pth + checkpoint_ep002.pth。
+
+[Stage5 追加] 训练配置改 base=96 + lr=2e-4 + 200 epochs (2026-09-09)
+改动:
+  - auto_train.sh: --base 96 (场头更宽, 64->96), --lr 2e-4 (原 5e-4), 默认 200 epochs。
+  - 场头 base 64->96, 参数量 7.32M -> 15.71M。
+  - README 训练参数表同步 (base=96 / lr=2e-4 / 200 epochs / 15.71M)。
+训练命令: ./auto_train.sh   (200 epochs)
+验证: 1-epoch 微型训练 (base=96, batch_size=64) 跑通, params=15.71M, 无 OOM。
+
+[Stage5 追加] base=96 训练 batch_size 64 -> 32 (修显存颠簸) (2026-09-09)
+原因: base=96 场头在 batch_size=64 时显存 31999/32768 MiB (97.8%), 触发 CUDA
+      内存颠簸: 单 epoch 从预期的 ~8min 劣化到 ~23min (20min 未完成 1 epoch)。
+      冒烟实测 forward 吞吐 batch=64 仅 93.1 samples/s (base=64 为 548.8)。
+修复: batch_size 64 -> 32, 冒烟实测 forward 恢复到 354.9 samples/s (~3.8x),
+      单 epoch 预估 ~8min。
+
+[Stage5 追加] 重写 eval_hrnet_ckpt.py 适配 GNN+HRNet + 完整评估指标 (2026-09-09)
+改动:
+  - auto_val.sh: 补上模型结构参数 (--base 96 等), 原缺 --base 会按默认 64 建模型
+    导致加载 best.pth 形状不匹配。
+  - eval_hrnet_ckpt.py: 从旧纯 HRNet 版本整体重写为 GNN+HRNet 评估脚本。
+    旧版 import 已删的 dataLoader.ThermalDataset/MinMaxStats/compute_minmax 且
+    import 已删除的 HRNet.py (ThermalGuidanceHRNet), 已完全不可用。
+    新版: 逐 case 推理 + 完整指标 + 按 RMSE 取最坏/最好 topk 用 draw_thermal_fig 绘图 + 日志。
+  - README.md: 新增「七、训练结果」+「八、评估指标说明」(每个指标含义)。
+  - .gitignore: 忽略 checkpoint_ep*.pth 周期性快照 (大文件, best.pth 单独跟踪)。
+评估命令: python eval_hrnet_ckpt.py --ckpt checkpoints/gnnhrnet_pwin/best.pth \
+            --split test --out_log logs/test.log --out_fig_dir figs/test --topk 20
+test 集指标 (best.pth, epoch 69, 8000 case):
+  hm_rmse=0.4786C (池化)  mean_rmse=0.4218C  min=0.0344C  max=1.8600C
+  mean_mae=0.2603C  max_ae=44.40C  mean_mape=0.349%
+  peak_ae=0.6267C  peak_bias=-0.0342C  hotspot_rmse=1.1961C  mean_grad=0.690C/grid
+  图: figs/test 下 worst/best 各 20 case 的 pred+gt 共 80 张。
+
+[Stage5 追加] eval_hrnet_ckpt.py 图文件名去浮点 (2026-09-09)
+改动: 图文件名由 `_pred_rmse1.8599.png` 改为稳定名 `_pred.png` (RMSE 保留在标题/日志)。
+原因: 文件名嵌入 rmse 浮点, 而 float32 推理有 1e-4 级非确定性抖动, 导致每次重跑
+      残留旧文件 (108 个而非 80)。改稳定名后重跑正常覆盖。
+
+[2026-09-09] 每热图独立色标 + 新增热点定位指标
+- draw_thermal_fig.py: plot_thermal_grid_compare 改为每个子图各自配一根温度条(共用 vmin/vmax 保证颜色可比), 不再用共享色标压到原图上
+- eval_hrnet_ckpt.py: 新增热点定位指标 mean_peak_loc_err(格点欧氏距离)/peak_loc_hit_1(≤1格命中率)/peak_loc_hit_2(≤2格命中率), 写入 logs/test.log 与 README 八节
+- 测试集结果: peak_loc_hit_1=98.47%  mean_peak_loc_err=0.546cells
+- 命令: python eval_hrnet_ckpt.py --ckpt checkpoints/gnnhrnet_pwin/best.pth --split test --out_log logs/test.log --out_fig_dir figs/test --topk 20
+
+[2026-09-09] 推理速度 vs HotSpot 计时脚本 (hrnet_hotspot_time.py)
+- 重写 hrnet_hotspot_time.py: 计时 GNN+HRNet 模型逐 case 前向/端到端 + HotSpot 仿真器逐 case 墙钟 + 加速比
+- 结果(RTX 5090, base=96, float32): 模型 forward 2.66ms/case(bs=64), 端到端 4.25ms/case; HotSpot 均值 8.47s/case → 加速 ~3186x
+- 单 case 延迟(bs=1) ~9.4ms; 吞吐 bs>=16 约 380 cases/s(纯前向)
+- 命令: python hrnet_hotspot_time.py --n_cases 1000 --hotspot_cases 20 --eval_bs 64

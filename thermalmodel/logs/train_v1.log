@@ -1,0 +1,29 @@
+================================================================================
+GNN+HRNet 全量训练日志 (q_l1_pwin)
+================================================================================
+日期: 2026-09-09
+训练命令: ./auto_train.sh   (默认 80 epochs)
+
+---- 模型结构 ----
+  GNN  : GATv2, num_layers=3, hidden=128, heads=4, edge_dim=1, dropout=0.1
+  场头 : HRNet, grid=64, base=64, stages=4, blocks_per_stage=2, expand_ratio=2
+  条件 : FiLM (global_cond = mean+max 池化, dim=256)
+  参数量: 7.32M
+
+---- 损失 (q_l1_pwin) ----
+  loss = MSE + 0.15*L1(Sobel梯度) + 0.20*L1(拉普拉斯) + 0.40*MSE(峰值3x3邻域)
+
+---- 训练超参 ----
+  epochs=80, batch_size=64, lr=5e-4, weight_decay=1e-4, grad_clip=1.0
+  scheduler=CosineAnnealingLR(T_max=80), 衰减到 0
+  数据: train=64000, val=8000 (总 80000, 8:1:1 按布局 i 划分, seed=0)
+  num_workers=28, seed=0, hotspot_thr=0.05
+  保存: 每 5 epoch 存 checkpoint_epXXX.pth; val RMSE 最优另存 best.pth
+  输出目录: checkpoints/gnnhrnet_pwin
+
+---- 训练过程 (stdout) ----
+[setup] train=64000 val=8000 params=7.32M device=cuda grid=64
+[epoch 1/80] loss=0.00630 val_hm_rmse=1.557C  val_peak_mae=1.842C  val_peak_bias=+0.603C  val_hotspot_rmse=2.371C  lr=5.00e-04  (237.4s)
+[ckpt] best saved (val_hm_rmse=1.557C)
+[epoch 2/80] loss=0.00126 val_hm_rmse=1.253C  val_peak_mae=1.904C  val_peak_bias=-1.593C  val_hotspot_rmse=2.198C  lr=4.99e-04  (236.3s)
+[ckpt] best saved (val_hm_rmse=1.253C)

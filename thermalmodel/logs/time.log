@@ -1,0 +1,20 @@
+# GNN+HRNet (base=96) 推理速度 vs HotSpot 仿真器
+date=2026-09-09
+env=conda:chipdiffusion   device=NVIDIA RTX 5090   dtype=float32
+ckpt=checkpoints/gnnhrnet_pwin/best.pth (epoch 69)
+
+[纯前向 batch 扫描]  (含 warmup, 数据预载 GPU, 不计 DataLoader/H2D)
+bs= 1    ms/batch=  9.39   ms/case= 9.39   cases/s= 106
+bs= 4    ms/batch= 12.25   ms/case= 3.06   cases/s= 326
+bs=16    ms/batch= 40.49   ms/case= 2.53   cases/s= 395
+bs=64    ms/batch=168.42   ms/case= 2.63   cases/s= 380
+
+[端到端 bs=64, num_workers=0]  (含 DataLoader + H2D)
+ms/case=4.25   cases/s=235
+
+[HotSpot 仿真器]  (6 层 TAP-2.5D, 128x128 网格, 20 case)
+ms/case mean=8467   median=8379   min=7600   max=9657
+
+[加速比 模型 vs HotSpot]
+batched (bs=64 前向) = 3186x
+single-case (bs=1)    =  902x
