@@ -207,3 +207,72 @@ loss = 1.0·MSE(heatmap)              # 全局热图均方误差
 ./auto_train.sh                                     # 训练 200 epochs
 ./auto_val.sh checkpoints/gnnhrnet_pwin/best.pth    # 在 val/test 上评估
 ```
+
+---
+
+## 七、训练结果 (base=96, lr=2e-4, 200 epochs)
+
+最终在 `best.pth`(epoch 69)上的评估指标(运行 `./auto_val.sh`):
+
+| 指标 | val (8000) | test (8000) |
+|---|---|---|
+| hm_rmse | 0.486 °C | 0.479 °C |
+| peak_mae | 0.613 °C | 0.627 °C |
+| peak_bias | -0.030 °C | -0.034 °C |
+| hotspot_rmse | 1.232 °C | 1.196 °C |
+
+- 测试集略优于验证集 → 无过拟合,泛化良好。
+- `peak_bias ≈ 0`(< 0.04°C)→ 热点峰值低估问题基本解决。
+- 训练在 epoch 76 手动停止,`best.pth` 保存于 epoch 69(val_hm_rmse 最低)。
+- `auto_val.sh` 已显式传 `--base 96` 等结构参数,与 `auto_train.sh` 一致。
+
+---
+
+## 八、评估指标说明 (`eval_hrnet_ckpt.py` 输出)
+
+所有温度误差都在**反归一化后的摄氏度 (°C)** 空间计算。一个 case 的温度场为 64×64=4096 个
+像素,设预测 `pred`、真实 `gt`,误差 `e = pred − gt`。逐 case 计算后对全部 case 聚合(mean=均值、
+min=最小、max=最大)。
+
+### 8.1 整场误差 (°C)
+
+| 指标 | 含义 |
+|---|---|
+| `hm_rmse` | 整场**池化** RMSE `sqrt(mean(e²))`(所有 case 所有像素合在一起求)。与训练日志的 `val_hm_rmse`/`hm_rmse` 同口径。注意:池化 RMSE ≠ 逐 case RMSE 的均值(因 RMSE 非线性,前者通常略大) |
+| `mean_rmse` / `min_rmse` / `max_rmse` | 每个 case 整场 RMSE `sqrt(mean(e²))` 的均值/最小/最大。**主指标**,反映整场平均精度(热点像素占比小,对热点低估不敏感) |
+| `mean_mae` | 每个 case 整场平均绝对误差 `mean(|e|)` 的均值 |
+| `max_mae` | 最坏 case 的整场平均绝对误差 |
+| `mean_mse` | 每个 case 整场均方误差 `mean(e²)` 的均值(单位 °C²) |
+| `max_ae` | 所有 case、所有像素中**最大的单个绝对误差** `max(|e|)`(最差单点) |
+
+### 8.2 相对误差(无量纲 / %)
+
+| 指标 | 含义 |
+|---|---|
+| `mean_mape_pct` | 逐像素相对误差 `|e|/|gt|` 平均 ×100(%)。标准 MAPE |
+| `mean_abs_rel` | 每个 case 的 `mean(|e|) / mean(gt)` 的均值(用该 case 平均温度归一化的绝对相对误差) |
+| `mean_rel` | 每个 case 的 `mean(e) / mean(gt)` 的均值(带符号:正=整体高估,负=整体低估) |
+
+### 8.3 峰值 / 热点 (°C)
+
+| 指标 | 含义 |
+|---|---|
+| `mean_peak_ae` | 每个 case 的 `|pred 全局峰值 − gt 全局峰值|` 的均值。反映"峰值温度"能否预测准 |
+| `peak_bias` | `(pred 全局峰值 − gt 全局峰值)` 的均值(带符号:正=峰值高估,负=峰值低估)。**"热点峰值低估"问题的主指标,越接近 0 越好** |
+| `mean_peak_abs_rel` | 每个 case 的 `峰值绝对误差 / gt 峰值` 的均值 |
+| `hotspot_rmse` | 只在功率密度 > 阈值(默认 0.05,即原始约 0.5 W/mm²)的"热点像素"上求 RMSE。反映高热区域的空间精度 |
+
+> 峰值约定:`pred 全局峰值` = 模型输出热图的最大值 `heatmap.amax`(模型自己预测的最大值);
+> `gt 全局峰值` 来自 `max_temp` 目录的仿真最高温标量。
+
+### 8.4 空间结构
+
+| 指标 | 含义 |
+|---|---|
+| `mean_grad` | 预测与真实温度场的一阶空间梯度(Sobel)差的平均绝对值(单位 °C/格)。越小说明空间结构(梯度走向)越吻合 |
+
+评估入口(逐 case 指标 + 最坏/最好 topk 图 + 日志):
+```bash
+python eval_hrnet_ckpt.py --ckpt checkpoints/gnnhrnet_pwin/best.pth \
+    --split test --out_log logs/test.log --out_fig_dir figs/test --topk 20
+```

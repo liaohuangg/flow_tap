@@ -14,5 +14,8 @@ __pycache__/
 *.py[cod]
 .pytest_cache/
 
+# 模型周期性训练快照 (大文件, 不入库; best.pth 单独跟踪)
+checkpoint_ep*.pth
+
 Dataset/dataset/**/*
 !Dataset/dataset/**/*.zip
