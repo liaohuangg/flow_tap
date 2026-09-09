@@ -28,7 +28,7 @@ from torch.utils.data import DataLoader
 
 import dataLoader as dl
 import gnnhrnet as g
-from draw_thermal_fig import plot_thermal_grid_overlay
+from draw_thermal_fig import plot_thermal_grid_compare
 
 EPS = 1e-6
 
@@ -133,6 +133,8 @@ def main() -> None:
             hm_sq += float((diff01 ** 2).sum())
             n_pix += b["temp"].numel()
             pred_max = pred01.amax(dim=(2, 3))
+            # 预测峰值位置 = 预测热图 argmax 的 [row,col] (展平索引 -> row,col)
+            flat_idx = pred01.view(pred01.size(0), -1).argmax(dim=1)  # [B]
             hmax_ae += float((pred_max - b["peak"]).abs().sum())
             hmax_se += float((pred_max - b["peak"]).sum())
             n_case += b["peak"].numel()
@@ -153,6 +155,14 @@ def main() -> None:
             gt_peak_c = (b["peak"].cpu() * temp_span + g.TEMP_MIN).numpy()  # [B,1]
             i_arr = b["i"].cpu().numpy()
             j_arr = b["j"].cpu().numpy()
+            # 峰值位置误差 (格点): 预测 argmax vs 真值 argmax
+            gt_loc = b["peak_loc"].cpu().numpy()  # [B,2] (row,col)
+            pred_loc_r = (flat_idx // args.grid).cpu().numpy()
+            pred_loc_c = (flat_idx % args.grid).cpu().numpy()
+            dr = pred_loc_r - gt_loc[:, 0]
+            dc = pred_loc_c - gt_loc[:, 1]
+            peak_loc_err = np.sqrt(dr.astype(np.float64) ** 2 + dc.astype(np.float64) ** 2)
+            peak_loc_cheb = np.maximum(np.abs(dr), np.abs(dc))
 
             m = _per_case_metrics(pred_c, gt_c, pred_max_c, gt_peak_c)
             B = pred_c.shape[0]
@@ -165,6 +175,7 @@ def main() -> None:
                     "rel": float(m["rel"][k]), "pred_max": float(m["pred_max"][k]),
                     "gt_peak": float(m["gt_peak"][k]), "peak_ae": float(m["peak_ae"][k]),
                     "peak_bias": float(m["peak_bias"][k]), "peak_abs_rel": float(m["peak_abs_rel"][k]),
+                    "peak_loc_err": float(peak_loc_err[k]), "peak_loc_cheb": int(peak_loc_cheb[k]),
                     "pred": pred_c[k, 0], "gt": gt_c[k, 0],
                 })
 
@@ -188,6 +199,9 @@ def main() -> None:
         "mean_rel": float(np.mean([d["rel"] for d in per_case])),
         "mean_peak_ae": float(np.mean([d["peak_ae"] for d in per_case])),
         "mean_peak_abs_rel": float(np.mean([d["peak_abs_rel"] for d in per_case])),
+        "mean_peak_loc_err": float(np.mean([d["peak_loc_err"] for d in per_case])),
+        "peak_loc_hit_1": float(np.mean([1.0 if d["peak_loc_cheb"] <= 1 else 0.0 for d in per_case]) * 100.0),
+        "peak_loc_hit_2": float(np.mean([1.0 if d["peak_loc_cheb"] <= 2 else 0.0 for d in per_case]) * 100.0),
     }
 
     # --- 排序取最坏/最好 ---
@@ -211,6 +225,7 @@ def main() -> None:
     L.append(f"max_ae={agg['max_ae']:.4f}C  (全像素最大单点绝对误差)")
     L.append(f"mean_mape_pct={agg['mean_mape_pct']:.4f}%  mean_abs_rel={agg['mean_abs_rel']:.6f}  mean_rel={agg['mean_rel']:+.6f}")
     L.append(f"mean_peak_ae={agg['mean_peak_ae']:.4f}C  peak_bias={agg['peak_bias']:+.4f}C  mean_peak_abs_rel={agg['mean_peak_abs_rel']:.6f}")
+    L.append(f"mean_peak_loc_err={agg['mean_peak_loc_err']:.3f}cells  peak_loc_hit_1={agg['peak_loc_hit_1']:.2f}%  peak_loc_hit_2={agg['peak_loc_hit_2']:.2f}%  (热点定位: 预测 argmax 与真值 argmax 的格点距离 / ≤1格 / ≤2格 命中率)")
     L.append(f"hotspot_rmse={agg['hotspot_rmse']:.4f}C  mean_grad={agg['mean_grad']:.4f}C/grid")
     L.append("")
 
@@ -231,7 +246,7 @@ def main() -> None:
     with open(args.out_log, "w", encoding="utf-8") as f:
         f.write("\n".join(L))
 
-    # --- 绘图 (最坏/最好 topk) ---
+    # --- 绘图 (最坏/最好 topk, 左=预测 右=真实 并排对比) ---
     os.makedirs(args.out_fig_dir, exist_ok=True)
     cfg = g.CFG_ROOT
     side_cache = {}
@@ -244,22 +259,14 @@ def main() -> None:
                 l4 = os.path.join(cfg, f"system_{i}_config", f"system_{i}L4_ChipLayer.flp")
                 side_cache[i] = dl.interposer_side_m(l4) * 1000.0
             side_mm = side_cache[i]
-            vmin = float(min(d["pred"].min(), d["gt"].min()))
-            vmax = float(max(d["pred"].max(), d["gt"].max()))
             stem = f"{tag}_r{rank:02d}_i{i}_j{j}"
-            plot_thermal_grid_overlay(
-                flp, d["pred"],
-                os.path.join(args.out_fig_dir, f"{stem}_pred.png"),
-                title=f"Pred {tag} r={rank:02d} i={i} j={j} RMSE={d['rmse']:.4f}C",
-                vmin=vmin, vmax=vmax, side_mm=side_mm,
+            plot_thermal_grid_compare(
+                flp, d["pred"], d["gt"],
+                os.path.join(args.out_fig_dir, f"{stem}.png"),
+                title=f"{tag} r={rank:02d} i={i} j={j}  RMSE={d['rmse']:.4f}C",
+                side_mm=side_mm,
             )
-            plot_thermal_grid_overlay(
-                flp, d["gt"],
-                os.path.join(args.out_fig_dir, f"{stem}_gt.png"),
-                title=f"GT {tag} r={rank:02d} i={i} j={j} peak={d['gt_peak']:.2f}C",
-                vmin=vmin, vmax=vmax, side_mm=side_mm,
-            )
-            n_figs += 2
+            n_figs += 1
 
     # 一行汇总 (脚本用)
     print(
@@ -267,7 +274,8 @@ def main() -> None:
         f"mean_rmse={agg['mean_rmse']:.4f}C min_rmse={agg['min_rmse']:.4f}C max_rmse={agg['max_rmse']:.4f}C "
         f"mean_mae={agg['mean_mae']:.4f}C max_ae={agg['max_ae']:.4f}C "
         f"mean_mape={agg['mean_mape_pct']:.3f}% peak_ae={agg['mean_peak_ae']:.4f}C "
-        f"peak_bias={agg['peak_bias']:+.4f}C hotspot_rmse={agg['hotspot_rmse']:.4f}C"
+        f"peak_bias={agg['peak_bias']:+.4f}C hotspot_rmse={agg['hotspot_rmse']:.4f}C "
+        f"peak_loc_hit_1={agg['peak_loc_hit_1']:.2f}% mean_peak_loc_err={agg['mean_peak_loc_err']:.2f}cells"
     )
     print(f"[log] wrote {args.out_log}")
     print(f"[fig] wrote {n_figs} figures -> {args.out_fig_dir}")
