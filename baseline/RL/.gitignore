@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+dist/
+build/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# 虚拟环境
+venv/
+env/
+ENV/
+
+# PyTorch 模型文件
+checkpoints/*.pt
+checkpoints/*.pth
+*.pt
+*.pth
+
+# 输出文件
+output/*.png
+output/*.jpg
+output/*.pdf
+results/
+runs/
+fastTM/configs/
+fastTM/outputs/
+*.png
+*.jpg
+*.pdf
+
+# 日志文件
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 操作系统
+.DS_Store
+Thumbs.db
+
+# 临时文件
+*.tmp
+*.bak
+*.cache
+README.md
+RUN_USAGE.md
+LOSS_CALCULATION.md
