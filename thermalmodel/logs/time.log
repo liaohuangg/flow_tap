@@ -18,3 +18,22 @@ ms/case mean=8467   median=8379   min=7600   max=9657
 [加速比 模型 vs HotSpot]
 batched (bs=64 前向) = 3186x
 single-case (bs=1)    =  902x
+
+# GNN+HRNet (base=96) 推理速度 vs HotSpot 仿真器  (grid=64, 100 case: system_300001..300100)
+date=2026-09-11
+env=conda:chipdiffusion   device=NVIDIA RTX 5090   dtype=float32
+ckpt=checkpoints/gnnhrnet_pwin/best.pth (epoch 69)
+
+[模型前向 batch 扫描]  (grid=64, 100 case, 含 H2D, GPU 核时间)
+bs= 1    ms/case= 28.90   cases/s=  35
+bs= 8    ms/case=  3.78   cases/s= 264
+bs=32    ms/case=  4.75   cases/s= 211
+
+[HotSpot 仿真器]  (6 层 TAP-2.5D, 64x64 网格, 单线程, 100 case)
+ms/case mean=11318  median=11293  min=8553  max=13521
+total(100 case)=1131.8 s  (约 18.9 min)
+
+[加速比 HotSpot 单线程 vs 模型]
+batch=1  =  392x
+batch=8  = 2994x
+batch=32 = 2384x

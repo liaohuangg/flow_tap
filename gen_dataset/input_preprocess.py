@@ -1,356 +1,276 @@
 #!/usr/bin/env python3
 """
-Convert .cfg files to JSON format for chiplet placement.
+数据集处理: 把 gen_cfg.py 生成的 cpu-dram .cfg 文件转换成
+placement_dataset_tw/chiplet_dataset_{k}.json 格式 (与 chiplet_dataset_1.json 完全一致)。
+
+- 5000 个 system 一个 json 文件 (CHUNK=5000, 与既有 placement_dataset_tw 对齐):
+    system_{sid} -> chiplet_dataset_{(sid-1)//5000 + 1}.json
+    例如 system_380001..400000 -> chiplet_dataset_77.json .. 80.json
+- 每个 chiplet 输出字段:
+    name        = A/B/C/...(按顺序)
+    x-position  = cfg 的 x (初始位置, gen_cfg.py 默认全 0, 后续由 placer 填充)
+    y-position  = cfg 的 y
+    width/height= cfg 的 widths/heights (本体 body/die 尺寸)
+    rotation    = 0 (cfg 未指定旋转)
+    power       = cfg 的 powers
+    hubump      = compute_hubump(body_w, body_h, s), s = Σ(M[i][j]+M[j][i])
+                  即 2 × 该 chiplet 相连的所有 wireCount 之和
+- connections: 对称矩阵上三角 (i<j 且 wireCount>0) -> [{node1, node2, wireCount}]
+
+hubump 采用 gen_wirelength_dataset.py 的 compute_hubump 口径:
+  以 body(die) 尺寸为输入, 用整数化 pmax 容量判定, 找最小满足容量的环宽,
+  保证后续布线 ILP 的 bump 容量 >= s (可解), 无连续公式 int 截断缺口。
+
+用法:
+  python input_preprocess.py --start 380001 --end 400000
+  python input_preprocess.py --start 380001 --end 400000 \
+      --config-dir Dataset/config \
+      --output-dir Dataset/dataset/placement_dataset/placement_dataset_tw
 """
+from __future__ import annotations
 
-import os
-import re
+import argparse
 import json
+import re
+from collections import defaultdict
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+
+PROJECT = Path("/root/placement/flow_tap")
+DEFAULT_CONFIG_DIR = PROJECT / "Dataset" / "config"
+DEFAULT_OUT_DIR = PROJECT / "Dataset" / "dataset" / "placement_dataset" / "placement_dataset_tw"
+
+CHUNK = 5000            # 每个 chiplet_dataset_{k}.json 含 5000 systems
+UBUMP_PITCH = 0.045     # 45um microbump 节距, mm
 
 
-def load_chiplets_json(
-    json_path: Optional[str] = None,
-) -> Dict[str, Any]:
-    """Load the raw chiplet description JSON.
+# --------------------------------------------------------------------------- #
+# hubump (与 gen_wirelength_dataset.py 的 compute_hubump / _bump_capacity 完全一致)
+# --------------------------------------------------------------------------- #
+def _bump_capacity(w_mm: float, h_mm: float, hubump: float) -> int:
+    """routing.get_input 里 pmax 的整数化 bump 容量 (上/下/左/右 4 个 clump 之和)。
 
-    Parameters
-    ----------
-    json_path:
-        Path to the `chiplets.json` file. If None, uses relative path from src directory.
-
-    Returns
-    -------
-    dict
-        The parsed JSON object. Top-level keys are chiplet names.
+    上/下 clump 用 height, 左/右 clump 用 width, 每 clump =
+    int(hubump/0.045) * int((edge+hubump)/0.045)。
     """
+    nh = int(hubump / UBUMP_PITCH)
+    if nh <= 0:
+        return 0
+    return (2 * nh * int((h_mm + hubump) / UBUMP_PITCH)
+            + 2 * nh * int((w_mm + hubump) / UBUMP_PITCH))
+
+
+def compute_hubump(w_mm: float, h_mm: float, s: float) -> float:
+    """按连接数 s 计算芯片四周 bump 环宽度 (mm)。
+
+    w_mm/h_mm 为芯片本体(body/die)尺寸。s = Σ(M[i][j] + M[j][i]) = 2×单边 wireCount。
+    与 TAP-2.5D compute_ubump_overhead 同一思路, 但直接用整数化 pmax 容量判定,
+    保证布线 ILP 的 bump 容量 >= s (可解)。
+    """
+    if s <= 0:
+        return 0.0
+    k = 1
+    w_stretch = UBUMP_PITCH * k
+    while True:
+        if _bump_capacity(w_mm, h_mm, w_stretch) >= s:
+            return w_stretch
+        k += 1
+        w_stretch = UBUMP_PITCH * k
+        if k > 1000:
+            raise ValueError("microbump is too high to be a feasible case")
+
+
+# --------------------------------------------------------------------------- #
+# cfg 解析
+# --------------------------------------------------------------------------- #
+def _parse_list(value: str):
+    """'19,\t17,\t5' -> [19.0, 17.0, 5.0] (逗号分隔, 忽略空白/tab)。"""
+    return [float(x.strip()) for x in value.split(",") if x.strip() != ""]
+
+
+def _parse_matrix_row(value: str):
+    """'0,\t0,\t256,...;' -> [0, 0, 256, ...] (去行尾分号, 逗号分隔)。"""
+    value = value.strip().rstrip(";").strip()
+    return [int(x.strip()) for x in value.split(",") if x.strip() != ""]
+
+
+def parse_cfg(cfg_path) -> dict:
+    """解析一个 cpu-dram .cfg 文件, 返回 {chiplet_count, widths, heights, powers,
+    connections(对称矩阵), x, y}。逐行解析, 兼容 system_1.cfg 与 gen_cfg.py 输出。"""
+    text = Path(cfg_path).read_text(encoding="utf-8")
+
+    n = int(re.search(r"chiplet_count\s*=\s*(\d+)", text).group(1))
+    widths = _parse_list(re.search(r"widths\s*=\s*(.+)", text).group(1))
+    heights = _parse_list(re.search(r"heights\s*=\s*(.+)", text).group(1))
+    powers = _parse_list(re.search(r"powers\s*=\s*(.+)", text).group(1))
+
+    # connections 矩阵: 从 'connections = ' 到 'u = ' 行 (首行带前缀, 续行 3-tab 缩进)
+    m = re.search(r"connections\s*=\s*(.*?)(?=^\s*u\s*=)", text, re.DOTALL | re.MULTILINE)
+    if not m:
+        raise ValueError(f"{cfg_path}: 未找到 connections 矩阵")
+    matrix = []
+    for line in m.group(1).strip().splitlines():
+        row = _parse_matrix_row(line)
+        if row:
+            matrix.append(row)
+
+    # x/y 初始位置 (gen_cfg.py 输出全 0; 参考 system_1.cfg 亦为 0, 实际布局由 placer 产生)
+    x = _parse_list(re.search(r"^x\s*=\s*(.+)", text, re.MULTILINE).group(1))
+    y = _parse_list(re.search(r"^y\s*=\s*(.+)", text, re.MULTILINE).group(1))
+
+    # 校验
+    assert len(widths) == len(heights) == len(powers) == n, f"{cfg_path}: 尺寸/功耗维度不一致"
+    assert len(matrix) == n, f"{cfg_path}: connections 行数 {len(matrix)} != {n}"
+    for i, row in enumerate(matrix):
+        assert len(row) == n, f"{cfg_path}: connections 第 {i} 行列数 {len(row)} != {n}"
+
+    return {
+        "chiplet_count": n,
+        "widths": widths,
+        "heights": heights,
+        "powers": powers,
+        "connections": matrix,
+        "x": x,
+        "y": y,
+    }
+
+
+# --------------------------------------------------------------------------- #
+# cfg -> record
+# --------------------------------------------------------------------------- #
+def _index_to_name(i: int) -> str:
+    """0->A, 1->B, ... 与官方 cpu-dram.cfg 记录一致 (chiplet 名按字母顺序)。"""
+    return chr(ord("A") + i)
+
+
+def build_record(sid: int, data: dict) -> dict:
+    """把一个 cfg 数据构造成 chiplet_dataset_{k}.json 里的单条 record。"""
+    n = data["chiplet_count"]
+    widths = data["widths"]
+    heights = data["heights"]
+    powers = data["powers"]
+    M = data["connections"]
+    x = data.get("x", [0.0] * n)
+    y = data.get("y", [0.0] * n)
+
+    chiplets = []
+    for i in range(n):
+        # s = Σ_j (M[i][j] + M[j][i]) = 2 × 入射 wireCount (对称矩阵, 对角为 0)
+        s = sum(M[i][j] + M[j][i] for j in range(n))
+        hubump = compute_hubump(widths[i], heights[i], s)
+        chiplets.append({
+            "name": _index_to_name(i),
+            "x-position": float(x[i]) if i < len(x) else 0.0,
+            "y-position": float(y[i]) if i < len(y) else 0.0,
+            "width": float(widths[i]),
+            "height": float(heights[i]),
+            "rotation": 0,
+            "power": float(powers[i]),
+            "hubump": round(hubump, 6),
+        })
+
+    connections = []
+    for i in range(n):
+        for j in range(i + 1, n):
+            wc = M[i][j]
+            if wc > 0:
+                connections.append({
+                    "node1": _index_to_name(i),
+                    "node2": _index_to_name(j),
+                    "wireCount": wc,
+                })
+
+    return {
+        "system_id": f"system_{sid}",
+        "chiplets": chiplets,
+        "connections": connections,
+    }
+
+
+# --------------------------------------------------------------------------- #
+# 批量处理
+# --------------------------------------------------------------------------- #
+def process_range(start_sys: int, end_sys: int, config_dir: Path, out_dir: Path) -> None:
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    chunks: dict[int, dict] = defaultdict(dict)
+    missing: list[int] = []
+    total_chiplets = 0
+    total_connections = 0
+    hubump_min, hubump_max = float("inf"), 0.0
+
+    for sid in range(start_sys, end_sys + 1):
+        cfg_path = config_dir / f"system_{sid}.cfg"
+        if not cfg_path.exists():
+            missing.append(sid)
+            continue
+        data = parse_cfg(cfg_path)
+        rec = build_record(sid, data)
+
+        total_chiplets += data["chiplet_count"]
+        total_connections += len(rec["connections"])
+        for c in rec["chiplets"]:
+            hubump_min = min(hubump_min, c["hubump"])
+            hubump_max = max(hubump_max, c["hubump"])
+
+        k = (sid - 1) // CHUNK + 1
+        chunks[k][f"system_{sid}"] = rec
+
+    for k in sorted(chunks):
+        out_fp = out_dir / f"chiplet_dataset_{k}.json"
+        out_fp.write_text(json.dumps(chunks[k]), encoding="utf-8")
+        print(f"[preprocess] 写出 {out_fp} ({len(chunks[k])} systems)", flush=True)
+
+    n_sys = end_sys - start_sys + 1
+    n_done = sum(len(v) for v in chunks.values())
+    print(f"[preprocess] DONE: 转换 {n_done}/{n_sys} systems "
+          f"({len(chunks)} 个 json 文件, 每批 {CHUNK})", flush=True)
+    print(f"[preprocess] 统计: chiplet 总数 {total_chiplets}, 连接总数 {total_connections}, "
+          f"hubump 范围 [{hubump_min:.4f}, {hubump_max:.4f}] mm", flush=True)
+    if missing:
+        print(f"[preprocess] 缺失 cfg ({len(missing)}): {missing[:10]}{'...' if len(missing) > 10 else ''}",
+              flush=True)
+
+
+# --------------------------------------------------------------------------- #
+# 兼容保留: tool.py 的兜底导入 (flow_GCN 旧流水线)
+# --------------------------------------------------------------------------- #
+def load_chiplets_json(json_path: str | None = None):
+    """[旧 flow_GCN 流水线] 加载 chiplets.json (顶层 key 为 chiplet 名)。仅供 tool.py 兜底。"""
     if json_path is None:
-        # 从 src 目录的相对路径: ../../benchmark/dummy-chiplet-input/chiplet_input/chiplets.json
-        current_file = Path(__file__)
-        src_dir = current_file.parent
-        project_root = src_dir.parent
-        json_path = project_root / "benchmark" / "dummy-chiplet-input" / "chiplet_input" / "chiplets.json"
-        # 如果默认路径不存在，抛出错误提示用户提供路径
-        if not json_path.exists():
-            raise FileNotFoundError(
-                f"默认的 chiplets.json 文件不存在: {json_path}\n"
-                f"请使用 input_json_path 参数指定正确的 JSON 文件路径。"
-            )
-
-    path = Path(json_path)
-    with path.open("r", encoding="utf-8") as f:
-        data: Dict[str, Any] = json.load(f)
-    return data
+        raise FileNotFoundError(
+            "load_chiplets_json 需要显式传入 json_path (旧 flow_GCN 默认路径已移除)"
+        )
+    with Path(json_path).open("r", encoding="utf-8") as f:
+        return json.load(f)
 
 
-def build_chiplet_table(chiplets: Dict[str, Any]) -> List[Dict[str, Any]]:
-    """Build a simple table from the chiplet JSON.
-
-    Each row in the table is a dict with the following keys:
-
-    - ``name``: chiplet name (top-level key in the JSON)
-    - ``dimensions``: the raw ``dimensions`` object for this chiplet
-    - ``phys``: the raw ``phys`` list for this chiplet
-    - ``power``: the ``power`` value for this chiplet
-
-    Parameters
-    ----------
-    chiplets:
-        Parsed JSON dict returned by :func:`load_chiplets_json`.
-
-    Returns
-    -------
-    list of dict
-        A list of rows; each row has keys ``name``, ``dimensions``, ``phys``,
-        and ``power``.
-    """
-
-    table: List[Dict[str, Any]] = []
-
+def build_chiplet_table(chiplets: dict):
+    """[旧 flow_GCN 流水线] 把 chiplets.json 转成表。仅供 tool.py 兜底。"""
+    table = []
     for name, info in chiplets.items():
-        row = {
+        table.append({
             "name": name,
             "dimensions": info.get("dimensions", {}),
             "phys": info.get("phys", []),
             "power": info.get("power", None),
-        }
-        table.append(row)
-
+        })
     return table
 
 
-def pretty_print_table(table: List[Dict[str, Any]]) -> None:
-    """Pretty-print the chiplet table to the console.
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--start", type=int, default=380001)
+    ap.add_argument("--end", type=int, default=400000)
+    ap.add_argument("--config-dir", type=str, default=str(DEFAULT_CONFIG_DIR),
+                    help="cfg 文件目录 (默认 Dataset/config)")
+    ap.add_argument("--output-dir", type=str, default=str(DEFAULT_OUT_DIR),
+                    help="输出目录 (默认 Dataset/dataset/placement_dataset/placement_dataset_tw)")
+    args = ap.parse_args()
 
-    This is just for quick inspection / debug.
-    """
-
-    from pprint import pprint
-
-    for row in table:
-        pprint(row)
-
-def parse_cfg_file(cfg_path):
-    """
-    Parse a .cfg file and extract chiplet information.
-    
-    Args:
-        cfg_path: Path to the .cfg file
-        
-    Returns:
-        dict with keys: widths, heights, powers, connections_matrix
-    """
-    with open(cfg_path, 'r', encoding='utf-8') as f:
-        content = f.read()
-    
-    # Extract widths
-    widths_match = re.search(r'widths\s*=\s*(.+?)(?:\n|$)', content, re.MULTILINE)
-    if not widths_match:
-        raise ValueError(f"Could not find 'widths' in {cfg_path}")
-    widths_str = widths_match.group(1).strip()
-    widths = [float(x.strip()) for x in widths_str.split(',') if x.strip()]
-    
-    # Extract heights
-    heights_match = re.search(r'heights\s*=\s*(.+?)(?:\n|$)', content, re.MULTILINE)
-    if not heights_match:
-        raise ValueError(f"Could not find 'heights' in {cfg_path}")
-    heights_str = heights_match.group(1).strip()
-    heights = [float(x.strip()) for x in heights_str.split(',') if x.strip()]
-    
-    # Extract powers
-    powers_match = re.search(r'powers\s*=\s*(.+?)(?:\n|$)', content, re.MULTILINE)
-    if not powers_match:
-        raise ValueError(f"Could not find 'powers' in {cfg_path}")
-    powers_str = powers_match.group(1).strip()
-    powers = [float(x.strip()) for x in powers_str.split(',') if x.strip()]
-    
-    # Extract connections matrix (may span multiple lines)
-    # Find the connections section
-    connections_match = re.search(r'connections\s*=\s*(.+?)(?=\n\n|\n\[|\n[a-z]+\s*=|$)', content, re.DOTALL)
-    if not connections_match:
-        raise ValueError(f"Could not find 'connections' in {cfg_path}")
-    connections_str = connections_match.group(1).strip()
-    
-    # Parse the matrix: split by semicolon to get rows, then by comma to get values
-    rows = []
-    for row_str in connections_str.split(';'):
-        row_str = row_str.strip()
-        if not row_str:
-            continue
-        # Remove tabs and extra spaces, split by comma
-        row = [int(x.strip()) for x in row_str.split(',') if x.strip()]
-        if row:  # Only add non-empty rows
-            rows.append(row)
-    
-    # Validate dimensions
-    if len(widths) != len(heights) or len(widths) != len(powers):
-        raise ValueError(f"Dimension mismatch: widths={len(widths)}, heights={len(heights)}, powers={len(powers)}")
-    
-    if len(rows) != len(widths):
-        raise ValueError(f"Connections matrix rows ({len(rows)}) != chiplet count ({len(widths)})")
-    
-    for i, row in enumerate(rows):
-        if len(row) != len(widths):
-            raise ValueError(f"Connections matrix row {i} has {len(row)} columns, expected {len(widths)}")
-    
-    return {
-        'widths': widths,
-        'heights': heights,
-        'powers': powers,
-        'connections_matrix': rows
-    }
+    config_dir = Path(args.config_dir)
+    out_dir = Path(args.output_dir)
+    process_range(args.start, args.end, config_dir, out_dir)
 
 
-def matrix_to_connections(connections_matrix, default_emib_type: str = "interfaceC"):
-    """
-    Convert adjacency matrix to list of connections.
-    
-    输出格式：每条边为无向边，包含 node1, node2, wireCount, EMIBType, EMIB_length, EMIB_max_width, EMIB_bump_width。
-    wireCount 直接取自 cfg 的 connections 矩阵 connections_matrix[i][j]（chiplet i 与 j 之间的线数）。
-    EMIBType 默认标注为 interfaceC，可用 update_connection.py 按范围重新标注。
-    EMIB_length = wireCount / LinearIODensity，EMIB_max_width = max_Reach_length - 2*(wireCount/AreaIODensity)/EMIB_length，
-    EMIB_bump_width = (wireCount / AreaIODensity) / EMIB_length。
-    默认接口 interfaceC：LinearIODensity=40, max_Reach_length=100, AreaIODensity=80。
-    
-    Args:
-        connections_matrix: 2D list representing adjacency matrix（对称矩阵，值为线数 wireCount）
-        default_emib_type: 默认 EMIBType 标注（默认 "interfaceC"）
-        
-    Returns:
-        List of dicts: [{"node1": "A", "node2": "B", "wireCount": 200, "EMIBType": "interfaceC", "EMIB_length": ..., "EMIB_max_width": ..., "EMIB_bump_width": ...}, ...]
-    """
-    linear_io = 40
-    max_reach = 100.0
-    area_io = 80.0
-
-    connections = []
-    num_chiplets = len(connections_matrix)
-    
-    def index_to_name(idx):
-        return chr(ord('A') + idx)
-    
-    for i in range(num_chiplets):
-        for j in range(i + 1, num_chiplets):
-            wire_count = int(connections_matrix[i][j])
-            if wire_count > 0:
-                emib_length = wire_count / linear_io if linear_io > 0 else 2.5
-                emib_max_width = max_reach - 2 * (wire_count / area_io) / emib_length if emib_length > 0 else max_reach
-                emib_bump_width = (wire_count / area_io) / emib_length if emib_length > 0 and area_io > 0 else 0.0
-                connections.append({
-                    "node1": index_to_name(i),
-                    "node2": index_to_name(j),
-                    "wireCount": wire_count,
-                    "EMIBType": default_emib_type,
-                    "EMIB_length": round(emib_length, 4),
-                    "EMIB_max_width": round(emib_max_width, 4),
-                    "EMIB_bump_width": round(emib_bump_width, 4),
-                })
-    
-    return connections
-
-
-def cfg_to_json(cfg_path, output_dir, default_emib_type: str = "interfaceC"):
-    """
-    Convert a .cfg file to JSON format.
-    
-    Args:
-        cfg_path: Path to input .cfg file
-        output_dir: Directory to save the JSON file
-        default_emib_type: 默认 EMIBType 标注（默认 "interfaceC"）
-    """
-    print(f"Processing: {cfg_path}")
-    
-    # Parse the .cfg file
-    data = parse_cfg_file(cfg_path)
-    
-    # Create chiplets list
-    chiplets = []
-    for i in range(len(data['widths'])):
-        chiplet_name = chr(ord('A') + i)  # 0->A, 1->B, 2->C, ...
-        chiplets.append({
-            'name': chiplet_name,
-            'width': data['widths'][i],
-            'height': data['heights'][i],
-            'power': int(data['powers'][i])  # Power is typically an integer
-        })
-    
-    # Convert connections matrix to list of {node1, node2, wireCount, EMIBType}
-    connections = matrix_to_connections(data['connections_matrix'], default_emib_type=default_emib_type)
-    
-    # Create JSON structure
-    json_data = {
-        'chiplets': chiplets,
-        'connections': connections
-    }
-    
-    # Generate output filename
-    cfg_name = Path(cfg_path).stem  # Get filename without extension
-    output_path = os.path.join(output_dir, f"{cfg_name}.json")
-    
-    # Write JSON file
-    with open(output_path, 'w', encoding='utf-8') as f:
-        json.dump(json_data, f, indent=2)
-    
-    print(f"  -> Saved to: {output_path}")
-    print(f"  -> Chiplets: {len(chiplets)}, Connections: {len(connections)}")
-    return output_path
-
-
-def main():
-    """Main function to process all .cfg files."""
-    import argparse
-    script_dir = Path(__file__).parent.resolve()
-    parser = argparse.ArgumentParser(
-        description="Convert .cfg files to JSON. connections 输出为 {node1, node2, wireCount, EMIBType} 格式，EMIBType 默认 interfaceC。"
-    )
-    parser.add_argument(
-        "--config-dir",
-        type=str,
-        default="../Dataset/config",
-        help=".cfg 文件所在目录（相对本脚本所在目录，默认: ../Dataset/config）",
-    )
-    parser.add_argument(
-        "--output-dir", "-o",
-        type=str,
-        default="../Dataset/dataset/input_test",
-        help="输出 JSON 的目录（相对本脚本所在目录，默认: ../Dataset/dataset/input_test）",
-    )
-    parser.add_argument(
-        "--start-i",
-        type=int,
-        default=None,
-        help="仅处理 system_{i}.cfg 中编号 >= start-i 的文件（含端点）。默认不过滤。",
-    )
-    parser.add_argument(
-        "--end-j",
-        type=int,
-        default=None,
-        help="仅处理 system_{j}.cfg 中编号 <= end-j 的文件（含端点）。默认不过滤。",
-    )
-    args = parser.parse_args()
-    
-    config_dir = (script_dir / args.config_dir).resolve()
-    output_dir = (script_dir / args.output_dir).resolve()
-    
-    os.makedirs(output_dir, exist_ok=True)
-    cfg_files = list(Path(config_dir).glob('*.cfg'))
-
-    # Optional filtering by system_{k}.cfg index
-    if args.start_i is not None or args.end_j is not None:
-        pat = re.compile(r"system_(\d+)\.cfg$")
-        filtered = []
-        skipped_non_system = 0
-        skipped_out_of_range = 0
-        for p in cfg_files:
-            m = pat.match(p.name)
-            if not m:
-                skipped_non_system += 1
-                continue
-            idx = int(m.group(1))
-            if args.start_i is not None and idx < int(args.start_i):
-                skipped_out_of_range += 1
-                continue
-            if args.end_j is not None and idx > int(args.end_j):
-                skipped_out_of_range += 1
-                continue
-            filtered.append(p)
-
-        cfg_files = filtered
-        print(
-            f"Filter enabled: start-i={args.start_i} end-j={args.end_j} -> {len(cfg_files)} file(s) selected "
-            f"(skipped_non_system={skipped_non_system}, skipped_out_of_range={skipped_out_of_range})"
-        )
-    
-    if not cfg_files:
-        print(f"No .cfg files found in {config_dir}")
-        return
-    
-    print(f"Found {len(cfg_files)} .cfg file(s) to process")
-    print(f"EMIBType 默认: interfaceC\n")
-    
-    success_count = 0
-    error_count = 0
-    
-    for cfg_path in sorted(cfg_files):
-        try:
-            cfg_to_json(str(cfg_path), output_dir, default_emib_type="interfaceC")
-            success_count += 1
-        except Exception as e:
-            print(f"ERROR processing {cfg_path}: {e}")
-            error_count += 1
-        print()
-    
-    # Summary
-    print("=" * 60)
-    print(f"Processing complete!")
-    print(f"  Success: {success_count}")
-    print(f"  Errors: {error_count}")
-    print(f"  Output directory: {output_dir}")
-    print("=" * 60)
-
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
-
-# python /root/placement/flow_GCN/Dataset/dataset/input_preprocess.py  --config-dir ../config --output-dir input_test --start-i 65999 --end-j 100000       

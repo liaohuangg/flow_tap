@@ -1,0 +1,19 @@
+# comp_thmodel_time summary
+date=2026-09-11 16:46:52
+cases: system_300001..system_300100  n=100  j=0  grid=64
+device=cuda  ckpt=checkpoints/gnnhrnet_pwin/best.pth  n_chiplets=6
+
+[HotSpot 单线程, 单 case 墙钟时间] n=100
+  mean=11317.565 ms/case   median=11292.948 ms
+  min=8552.879 ms   max=13520.992 ms
+  total=0.314 h  (1131.8 s)
+[模型前向 (batch=1, GPU 核时间)] n=100
+  mean=28.8976 ms/case   median=27.5689 ms
+  min=17.2072 ms   max=55.5397 ms
+  total=2889.757 ms  (2.890 s)
+[模型输入构建 (CPU, 单 case)] mean=2.368 ms  total=0.237 s
+[模型批量推理 (bs=32, 训练批大小)] per_case=4.7479 ms  total=0.475 s  (211 cases/s)
+[加速比] HotSpot 单线程 / 模型单次前向(batch=1) = 392x
+[加速比] HotSpot 单线程 / 模型批量(bs=32) = 2384x
+[总墙钟] 本脚本 1158.1 s (0.322 h)
+[files] times.csv=/root/placement/flow_tap/thermalmodel/time_eval_out/times.csv

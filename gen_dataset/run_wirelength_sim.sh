@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 跑 340001..360000 的线长求解 (avg 变体, 总线长 + 平均线长)。
+# 跑 380001..400000 的线长求解 (avg 变体, 总线长 + 平均线长)。
 # 分 4 批 x 5000, 进度实时写入 wirelength_dataset/wirelength_sim.log。
 #
 # 用法:
@@ -17,8 +17,8 @@ GEN="$SCRIPT_DIR/gen_wirelength_dataset.py"
 LOG_DIR="$SCRIPT_DIR/../Dataset/dataset/wirelength_dataset"
 LOG="$LOG_DIR/wirelength_sim.log"
 
-START=340001
-END=360000
+START=380001
+END=400000
 BATCH=5000
 WORKERS=28
 VARIANT=avg

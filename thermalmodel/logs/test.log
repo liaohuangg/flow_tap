@@ -1,59 +1,61 @@
 # GNN+HRNet per-case eval
-date=2026-09-09 10:31:37
+date=2026-09-11 18:22:34
 ckpt=checkpoints/gnnhrnet_pwin/best.pth
 ckpt_epoch=69  best_rmse=0.48637321889116286
 split=test  n_cases=8000  topk=20
 
+batch size = 8
+
 [aggregate]  (含义见 README「八、评估指标说明」)
-hm_rmse=0.4786C  (整场池化 RMSE, 与训练日志 val_hm_rmse 同口径)
-mean_rmse=0.4218C  min_rmse=0.0344C  max_rmse=1.8600C  (逐 case RMSE 统计)
-mean_mae=0.2603C  max_mae=1.5500C  mean_mse=0.2291C^2
-max_ae=44.4005C  (全像素最大单点绝对误差)
-mean_mape_pct=0.3488%  mean_abs_rel=0.003623  mean_rel=-0.000267
-mean_peak_ae=0.6267C  peak_bias=-0.0342C  mean_peak_abs_rel=0.004960
-mean_peak_loc_err=0.546cells  peak_loc_hit_1=98.47%  peak_loc_hit_2=98.54%  (热点定位: 预测 argmax 与真值 argmax 的格点距离 / ≤1格 / ≤2格 命中率)
-hotspot_rmse=1.1961C  mean_grad=0.6902C/grid
+hm_rmse=0.4785C  (整场池化 RMSE, 与训练日志 val_hm_rmse 同口径)
+mean_rmse=0.4217C  min_rmse=0.0344C  max_rmse=1.8602C  (逐 case RMSE 统计)
+mean_mae=0.2602C  max_mae=1.5501C  mean_mse=0.2290C^2
+max_ae=44.4167C  (全像素最大单点绝对误差)
+mean_mape_pct=0.3488%  mean_abs_rel=0.003622  mean_rel=-0.000259
+mean_peak_ae=0.6264C  peak_bias=-0.0314C  mean_peak_abs_rel=0.004958
+mean_peak_loc_err=0.545cells  peak_loc_hit_1=98.50%  peak_loc_hit_2=98.55%  (热点定位: 预测 argmax 与真值 argmax 的格点距离 / ≤1格 / ≤2格 命中率)
+hotspot_rmse=1.1960C  mean_grad=0.6902C/grid
 
 [worst_20_cases_by_rmse]
-#01  i=334087 j=0 rmse=1.8600C mae=0.8149C mape=1.117% peak_ae=15.492C (pred_max=169.34C gt_peak=184.83C)
-#02  i=320785 j=0 rmse=1.7853C mae=1.5500C mape=2.000% peak_ae=0.923C (pred_max=168.32C gt_peak=169.24C)
-#03  i=326746 j=0 rmse=1.7765C mae=1.2660C mape=1.144% peak_ae=2.202C (pred_max=212.39C gt_peak=214.59C)
-#04  i=317047 j=1 rmse=1.7484C mae=1.3176C mape=1.413% peak_ae=2.479C (pred_max=182.18C gt_peak=184.66C)
-#05  i=337617 j=1 rmse=1.7120C mae=1.5450C mape=1.573% peak_ae=3.003C (pred_max=176.97C gt_peak=173.97C)
-#06  i=320785 j=1 rmse=1.6837C mae=1.3726C mape=1.664% peak_ae=0.003C (pred_max=167.31C gt_peak=167.31C)
-#07  i=309352 j=1 rmse=1.6737C mae=1.1069C mape=1.305% peak_ae=2.834C (pred_max=164.59C gt_peak=161.76C)
-#08  i=304604 j=0 rmse=1.6680C mae=0.5507C mape=0.606% peak_ae=3.939C (pred_max=203.83C gt_peak=207.77C)
-#09  i=316418 j=0 rmse=1.6278C mae=0.7786C mape=0.879% peak_ae=10.888C (pred_max=208.34C gt_peak=197.45C)
-#10  i=334087 j=1 rmse=1.5569C mae=0.5220C mape=0.640% peak_ae=1.413C (pred_max=184.54C gt_peak=185.95C)
-#11  i=326746 j=1 rmse=1.5506C mae=0.8980C mape=0.794% peak_ae=3.392C (pred_max=187.88C gt_peak=191.27C)
-#12  i=306351 j=1 rmse=1.5453C mae=1.1508C mape=1.275% peak_ae=3.817C (pred_max=175.07C gt_peak=178.89C)
-#13  i=313003 j=1 rmse=1.5356C mae=1.0245C mape=1.181% peak_ae=2.144C (pred_max=161.46C gt_peak=163.60C)
-#14  i=325089 j=0 rmse=1.5345C mae=0.4759C mape=0.494% peak_ae=6.191C (pred_max=249.99C gt_peak=256.18C)
-#15  i=325579 j=1 rmse=1.5266C mae=1.1495C mape=1.295% peak_ae=2.366C (pred_max=178.52C gt_peak=180.89C)
-#16  i=332407 j=0 rmse=1.5089C mae=1.1046C mape=1.241% peak_ae=2.623C (pred_max=183.44C gt_peak=186.06C)
-#17  i=320463 j=0 rmse=1.4847C mae=0.6274C mape=0.812% peak_ae=4.666C (pred_max=158.98C gt_peak=163.65C)
-#18  i=303735 j=1 rmse=1.4741C mae=0.8405C mape=0.907% peak_ae=5.336C (pred_max=188.13C gt_peak=193.47C)
-#19  i=336431 j=1 rmse=1.4475C mae=0.7164C mape=0.771% peak_ae=0.555C (pred_max=169.05C gt_peak=169.61C)
-#20  i=303735 j=0 rmse=1.4134C mae=0.9255C mape=1.022% peak_ae=4.084C (pred_max=183.46C gt_peak=187.54C)
+#01  i=334087 j=0 rmse=1.8602C mae=0.8146C mape=1.117% peak_ae=15.476C (pred_max=169.35C gt_peak=184.83C)
+#02  i=320785 j=0 rmse=1.7857C mae=1.5501C mape=2.001% peak_ae=0.907C (pred_max=168.33C gt_peak=169.24C)
+#03  i=326746 j=0 rmse=1.7771C mae=1.2663C mape=1.145% peak_ae=2.184C (pred_max=212.41C gt_peak=214.59C)
+#04  i=317047 j=1 rmse=1.7478C mae=1.3165C mape=1.411% peak_ae=2.481C (pred_max=182.18C gt_peak=184.66C)
+#05  i=337617 j=1 rmse=1.7121C mae=1.5447C mape=1.573% peak_ae=3.015C (pred_max=176.98C gt_peak=173.97C)
+#06  i=320785 j=1 rmse=1.6850C mae=1.3739C mape=1.666% peak_ae=0.016C (pred_max=167.33C gt_peak=167.31C)
+#07  i=309352 j=1 rmse=1.6743C mae=1.1077C mape=1.306% peak_ae=2.838C (pred_max=164.60C gt_peak=161.76C)
+#08  i=304604 j=0 rmse=1.6670C mae=0.5497C mape=0.605% peak_ae=3.900C (pred_max=203.87C gt_peak=207.77C)
+#09  i=316418 j=0 rmse=1.6282C mae=0.7795C mape=0.881% peak_ae=10.902C (pred_max=208.35C gt_peak=197.45C)
+#10  i=334087 j=1 rmse=1.5567C mae=0.5219C mape=0.640% peak_ae=1.442C (pred_max=184.51C gt_peak=185.95C)
+#11  i=326746 j=1 rmse=1.5489C mae=0.8961C mape=0.792% peak_ae=3.355C (pred_max=187.91C gt_peak=191.27C)
+#12  i=306351 j=1 rmse=1.5452C mae=1.1503C mape=1.274% peak_ae=3.822C (pred_max=175.07C gt_peak=178.89C)
+#13  i=313003 j=1 rmse=1.5359C mae=1.0251C mape=1.181% peak_ae=2.147C (pred_max=161.45C gt_peak=163.60C)
+#14  i=325089 j=0 rmse=1.5333C mae=0.4727C mape=0.491% peak_ae=6.126C (pred_max=250.05C gt_peak=256.18C)
+#15  i=325579 j=1 rmse=1.5252C mae=1.1481C mape=1.293% peak_ae=2.364C (pred_max=178.53C gt_peak=180.89C)
+#16  i=332407 j=0 rmse=1.5057C mae=1.1017C mape=1.238% peak_ae=2.606C (pred_max=183.45C gt_peak=186.06C)
+#17  i=320463 j=0 rmse=1.4848C mae=0.6281C mape=0.813% peak_ae=4.644C (pred_max=159.01C gt_peak=163.65C)
+#18  i=303735 j=1 rmse=1.4723C mae=0.8393C mape=0.906% peak_ae=5.312C (pred_max=188.16C gt_peak=193.47C)
+#19  i=336431 j=1 rmse=1.4481C mae=0.7164C mape=0.771% peak_ae=0.552C (pred_max=169.06C gt_peak=169.61C)
+#20  i=303735 j=0 rmse=1.4125C mae=0.9250C mape=1.021% peak_ae=4.083C (pred_max=183.46C gt_peak=187.54C)
 
 [best_20_cases_by_rmse]
-#01  i=305260 j=1 rmse=0.0344C mae=0.0247C mape=0.049% peak_ae=0.028C (pred_max=54.14C gt_peak=54.11C)
-#02  i=335381 j=0 rmse=0.0437C mae=0.0331C mape=0.056% peak_ae=0.048C (pred_max=65.75C gt_peak=65.70C)
-#03  i=314824 j=1 rmse=0.0438C mae=0.0368C mape=0.058% peak_ae=0.031C (pred_max=69.29C gt_peak=69.32C)
-#04  i=305548 j=0 rmse=0.0438C mae=0.0323C mape=0.057% peak_ae=0.094C (pred_max=62.98C gt_peak=63.07C)
-#05  i=322602 j=0 rmse=0.0457C mae=0.0313C mape=0.051% peak_ae=0.050C (pred_max=67.42C gt_peak=67.37C)
-#06  i=313640 j=0 rmse=0.0462C mae=0.0280C mape=0.054% peak_ae=0.034C (pred_max=58.49C gt_peak=58.46C)
-#07  i=328459 j=1 rmse=0.0463C mae=0.0384C mape=0.077% peak_ae=0.033C (pred_max=54.11C gt_peak=54.08C)
-#08  i=305220 j=1 rmse=0.0481C mae=0.0330C mape=0.060% peak_ae=0.000C (pred_max=61.89C gt_peak=61.89C)
-#09  i=311111 j=1 rmse=0.0501C mae=0.0313C mape=0.053% peak_ae=0.001C (pred_max=66.01C gt_peak=66.01C)
-#10  i=318181 j=1 rmse=0.0519C mae=0.0329C mape=0.057% peak_ae=0.022C (pred_max=66.59C gt_peak=66.57C)
-#11  i=314860 j=1 rmse=0.0522C mae=0.0419C mape=0.079% peak_ae=0.013C (pred_max=58.39C gt_peak=58.40C)
-#12  i=308535 j=1 rmse=0.0553C mae=0.0428C mape=0.082% peak_ae=0.017C (pred_max=57.10C gt_peak=57.12C)
-#13  i=309972 j=1 rmse=0.0561C mae=0.0423C mape=0.078% peak_ae=0.049C (pred_max=60.01C gt_peak=60.06C)
-#14  i=305529 j=0 rmse=0.0562C mae=0.0457C mape=0.079% peak_ae=0.057C (pred_max=64.65C gt_peak=64.71C)
-#15  i=306240 j=0 rmse=0.0562C mae=0.0466C mape=0.079% peak_ae=0.061C (pred_max=64.78C gt_peak=64.72C)
-#16  i=316318 j=0 rmse=0.0564C mae=0.0443C mape=0.078% peak_ae=0.053C (pred_max=63.11C gt_peak=63.06C)
-#17  i=314824 j=0 rmse=0.0573C mae=0.0500C mape=0.083% peak_ae=0.073C (pred_max=66.22C gt_peak=66.29C)
-#18  i=332230 j=1 rmse=0.0579C mae=0.0462C mape=0.075% peak_ae=0.082C (pred_max=69.01C gt_peak=68.93C)
-#19  i=318266 j=1 rmse=0.0589C mae=0.0480C mape=0.100% peak_ae=0.012C (pred_max=51.90C gt_peak=51.91C)
-#20  i=300530 j=1 rmse=0.0592C mae=0.0425C mape=0.084% peak_ae=0.014C (pred_max=53.90C gt_peak=53.89C)
+#01  i=305260 j=1 rmse=0.0344C mae=0.0248C mape=0.049% peak_ae=0.028C (pred_max=54.14C gt_peak=54.11C)
+#02  i=314824 j=1 rmse=0.0433C mae=0.0364C mape=0.058% peak_ae=0.032C (pred_max=69.29C gt_peak=69.32C)
+#03  i=335381 j=0 rmse=0.0436C mae=0.0329C mape=0.056% peak_ae=0.047C (pred_max=65.75C gt_peak=65.70C)
+#04  i=305548 j=0 rmse=0.0437C mae=0.0322C mape=0.057% peak_ae=0.092C (pred_max=62.98C gt_peak=63.07C)
+#05  i=322602 j=0 rmse=0.0452C mae=0.0309C mape=0.050% peak_ae=0.049C (pred_max=67.42C gt_peak=67.37C)
+#06  i=328459 j=1 rmse=0.0460C mae=0.0379C mape=0.076% peak_ae=0.032C (pred_max=54.11C gt_peak=54.08C)
+#07  i=313640 j=0 rmse=0.0463C mae=0.0282C mape=0.054% peak_ae=0.034C (pred_max=58.49C gt_peak=58.46C)
+#08  i=305220 j=1 rmse=0.0483C mae=0.0332C mape=0.060% peak_ae=0.004C (pred_max=61.89C gt_peak=61.89C)
+#09  i=311111 j=1 rmse=0.0500C mae=0.0314C mape=0.054% peak_ae=0.001C (pred_max=66.01C gt_peak=66.01C)
+#10  i=318181 j=1 rmse=0.0515C mae=0.0323C mape=0.056% peak_ae=0.022C (pred_max=66.59C gt_peak=66.57C)
+#11  i=314860 j=1 rmse=0.0533C mae=0.0429C mape=0.081% peak_ae=0.010C (pred_max=58.39C gt_peak=58.40C)
+#12  i=308535 j=1 rmse=0.0554C mae=0.0426C mape=0.082% peak_ae=0.016C (pred_max=57.10C gt_peak=57.12C)
+#13  i=309972 j=1 rmse=0.0558C mae=0.0420C mape=0.078% peak_ae=0.050C (pred_max=60.01C gt_peak=60.06C)
+#14  i=316318 j=0 rmse=0.0561C mae=0.0440C mape=0.078% peak_ae=0.049C (pred_max=63.11C gt_peak=63.06C)
+#15  i=305529 j=0 rmse=0.0562C mae=0.0458C mape=0.079% peak_ae=0.054C (pred_max=64.66C gt_peak=64.71C)
+#16  i=306240 j=0 rmse=0.0569C mae=0.0471C mape=0.079% peak_ae=0.061C (pred_max=64.78C gt_peak=64.72C)
+#17  i=314824 j=0 rmse=0.0570C mae=0.0496C mape=0.082% peak_ae=0.073C (pred_max=66.22C gt_peak=66.29C)
+#18  i=318266 j=1 rmse=0.0591C mae=0.0482C mape=0.100% peak_ae=0.013C (pred_max=51.90C gt_peak=51.91C)
+#19  i=300530 j=1 rmse=0.0592C mae=0.0425C mape=0.084% peak_ae=0.015C (pred_max=53.90C gt_peak=53.89C)
+#20  i=332230 j=1 rmse=0.0601C mae=0.0483C mape=0.079% peak_ae=0.088C (pred_max=69.02C gt_peak=68.93C)
