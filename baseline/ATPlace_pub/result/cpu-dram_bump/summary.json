@@ -1,0 +1,39 @@
+{
+  "case": "cpu-dram_bump",
+  "mode": "thermal",
+  "base_seed": 5,
+  "status": "completed",
+  "error": null,
+  "legal_found": true,
+  "num_legal": 1,
+  "num_illegal": 0,
+  "attempts": 1,
+  "best_hpwl": 60386664.366633415,
+  "twl_m": 60.38666436663342,
+  "best_seed": 5,
+  "best_legal": true,
+  "best_overlaps": 0,
+  "best_legalize_method": "milp",
+  "best_legalize_s": 0.024688243865966797,
+  "total_legalize_s": 0.024688243865966797,
+  "runtime_s": 317.95070242881775,
+  "attempt_log": [
+    {
+      "seed": 5,
+      "iterations": 100,
+      "overlaps": 0,
+      "overlaps_raw": 0,
+      "hpwl": 60386664.366633415,
+      "hpwl_raw": 60386540.0,
+      "run_s": 317.17199420928955,
+      "legal": true,
+      "legalize_method": "milp",
+      "legalize_s": 0.024688243865966797,
+      "layout_dir": "/root/placement/ATPlace_pub/result/cpu-dram_bump/seed5"
+    }
+  ],
+  "layout_json": "/root/placement/ATPlace_pub/result/cpu-dram_bump/layout.json",
+  "layout_png": "/root/placement/ATPlace_pub/result/cpu-dram_bump/layout.png",
+  "layout_chiplets": 8,
+  "visualized": true
+}
