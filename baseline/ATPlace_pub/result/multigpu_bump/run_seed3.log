@@ -1,0 +1,39 @@
+{
+  "case": "multigpu_bump",
+  "mode": "thermal",
+  "base_seed": 3,
+  "status": "completed",
+  "error": null,
+  "legal_found": true,
+  "num_legal": 1,
+  "num_illegal": 0,
+  "attempts": 1,
+  "best_hpwl": 65249076.040382385,
+  "twl_m": 65.24907604038239,
+  "best_seed": 3,
+  "best_legal": true,
+  "best_overlaps": 0,
+  "best_legalize_method": "milp",
+  "best_legalize_s": 0.008199214935302734,
+  "total_legalize_s": 0.008199214935302734,
+  "runtime_s": 276.43584394454956,
+  "attempt_log": [
+    {
+      "seed": 3,
+      "iterations": 100,
+      "overlaps": 0,
+      "overlaps_raw": 0,
+      "hpwl": 65249076.040382385,
+      "hpwl_raw": 65249148.0,
+      "run_s": 275.94017219543457,
+      "legal": true,
+      "legalize_method": "milp",
+      "legalize_s": 0.008199214935302734,
+      "layout_dir": "/root/placement/ATPlace_pub/result/multigpu_bump/seed3"
+    }
+  ],
+  "layout_json": "/root/placement/ATPlace_pub/result/multigpu_bump/layout.json",
+  "layout_png": "/root/placement/ATPlace_pub/result/multigpu_bump/layout.png",
+  "layout_chiplets": 6,
+  "visualized": true
+}
