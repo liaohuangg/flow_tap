@@ -8,9 +8,13 @@ For each case in ``examples/`` and each seed the driver:
      ``side = sqrt(sum(footprint_w * footprint_h) / ratio)``, and hands that same
      side to fastTM as ``thermal_intp_size`` so the layout always fits the
      interposer;
-  2. prepares the fastTM thermal tables for that interposer size *outside* the
-     training budget (``train.py`` charges table generation against
-     ``--time_limit_seconds``, which would otherwise eat the run);
+  2. generates the fastTM thermal tables **inside each run's own ``--seconds``
+     budget**, and never reuses them across seeds: every run passes
+     ``--force_thermal_tables``, so all five seeds of a case regenerate their own
+     tables and each run is a self-contained ``--seconds`` window. ``train.py``
+     charges the thermal stage against ``--time_limit_seconds``, so the RL loop
+     receives ``--seconds`` minus that stage's duration. Reuse and generation
+     outside the per-seed budget are rejected by the command-line parser;
   3. runs ``train.py`` for ``--seconds`` per seed, saving logs, metrics, the best
      layouts and a checkpoint;
   4. ranks the five seeds of the case by ``rlplanner_cost``
@@ -40,6 +44,7 @@ import glob
 import json
 import math
 import os
+import random
 import shutil
 import subprocess
 import sys
@@ -51,6 +56,12 @@ RL_DIR = Path(__file__).resolve().parent
 FASTM_DIR = RL_DIR / "fastTM"
 HOTSPOT_BIN = FASTM_DIR / "util" / "hotspot"
 EXAMPLES_DIR = RL_DIR / "examples"
+
+#: Draws the concrete seeds for 'random' entries in --seeds.
+_SEED_RNG = random.SystemRandom()
+
+#: Extra sinks for log(); the driver log is registered in main().
+_LOG_STREAMS: list = []
 
 #: reward_cal.py TEMP_LIMIT / env.TEMP_LIMIT
 TEMP_LIMIT = 80.0
@@ -88,7 +99,14 @@ print("ENVCHECK_JSON:" + json.dumps(report))
 
 
 def log(message: str) -> None:
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] {message}", flush=True)
+    line = f"[{datetime.now().strftime('%H:%M:%S')}] {message}"
+    print(line, flush=True)
+    for stream in _LOG_STREAMS:
+        try:
+            stream.write(line + "\n")
+            stream.flush()
+        except Exception:
+            pass
 
 
 def read_json(path: Path):
@@ -401,11 +419,12 @@ def prepare_thermal_tables(case: str, side: float, chiplet_count: int, log_dir: 
 
 def run_seed(python: str, run_name: str, json_path: Path, seed: int, budget: float,
              side: float, runs_root: Path, console_dir: Path, child_env: dict,
-             dry_run: bool = False) -> dict:
+             force_thermal: bool = False, dry_run: bool = False) -> dict:
     cmd = [
         python, str(RL_DIR / "train.py"),
         "--json", str(json_path),
         "--name", run_name,
+        "--runs-dir", str(runs_root),
         "--seed", str(seed),
         "--time_limit_seconds", f"{budget:.1f}",
         "--max_width", f"{side:.6f}",
@@ -415,6 +434,9 @@ def run_seed(python: str, run_name: str, json_path: Path, seed: int, budget: flo
         "--save_checkpoint",
         "--log_interval", "1",
     ]
+    if force_thermal:
+        # Every run regenerates its own thermal tables, charged to its own budget.
+        cmd.append("--force_thermal_tables")
     run_dir = runs_root / run_name
     console_dir.mkdir(parents=True, exist_ok=True)
     console_path = console_dir / f"{run_name}.console.log"
@@ -434,6 +456,17 @@ def run_seed(python: str, run_name: str, json_path: Path, seed: int, budget: flo
                                 env=child_env)
     elapsed = time.perf_counter() - started
 
+    if not run_dir.exists():
+        log(f"    WARNING: train.py did not create {run_dir} (rc={result.returncode}); "
+            f"its results may be under {RL_DIR / 'runs'} instead")
+    if result.returncode != 0:
+        hint = f"see {run_dir / 'train.log'}"
+        if not (run_dir / "timing.json").exists():
+            hint += (" -- the run aborted early. The thermal-table stage is charged "
+                     "to this budget and is terminated when that budget is exhausted; "
+                     "use a larger --seconds value")
+        log(f"    WARNING: rc={result.returncode}; {hint}")
+
     timing = read_json(run_dir / "timing.json") or {}
     config = read_json(run_dir / "config.json") or {}
     info = {
@@ -447,6 +480,8 @@ def run_seed(python: str, run_name: str, json_path: Path, seed: int, budget: flo
         "termination_reason": timing.get("termination_reason"),
         "rl_solve_seconds": (timing.get("rl_solve") or {}).get("seconds"),
         "thermal_tables_seconds": (timing.get("thermal_tables") or {}).get("seconds"),
+        "thermal_tables_status": (timing.get("thermal_tables") or {}).get("status"),
+        "thermal_tables_forced": (timing.get("thermal_tables") or {}).get("force"),
         "num_epochs_requested": config.get("num_epochs"),
     }
     log(f"    -> rc={result.returncode} wall={elapsed:.1f}s "
@@ -468,6 +503,8 @@ def read_run_results(run_info: dict) -> dict:
     row.setdefault("termination_reason", timing.get("termination_reason"))
     row.setdefault("rl_solve_seconds", (timing.get("rl_solve") or {}).get("seconds"))
     row.setdefault("thermal_tables_seconds", (timing.get("thermal_tables") or {}).get("seconds"))
+    row.setdefault("thermal_tables_status", (timing.get("thermal_tables") or {}).get("status"))
+    row.setdefault("thermal_tables_forced", (timing.get("thermal_tables") or {}).get("force"))
     row.setdefault("num_epochs_requested", config.get("num_epochs"))
     row.setdefault("seed", config.get("seed"))
     row.setdefault("console_log", None)
@@ -636,6 +673,7 @@ def collect_case(case: str, plan: dict, seed_rows: list[dict], case_dir: Path,
         "total_success_rate": winner.get("success_rate"),
         "executed_epochs": winner.get("executed_epochs"),
         "rl_solve_seconds": winner.get("rl_solve_seconds"),
+        "thermal_tables_seconds": winner.get("thermal_tables_seconds"),
         "pruned_seed_checkpoints": pruned,
         "artifacts": artifacts,
         "seeds": [
@@ -645,6 +683,9 @@ def collect_case(case: str, plan: dict, seed_rows: list[dict], case_dir: Path,
                 "returncode": row.get("returncode"),
                 "wall_seconds": row.get("wall_seconds"),
                 "rl_solve_seconds": row.get("rl_solve_seconds"),
+                "thermal_tables_seconds": row.get("thermal_tables_seconds"),
+                "thermal_tables_forced": row.get("thermal_tables_forced"),
+                "thermal_tables_status": row.get("thermal_tables_status"),
                 "termination_reason": row.get("termination_reason"),
                 "rlplanner_cost": row.get("cost"),
                 "avg_wirelength": row.get("avg_wirelength"),
@@ -676,7 +717,14 @@ def write_global_summary(runs_root: Path, case_results: list[dict], plan: list[d
         "python": args.python or sys.executable,
         "seconds_per_run": args.seconds,
         "budget_margin_seconds": args.budget_margin,
+        "thermal_inside_budget": bool(args.thermal_inside_budget),
+        "thermal_mode": args.thermal_mode,
+        "reuse_thermal_tables": bool(args.reuse_thermal_tables),
+        "thermal_prep": ("inside_each_run_forced" if args.force_thermal_per_run
+                         else "inside_each_run" if args.thermal_mode == "per_run"
+                         else "before_runs"),
         "seeds": args.seed_list,
+        "seeds_spec": args.seed_spec,
         "target_footprint_canvas_ratio": args.ratio,
         "cases_requested": [entry["case"] for entry in plan],
         "cases_completed": [entry["case"] for entry in case_results],
@@ -690,7 +738,8 @@ def write_global_summary(runs_root: Path, case_results: list[dict], plan: list[d
         "case", "chiplets", "canvas_side_mm", "target_ratio", "best_seed",
         "rlplanner_cost", "avg_wirelength", "temperature", "canvas_utilization",
         "silicon_canvas_utilization", "total_success_rate", "termination_reason",
-        "rl_solve_seconds", "checkpoint", "layout_json",
+        "thermal_tables_seconds", "rl_solve_seconds", "wall_seconds",
+        "checkpoint", "layout_json",
     ]
     usable = [result for result in case_results if result.get("best_seed") is not None]
     with open(runs_root / "summary.csv", "w", encoding="utf-8", newline="") as handle:
@@ -698,6 +747,10 @@ def write_global_summary(runs_root: Path, case_results: list[dict], plan: list[d
         writer.writeheader()
         for result in usable:
             artifacts = result.get("artifacts") or {}
+            seed_rows_out = result.get("seeds") or []
+            winner_row = next(
+                (row for row in seed_rows_out if row.get("seed") == result.get("best_seed")),
+                seed_rows_out[0] if seed_rows_out else {})
             writer.writerow({
                 "case": result["case"],
                 "chiplets": result["chiplets"],
@@ -711,7 +764,9 @@ def write_global_summary(runs_root: Path, case_results: list[dict], plan: list[d
                 "silicon_canvas_utilization": result.get("silicon_canvas_utilization"),
                 "total_success_rate": result.get("total_success_rate"),
                 "termination_reason": result.get("termination_reason"),
+                "thermal_tables_seconds": winner_row.get("thermal_tables_seconds"),
                 "rl_solve_seconds": result.get("rl_solve_seconds"),
+                "wall_seconds": winner_row.get("wall_seconds"),
                 "checkpoint": artifacts.get("checkpoint"),
                 "layout_json": artifacts.get("layout"),
             })
@@ -751,12 +806,17 @@ def parse_args(argv=None) -> argparse.Namespace:
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--cases", default="all",
                         help="'all' or a comma separated list, e.g. Case6,acend910")
-    parser.add_argument("--seeds", default="0,1,2,3,4", help="comma separated seeds")
+    parser.add_argument("--seeds", default="0,1,2,3,4",
+                        help="comma separated seeds; the token 'random' draws a fresh "
+                             "seed per case (recorded in the summaries)")
     parser.add_argument("--seconds", type=float, default=3600.0,
-                        help="RL training budget per run, in seconds (default 3600)")
+                        help="per-run budget in seconds (default 3600). In the default "
+                             "--thermal-mode per_run this is the TOTAL budget: the "
+                             "thermal-table stage is charged against it")
     parser.add_argument("--budget-margin", type=float, default=30.0,
-                        help="added to --seconds because train.py charges its thermal-table "
-                             "check against the same budget (default 30)")
+                        help="only used with --thermal-mode before_runs: added to "
+                             "--seconds to compensate for train.py's own thermal check "
+                             "(default 30)")
     parser.add_argument("--ratio", type=float, default=0.50,
                         help="target footprint area / canvas area (default 0.50)")
     parser.add_argument("--canvas-side", type=float, default=None,
@@ -772,10 +832,20 @@ def parse_args(argv=None) -> argparse.Namespace:
                         help="output root (default baseline/RL/runs)")
     parser.add_argument("--smoke", action="store_true",
                         help="short validation: one case, one seed, 60s, separate names")
+    parser.add_argument("--thermal-mode", choices=("per_run", "before_runs"),
+                        default="per_run",
+                        help="must be per_run: every seed regenerates its own thermal "
+                             "tables inside its own --seconds total budget")
     parser.add_argument("--no-thermal-prep", action="store_true",
-                        help="let train.py do the thermal-table stage itself")
+                        help="deprecated alias for --thermal-mode per_run")
+    parser.add_argument("--thermal-inside-budget", action="store_true",
+                        help="deprecated alias for --thermal-mode per_run")
+    parser.add_argument("--reuse-thermal-tables", action="store_true",
+                        help="with --thermal-mode per_run: do not force regeneration, so "
+                             "a seed may reuse tables left by an earlier seed")
     parser.add_argument("--force-thermal", action="store_true",
-                        help="regenerate thermal tables even when they are already valid")
+                        help="with --thermal-mode before_runs: regenerate the tables "
+                             "during the prep step even when they are already valid")
     parser.add_argument("--keep-seed-checkpoints", action="store_true",
                         help="keep every seed's checkpoint; by default only the winning "
                              "seed of each case keeps its model (~73MB each)")
@@ -792,13 +862,38 @@ def parse_args(argv=None) -> argparse.Namespace:
         parser.error("--ratio must be in (0, 1]")
     if args.seconds <= 0:
         parser.error("--seconds must be positive")
-    args.seed_list = [int(item) for item in str(args.seeds).split(",") if item.strip()]
-    if not args.seed_list:
+    if args.no_thermal_prep or args.thermal_inside_budget:
+        args.thermal_mode = "per_run"          # legacy aliases
+    if args.thermal_mode != "per_run":
+        parser.error("thermal tables must be generated per seed inside the --seconds budget")
+    if args.reuse_thermal_tables:
+        parser.error("thermal-table reuse across seeds is disabled by experiment protocol")
+    # The value passed to train.py is the complete wall-clock budget.  Thermal
+    # characterization is forced for every seed and deducted from this budget.
+    args.budget_margin = 0.0
+    args.thermal_inside_budget = True
+    args.no_thermal_prep = True
+    args.force_thermal_per_run = True
+    args.seed_spec = []
+    for token in (item.strip() for item in str(args.seeds).split(",")):
+        if not token:
+            continue
+        if token.lower() in ("random", "rand"):
+            args.seed_spec.append("random")
+            continue
+        try:
+            args.seed_spec.append(int(token))
+        except ValueError:
+            parser.error(f"--seeds entries must be integers or 'random', got {token!r}")
+    if not args.seed_spec:
         parser.error("--seeds must list at least one seed")
+    # Fixed seeds only; 'random' entries are drawn per case in main().
+    args.seed_list = [item for item in args.seed_spec if isinstance(item, int)]
 
     if args.smoke:
         args.cases = "acend910" if args.cases == "all" else args.cases
         args.seeds = "0"
+        args.seed_spec = [0]
         args.seed_list = [0]
         args.seconds = 60.0
         args.name_prefix = "smoke_"
@@ -807,20 +902,36 @@ def parse_args(argv=None) -> argparse.Namespace:
     return args
 
 
+def materialize_seeds(spec, rng: random.Random) -> list[int]:
+    """Turn a seed spec into concrete seeds, drawing fresh ones for 'random'."""
+    return [rng.randrange(1, 10 ** 9) if item == "random" else int(item) for item in spec]
+
+
 def main(argv=None) -> int:
     args = parse_args(argv)
     runs_root = Path(args.runs_dir).resolve()
     runs_root.mkdir(parents=True, exist_ok=True)
     console_dir = runs_root / "_console"
     driver_log = runs_root / f"driver_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    runs_root.mkdir(parents=True, exist_ok=True)
+    try:
+        _LOG_STREAMS.append(open(driver_log, "w", encoding="utf-8"))
+    except OSError:
+        pass
 
     started_at = datetime.now().isoformat(timespec="seconds")
     started = time.perf_counter()
 
     log("=" * 118)
     log("RL chiplet placement - all cases x seeds, time-boxed PPO training")
-    log(f"  cases     : {args.cases}   seeds: {args.seed_list}")
-    log(f"  per run   : {args.seconds:.0f}s RL budget (+{args.budget_margin:.0f}s margin)")
+    log(f"  cases     : {args.cases}   seeds: {args.seed_spec}")
+    if args.thermal_mode == "per_run":
+        reuse = "reused when valid" if args.reuse_thermal_tables else "regenerated per run"
+        log(f"  per run   : {args.seconds:.0f}s TOTAL budget "
+            f"(thermal tables inside the run, {reuse})")
+    else:
+        log(f"  per run   : {args.seconds:.0f}s RL budget (+{args.budget_margin:.0f}s margin; "
+            f"thermal tables prepared once per case before the runs)")
     log(f"  canvas    : footprint area / canvas area = {args.ratio:.2%}  "
         f"side = sqrt(footprint_area / ratio)")
     log(f"  runs dir  : {runs_root}")
@@ -840,17 +951,26 @@ def main(argv=None) -> int:
     with open(runs_root / "_plan.json", "w", encoding="utf-8") as handle:
         json.dump(plan, handle, indent=2, ensure_ascii=False)
 
+    if args.force_thermal_per_run and args.seconds < 600:
+        log("")
+        log(f"WARNING: --thermal-mode per_run regenerates the thermal tables inside every "
+            f"run, and {args.seconds:.0f}s may be less than that stage takes "
+            f"(observed 60-130s, more for many-chiplet cases). The stage is terminated "
+            f"when the total budget expires. Use --seconds >= 600 for a quick check.")
+
     if args.dry_run:
         log("")
         log("DRY-RUN: no training launched.")
+        placeholder = materialize_seeds(args.seed_spec, _SEED_RNG)
         for entry in plan:
             log(f"  {entry['case']}: side={entry['side_mm']:.4f}mm "
-                f"intp={entry['side_mm']:.4f}mm names="
-                f"{args.name_prefix}{entry['case']}_seed<s>")
+                f"intp={entry['side_mm']:.4f}mm seeds={args.seed_spec} "
+                f"names={args.name_prefix}{entry['case']}_seed<s>")
             run_seed(args.python, f"{args.name_prefix}{entry['case']}_seed0",
-                     Path(entry["json"]), args.seed_list[0],
+                     Path(entry["json"]), placeholder[0],
                      args.seconds + args.budget_margin, entry["side_mm"],
-                     runs_root, console_dir, dict(os.environ), dry_run=True)
+                     runs_root, console_dir, dict(os.environ),
+                     force_thermal=args.force_thermal_per_run, dry_run=True)
         return 0
 
     # Make `import cplex` work for the child processes without touching the
@@ -891,13 +1011,23 @@ def main(argv=None) -> int:
                 continue
 
         seed_rows = []
-        for seed in args.seed_list:
+        case_seeds = materialize_seeds(args.seed_spec, _SEED_RNG)
+        entry["seeds_used"] = case_seeds
+        log(f"  seeds: {case_seeds}"
+            + ("  (drawn randomly; recorded in case_summary.json)"
+               if "random" in args.seed_spec else ""))
+        for seed in case_seeds:
             run_name = f"{args.name_prefix}{case}_seed{seed}"
             info = run_seed(args.python, run_name, Path(entry["json"]), seed, budget,
-                            side, runs_root, console_dir, child_env)
+                            side, runs_root, console_dir, child_env,
+                            force_thermal=args.force_thermal_per_run)
             if info.get("dry_run"):
                 continue
             seed_rows.append(read_run_results(info))
+            if info.get("thermal_tables_seconds") is not None:
+                log(f"    thermal stage {info['thermal_tables_seconds']:.1f}s "
+                    f"(forced={info.get('thermal_tables_forced')}), "
+                    f"RL {info.get('rl_solve_seconds')}")
 
         if not seed_rows:
             continue

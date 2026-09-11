@@ -104,8 +104,9 @@ def _safe_run_name(name: str) -> str:
     return safe or datetime.now().strftime("%Y%m%d_%H%M%S")
 
 
-def _run_dir_for_name(name: str) -> Path:
-    return RL_DIR / "runs" / _safe_run_name(name)
+def _run_dir_for_name(name: str, runs_root: str | Path | None = None) -> Path:
+    root = Path(runs_root).resolve() if runs_root else RL_DIR / "runs"
+    return root / _safe_run_name(name)
 
 
 def _thermal_intp_size_for_generation(json_path: str, env_kwargs: Dict) -> float:
@@ -149,6 +150,7 @@ def _generate_thermal_tables(
     env_kwargs: Dict,
     run_dir: Path,
     force: bool = False,
+    timeout_seconds: float | None = None,
 ) -> Dict:
     """Generate/check fastTM tables and return timing metadata."""
     thermal_log = run_dir / "thermal_tables.log"
@@ -198,10 +200,17 @@ def _generate_thermal_tables(
                     stderr=subprocess.STDOUT,
                     text=True,
                     check=False,
+                    timeout=timeout_seconds,
                 )
                 returncode = result.returncode
                 if result.returncode != 0:
                     status = "failed"
+        except subprocess.TimeoutExpired:
+            status = "timeout"
+            log_file.write(
+                f"\nThermal-table generation exceeded its remaining "
+                f"{timeout_seconds:.3f}s experiment budget.\n"
+            )
         except Exception as exc:
             status = f"error:{type(exc).__name__}: {exc}"
             log_file.write(f"\n{status}\n")
@@ -677,6 +686,7 @@ def train(
     log_interval: int = 1,
     trainer: PPOTrainer = None,
     name: str = None,
+    runs_dir: str | Path | None = None,
     generate_thermal_tables: bool = True,
     force_thermal_tables: bool = False,
     rollout_batch_size: int = 480,
@@ -699,7 +709,7 @@ def train(
     if name is None:
         case_name = Path(json_path).stem
         name = f"{case_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-    run_dir = _run_dir_for_name(name)
+    run_dir = _run_dir_for_name(name, runs_dir)
     run_dir.mkdir(parents=True, exist_ok=True)
     if save_checkpoint:
         (run_dir / "checkpoints").mkdir(parents=True, exist_ok=True)
@@ -769,17 +779,32 @@ def train(
                 )
 
             print("\n生成/检查 fastTM 热阻表...")
+            thermal_timeout = None
+            if time_limit_seconds is not None:
+                thermal_timeout = max(
+                    0.001,
+                    float(time_limit_seconds) - (time.perf_counter() - total_start),
+                )
             thermal_info = _generate_thermal_tables(
                 json_path=json_path,
                 env_kwargs=env_kwargs,
                 run_dir=run_dir,
                 force=force_thermal_tables,
+                timeout_seconds=thermal_timeout,
             )
             timing["thermal_tables"] = thermal_info
             print(f"  热阻表阶段状态: {thermal_info['status']}")
             print(f"  热阻表阶段耗时: {thermal_info['seconds']:.3f}s")
             print(f"  热阻表日志: {thermal_info['log']}")
             if thermal_info["status"] != "ok":
+                timing["termination_reason"] = "thermal_tables_timeout" if (
+                    thermal_info["status"] == "timeout"
+                ) else "thermal_tables_failed"
+                timing["time_limit_seconds"] = time_limit_seconds
+                timing["total_seconds"] = time.perf_counter() - total_start
+                timing["ended_at"] = datetime.now().isoformat(timespec="seconds")
+                with open(run_dir / "timing.json", "w", encoding="utf-8") as f:
+                    json.dump(timing, f, indent=2, ensure_ascii=False, default=str)
                 raise RuntimeError(f"FastTM thermal-table stage failed: {thermal_info['status']}")
 
             remaining_seconds = None
@@ -925,16 +950,6 @@ def _train_impl(
     total_transitions = 0
     train_loop_start = time.perf_counter()
     last_log_time = train_loop_start
-    checkpoint_reserve = 0.0
-    if save_checkpoint and time_limit_seconds is not None:
-        checkpoint_reserve = min(30.0, max(5.0, float(time_limit_seconds) * 0.01))
-    training_deadline = None
-    if time_limit_seconds is not None:
-        usable_seconds = max(0.0, float(time_limit_seconds) - checkpoint_reserve)
-        training_deadline = train_loop_start + usable_seconds
-    termination_reason = "epochs_complete"
-    completed_epochs = 0
-    executed_epochs = 0
     training_deadline = None
     if time_limit_seconds is not None:
         checkpoint_reserve = min(30.0, max(5.0, float(time_limit_seconds) * 0.01)) if save_checkpoint else 0.0
@@ -1188,6 +1203,8 @@ def _train_impl(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="PPO训练 - 芯片布局优化")
     parser.add_argument("--name", type=str, default=None, help="本次训练名称；输出到 runs/<name>")
+    parser.add_argument("--runs-dir", type=str, default=None,
+                        help="输出根目录（默认 <RL_DIR>/runs）；批量脚本用它隔离结果")
     parser.add_argument("--json", dest="json_path", type=str, default=str(RL_DIR / "examples" / "multigpu.json"))
     parser.add_argument("--num_epochs", "--num_episodes", dest="num_epochs", type=int, default=600,
                         help="PPO epochs; --num_episodes is a compatibility alias")
@@ -1261,6 +1278,7 @@ if __name__ == "__main__":
     trained_model = train(
         json_path=args.json_path,
         name=args.name,
+        runs_dir=args.runs_dir,
         num_episodes=args.num_epochs,
         rollout_batch_size=args.rollout_batch_size,
         num_minibatches=args.num_minibatches,
