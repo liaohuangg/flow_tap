@@ -1,0 +1,29 @@
+command: /root/anaconda3/envs/chipdiffusion/bin/python /root/placement/flow_tap/baseline/RL/generate_thermal_tables.py /root/placement/flow_tap/baseline/RL/examples/acend910.json --intp-size 44.923337 --overwrite-config --force
+cwd: /root/placement/flow_tap/baseline/RL/fastTM
+hotspot: /root/placement/flow_tap/baseline/RL/fastTM/util/hotspot
+started_at: 2026-09-12T09:47:49
+
+Config: /root/placement/flow_tap/baseline/RL/fastTM/configs/benchmark_acend910.cfg
+Output: /root/placement/flow_tap/baseline/RL/fastTM/outputs/benchmark_acend910
+#info# Characterizing R_self for Chiplet0 at [ 7.35 , 15.799999999999999 ] [mm]
+#info# Characterizing R_self for Chiplet0 at [ 22.409551815 , 15.799999999999999 ] [mm]
+#info# Characterizing R_self for Chiplet0 at [ 7.35 , 22.494051815 ] [mm]
+#info# Characterizing R_self for Chiplet0 at [ 22.409551815 , 22.494051815 ] [mm]
+#info# R_self characterization done for: Chiplet0 . Saved to file: /root/placement/flow_tap/baseline/RL/fastTM/outputs/benchmark_acend910/Chiplet0.rself
+#info# Characterizing R_mutu for Chiplet0 at [ 7.35 , 15.799999999999999 ] [mm]
+#info# R_mutual characterization done for: Chiplet0 Saved to file: /root/placement/flow_tap/baseline/RL/fastTM/outputs/benchmark_acend910/Chiplet0.rmutu
+#info# Characterizing R_self for Chiplet1 at [ 5.35 , 8.1 ] [mm]
+#info# Characterizing R_self for Chiplet1 at [ 22.389551815000004 , 8.1 ] [mm]
+#info# Characterizing R_self for Chiplet1 at [ 5.35 , 22.417051815 ] [mm]
+#info# Characterizing R_self for Chiplet1 at [ 22.389551815000004 , 22.417051815 ] [mm]
+#info# R_self characterization done for: Chiplet1 . Saved to file: /root/placement/flow_tap/baseline/RL/fastTM/outputs/benchmark_acend910/Chiplet1.rself
+#info# Characterizing R_mutu for Chiplet1 at [ 5.35 , 8.1 ] [mm]
+#info# R_mutual characterization done for: Chiplet1 Saved to file: /root/placement/flow_tap/baseline/RL/fastTM/outputs/benchmark_acend910/Chiplet1.rmutu
+#info# Characterizing R_self for Chiplet2 at [ 3.975 , 6.034999999999999 ] [mm]
+#info# Characterizing R_self for Chiplet2 at [ 22.375801815 , 6.034999999999999 ] [mm]
+#info# Characterizing R_self for Chiplet2 at [ 3.975 , 22.396401815 ] [mm]
+#info# Characterizing R_self for Chiplet2 at [ 22.375801815 , 22.396401815 ] [mm]
+#info# R_self characterization done for: Chiplet2 . Saved to file: /root/placement/flow_tap/baseline/RL/fastTM/outputs/benchmark_acend910/Chiplet2.rself
+#info# Characterizing R_mutu for Chiplet2 at [ 3.975 , 6.034999999999999 ] [mm]
+#info# R_mutual characterization done for: Chiplet2 Saved to file: /root/placement/flow_tap/baseline/RL/fastTM/outputs/benchmark_acend910/Chiplet2.rmutu
+Thermal tables generated.

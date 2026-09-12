@@ -1,0 +1,659 @@
+Run name: hp11_m_seed2
+Run directory: /root/placement/flow_tap/baseline/RL/runs/shard3/hp11_m_seed2
+Training log: /root/placement/flow_tap/baseline/RL/runs/shard3/hp11_m_seed2/train.log
+
+生成/检查 fastTM 热阻表...
+  热阻表阶段状态: ok
+  热阻表阶段耗时: 171.947s
+  热阻表日志: /root/placement/flow_tap/baseline/RL/runs/shard3/hp11_m_seed2/thermal_tables.log
+======================================================================
+PPO训练 - 芯片布局优化
+======================================================================
+
+环境信息:
+  芯片数量: 11
+  放置顺序: ['K', 'H', 'G', 'A', 'C', 'E', 'F', 'I', 'B', 'D', 'J']
+  观察维度: 10
+  动作维度: 70000
+  rollout batch: 480 transitions
+  minibatches: 4
+  PPO update epochs: 4
+  随机种子: 2
+  剩余总时间预算: 3428.1s
+
+开始训练...
+----------------------------------------------------------------------
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 1
+  rlplanner_cost: 56.8890
+  reward: -17.3807
+  温度: 95.1514
+  CPLEX平均线长: 22.6448
+BEST_LAYOUT
+  epoch: 1/600, rollout: 1
+  reward: -17.3807
+  温度: 95.1514
+  CPLEX平均线长: 22.6448
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 3
+  rlplanner_cost: 47.2462
+  reward: -10.0716
+  温度: 93.1936
+  CPLEX平均线长: 18.6392
+BEST_LAYOUT
+  epoch: 1/600, rollout: 3
+  reward: -10.0716
+  温度: 93.1936
+  CPLEX平均线长: 18.6392
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 18
+  rlplanner_cost: 44.5263
+  reward: -5.2930
+  温度: 91.5319
+  CPLEX平均线长: 20.5120
+BEST_LAYOUT
+  epoch: 1/600, rollout: 18
+  reward: -5.2930
+  温度: 91.5319
+  CPLEX平均线长: 20.5120
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 44
+  rlplanner_cost: 41.8492
+  reward: -3.2966
+  温度: 91.0401
+  CPLEX平均线长: 19.1579
+BEST_LAYOUT
+  epoch: 1/600, rollout: 44
+  reward: -3.2966
+  温度: 91.0401
+  CPLEX平均线长: 19.1579
+Epoch 1/600
+  rollouts: 49, samples: 482
+  平均奖励: -13.7952, 成功率: 73.5%
+  optimizer steps: 16, KL: 0.000261
+  累计RL时间: 36.26s
+BEST_COST_LAYOUT
+  epoch: 2/600, rollout: 75
+  rlplanner_cost: 41.8229
+  reward: -2.0640
+  温度: 88.9832
+  CPLEX平均线长: 24.4686
+BEST_LAYOUT
+  epoch: 2/600, rollout: 75
+  reward: -2.0640
+  温度: 88.9832
+  CPLEX平均线长: 24.4686
+Epoch 2/600
+  rollouts: 50, samples: 481
+  平均奖励: -13.1365, 成功率: 68.0%
+  optimizer steps: 16, KL: 0.001061
+  累计RL时间: 67.97s
+Epoch 3/600
+  rollouts: 50, samples: 484
+  平均奖励: -16.7507, 成功率: 70.0%
+  optimizer steps: 16, KL: 0.002959
+  累计RL时间: 98.77s
+BEST_LAYOUT
+  epoch: 4/600, rollout: 154
+  reward: -1.1976
+  温度: 91.3328
+  CPLEX平均线长: 21.1397
+Epoch 4/600
+  rollouts: 48, samples: 481
+  平均奖励: -19.7919, 成功率: 75.0%
+  optimizer steps: 16, KL: 0.005405
+  累计RL时间: 130.83s
+BEST_COST_LAYOUT
+  epoch: 5/600, rollout: 226
+  rlplanner_cost: 32.8923
+  reward: 3.8344
+  温度: 88.2596
+  CPLEX平均线长: 17.3349
+BEST_LAYOUT
+  epoch: 5/600, rollout: 226
+  reward: 3.8344
+  温度: 88.2596
+  CPLEX平均线长: 17.3349
+Epoch 5/600
+  rollouts: 50, samples: 487
+  平均奖励: -11.6783, 成功率: 72.0%
+  optimizer steps: 13, KL: 0.005589
+  累计RL时间: 163.69s
+Epoch 6/600
+  rollouts: 49, samples: 489
+  平均奖励: -19.6475, 成功率: 77.6%
+  optimizer steps: 12, KL: 0.005710
+  累计RL时间: 197.36s
+Epoch 7/600
+  rollouts: 50, samples: 487
+  平均奖励: -11.7671, 成功率: 72.0%
+  optimizer steps: 9, KL: 0.005144
+  累计RL时间: 229.66s
+Epoch 8/600
+  rollouts: 50, samples: 488
+  平均奖励: -18.6087, 成功率: 72.0%
+  optimizer steps: 10, KL: 0.005122
+  累计RL时间: 262.69s
+Epoch 9/600
+  rollouts: 49, samples: 485
+  平均奖励: -16.4113, 成功率: 75.5%
+  optimizer steps: 8, KL: 0.005837
+  累计RL时间: 295.56s
+Epoch 10/600
+  rollouts: 50, samples: 480
+  平均奖励: -12.0011, 成功率: 68.0%
+  optimizer steps: 10, KL: 0.005510
+  累计RL时间: 326.38s
+Epoch 11/600
+  rollouts: 51, samples: 483
+  平均奖励: -13.3299, 成功率: 64.7%
+  optimizer steps: 9, KL: 0.005382
+  累计RL时间: 355.83s
+Epoch 12/600
+  rollouts: 48, samples: 485
+  平均奖励: -19.8577, 成功率: 79.2%
+  optimizer steps: 9, KL: 0.005205
+  累计RL时间: 389.11s
+Epoch 13/600
+  rollouts: 49, samples: 480
+  平均奖励: -13.7431, 成功率: 73.5%
+  optimizer steps: 9, KL: 0.005303
+  累计RL时间: 421.37s
+Epoch 14/600
+  rollouts: 47, samples: 489
+  平均奖励: -19.5582, 成功率: 85.1%
+  optimizer steps: 8, KL: 0.004725
+  累计RL时间: 456.74s
+Epoch 15/600
+  rollouts: 50, samples: 484
+  平均奖励: -12.9459, 成功率: 70.0%
+  optimizer steps: 9, KL: 0.006912
+  累计RL时间: 488.85s
+Epoch 16/600
+  rollouts: 49, samples: 485
+  平均奖励: -18.5230, 成功率: 73.5%
+  optimizer steps: 11, KL: 0.006359
+  累计RL时间: 521.00s
+Epoch 17/600
+  rollouts: 50, samples: 489
+  平均奖励: -19.8116, 成功率: 72.0%
+  optimizer steps: 9, KL: 0.004855
+  累计RL时间: 552.90s
+Epoch 18/600
+  rollouts: 48, samples: 485
+  平均奖励: -18.8885, 成功率: 81.2%
+  optimizer steps: 9, KL: 0.004777
+  累计RL时间: 587.50s
+Epoch 19/600
+  rollouts: 47, samples: 490
+  平均奖励: -25.1920, 成功率: 87.2%
+  optimizer steps: 9, KL: 0.006877
+  累计RL时间: 624.67s
+Epoch 20/600
+  rollouts: 49, samples: 480
+  平均奖励: -13.9591, 成功率: 73.5%
+  optimizer steps: 10, KL: 0.004416
+  累计RL时间: 656.56s
+Epoch 21/600
+  rollouts: 49, samples: 487
+  平均奖励: -13.4977, 成功率: 75.5%
+  optimizer steps: 9, KL: 0.006480
+  累计RL时间: 689.51s
+Epoch 22/600
+  rollouts: 49, samples: 486
+  平均奖励: -15.3746, 成功率: 75.5%
+  optimizer steps: 9, KL: 0.004676
+  累计RL时间: 721.95s
+Epoch 23/600
+  rollouts: 48, samples: 480
+  平均奖励: -15.8312, 成功率: 79.2%
+  optimizer steps: 8, KL: 0.005191
+  累计RL时间: 755.07s
+Epoch 24/600
+  rollouts: 51, samples: 484
+  平均奖励: -7.9279, 成功率: 64.7%
+  optimizer steps: 11, KL: 0.005747
+  累计RL时间: 784.14s
+Epoch 25/600
+  rollouts: 50, samples: 486
+  平均奖励: -12.2056, 成功率: 70.0%
+  optimizer steps: 9, KL: 0.005336
+  累计RL时间: 815.64s
+Epoch 26/600
+  rollouts: 50, samples: 485
+  平均奖励: -16.6414, 成功率: 70.0%
+  optimizer steps: 10, KL: 0.005153
+  累计RL时间: 847.20s
+Epoch 27/600
+  rollouts: 47, samples: 484
+  平均奖励: -23.6077, 成功率: 83.0%
+  optimizer steps: 9, KL: 0.005617
+  累计RL时间: 881.06s
+Epoch 28/600
+  rollouts: 48, samples: 484
+  平均奖励: -14.9599, 成功率: 77.1%
+  optimizer steps: 12, KL: 0.006560
+  累计RL时间: 913.51s
+Epoch 29/600
+  rollouts: 51, samples: 488
+  平均奖励: -17.7959, 成功率: 66.7%
+  optimizer steps: 11, KL: 0.006215
+  累计RL时间: 943.68s
+Epoch 30/600
+  rollouts: 51, samples: 489
+  平均奖励: -11.5561, 成功率: 66.7%
+  optimizer steps: 12, KL: 0.005612
+  累计RL时间: 974.10s
+Epoch 31/600
+  rollouts: 50, samples: 481
+  平均奖励: -14.4772, 成功率: 68.0%
+  optimizer steps: 10, KL: 0.004670
+  累计RL时间: 1004.33s
+Epoch 32/600
+  rollouts: 49, samples: 488
+  平均奖励: -17.6832, 成功率: 75.5%
+  optimizer steps: 10, KL: 0.004379
+  累计RL时间: 1037.52s
+Epoch 33/600
+  rollouts: 50, samples: 486
+  平均奖励: -14.2537, 成功率: 70.0%
+  optimizer steps: 9, KL: 0.006603
+  累计RL时间: 1068.48s
+Epoch 34/600
+  rollouts: 46, samples: 485
+  平均奖励: -25.5354, 成功率: 89.1%
+  optimizer steps: 9, KL: 0.004544
+  累计RL时间: 1104.25s
+Epoch 35/600
+  rollouts: 52, samples: 488
+  平均奖励: -8.5923, 成功率: 63.5%
+  optimizer steps: 12, KL: 0.005615
+  累计RL时间: 1133.36s
+Epoch 36/600
+  rollouts: 49, samples: 484
+  平均奖励: -15.6744, 成功率: 73.5%
+  optimizer steps: 9, KL: 0.005173
+  累计RL时间: 1165.12s
+Epoch 37/600
+  rollouts: 46, samples: 480
+  平均奖励: -20.1139, 成功率: 87.0%
+  optimizer steps: 7, KL: 0.005083
+  累计RL时间: 1199.86s
+Epoch 38/600
+  rollouts: 48, samples: 490
+  平均奖励: -18.6198, 成功率: 81.2%
+  optimizer steps: 7, KL: 0.005321
+  累计RL时间: 1234.14s
+BEST_LAYOUT
+  epoch: 39/600, rollout: 1905
+  reward: 4.3340
+  温度: 87.9429
+  CPLEX平均线长: 20.9755
+Epoch 39/600
+  rollouts: 47, samples: 481
+  平均奖励: -17.2859, 成功率: 83.0%
+  optimizer steps: 9, KL: 0.005567
+  累计RL时间: 1268.53s
+Epoch 40/600
+  rollouts: 50, samples: 487
+  平均奖励: -13.9349, 成功率: 72.0%
+  optimizer steps: 8, KL: 0.005410
+  累计RL时间: 1300.38s
+Epoch 41/600
+  rollouts: 48, samples: 485
+  平均奖励: -18.3925, 成功率: 79.2%
+  optimizer steps: 9, KL: 0.006137
+  累计RL时间: 1334.01s
+Epoch 42/600
+  rollouts: 48, samples: 486
+  平均奖励: -17.5188, 成功率: 79.2%
+  optimizer steps: 6, KL: 0.004266
+  累计RL时间: 1367.64s
+Epoch 43/600
+  rollouts: 50, samples: 484
+  平均奖励: -12.0172, 成功率: 70.0%
+  optimizer steps: 9, KL: 0.005472
+  累计RL时间: 1398.54s
+Epoch 44/600
+  rollouts: 49, samples: 486
+  平均奖励: -15.1028, 成功率: 75.5%
+  optimizer steps: 9, KL: 0.006311
+  累计RL时间: 1432.33s
+Epoch 45/600
+  rollouts: 49, samples: 487
+  平均奖励: -12.4133, 成功率: 75.5%
+  optimizer steps: 8, KL: 0.004831
+  累计RL时间: 1464.86s
+Epoch 46/600
+  rollouts: 48, samples: 480
+  平均奖励: -15.8578, 成功率: 77.1%
+  optimizer steps: 10, KL: 0.006217
+  累计RL时间: 1497.34s
+Epoch 47/600
+  rollouts: 49, samples: 485
+  平均奖励: -14.0895, 成功率: 75.5%
+  optimizer steps: 9, KL: 0.007105
+  累计RL时间: 1529.90s
+Epoch 48/600
+  rollouts: 48, samples: 487
+  平均奖励: -13.0590, 成功率: 81.2%
+  optimizer steps: 10, KL: 0.005546
+  累计RL时间: 1563.68s
+Epoch 49/600
+  rollouts: 49, samples: 485
+  平均奖励: -16.9808, 成功率: 75.5%
+  optimizer steps: 11, KL: 0.005100
+  累计RL时间: 1596.77s
+Epoch 50/600
+  rollouts: 51, samples: 485
+  平均奖励: -8.2987, 成功率: 64.7%
+  optimizer steps: 11, KL: 0.005005
+  累计RL时间: 1626.10s
+Epoch 51/600
+  rollouts: 48, samples: 480
+  平均奖励: -20.6922, 成功率: 77.1%
+  optimizer steps: 13, KL: 0.005238
+  累计RL时间: 1658.53s
+Epoch 52/600
+  rollouts: 48, samples: 481
+  平均奖励: -14.0568, 成功率: 77.1%
+  optimizer steps: 9, KL: 0.006318
+  累计RL时间: 1691.41s
+Epoch 53/600
+  rollouts: 50, samples: 488
+  平均奖励: -14.0717, 成功率: 70.0%
+  optimizer steps: 10, KL: 0.005836
+  累计RL时间: 1722.14s
+Epoch 54/600
+  rollouts: 51, samples: 480
+  平均奖励: -9.9863, 成功率: 62.7%
+  optimizer steps: 9, KL: 0.005346
+  累计RL时间: 1751.18s
+Epoch 55/600
+  rollouts: 50, samples: 484
+  平均奖励: -11.8163, 成功率: 70.0%
+  optimizer steps: 9, KL: 0.006007
+  累计RL时间: 1782.52s
+Epoch 56/600
+  rollouts: 49, samples: 484
+  平均奖励: -12.4385, 成功率: 73.5%
+  optimizer steps: 9, KL: 0.007639
+  累计RL时间: 1814.18s
+Epoch 57/600
+  rollouts: 50, samples: 481
+  平均奖励: -11.7592, 成功率: 68.0%
+  optimizer steps: 8, KL: 0.007021
+  累计RL时间: 1844.06s
+Epoch 58/600
+  rollouts: 48, samples: 483
+  平均奖励: -14.7622, 成功率: 79.2%
+  optimizer steps: 9, KL: 0.004995
+  累计RL时间: 1877.33s
+BEST_LAYOUT
+  epoch: 59/600, rollout: 2859
+  reward: 6.8242
+  温度: 87.6865
+  CPLEX平均线长: 20.9472
+Epoch 59/600
+  rollouts: 50, samples: 481
+  平均奖励: -15.6133, 成功率: 70.0%
+  optimizer steps: 9, KL: 0.004988
+  累计RL时间: 1908.69s
+Epoch 60/600
+  rollouts: 49, samples: 484
+  平均奖励: -14.6986, 成功率: 75.5%
+  optimizer steps: 10, KL: 0.006647
+  累计RL时间: 1941.91s
+Epoch 61/600
+  rollouts: 50, samples: 485
+  平均奖励: -15.8418, 成功率: 70.0%
+  optimizer steps: 8, KL: 0.005949
+  累计RL时间: 1972.90s
+Epoch 62/600
+  rollouts: 49, samples: 485
+  平均奖励: -18.5601, 成功率: 75.5%
+  optimizer steps: 9, KL: 0.007283
+  累计RL时间: 2005.16s
+Epoch 63/600
+  rollouts: 50, samples: 484
+  平均奖励: -13.0338, 成功率: 68.0%
+  optimizer steps: 11, KL: 0.006702
+  累计RL时间: 2036.64s
+Epoch 64/600
+  rollouts: 48, samples: 481
+  平均奖励: -17.4783, 成功率: 77.1%
+  optimizer steps: 8, KL: 0.005381
+  累计RL时间: 2068.83s
+Epoch 65/600
+  rollouts: 48, samples: 482
+  平均奖励: -17.8659, 成功率: 77.1%
+  optimizer steps: 9, KL: 0.005421
+  累计RL时间: 2101.29s
+Epoch 66/600
+  rollouts: 49, samples: 484
+  平均奖励: -15.2863, 成功率: 75.5%
+  optimizer steps: 10, KL: 0.006169
+  累计RL时间: 2133.86s
+Epoch 67/600
+  rollouts: 50, samples: 487
+  平均奖励: -12.8186, 成功率: 72.0%
+  optimizer steps: 8, KL: 0.005487
+  累计RL时间: 2165.52s
+Epoch 68/600
+  rollouts: 48, samples: 487
+  平均奖励: -17.0973, 成功率: 81.2%
+  optimizer steps: 10, KL: 0.005668
+  累计RL时间: 2199.98s
+Epoch 69/600
+  rollouts: 49, samples: 480
+  平均奖励: -16.3595, 成功率: 73.5%
+  optimizer steps: 8, KL: 0.004894
+  累计RL时间: 2233.25s
+Epoch 70/600
+  rollouts: 50, samples: 484
+  平均奖励: -12.6429, 成功率: 70.0%
+  optimizer steps: 10, KL: 0.005507
+  累计RL时间: 2265.15s
+Epoch 71/600
+  rollouts: 52, samples: 489
+  平均奖励: -11.8280, 成功率: 63.5%
+  optimizer steps: 10, KL: 0.006077
+  累计RL时间: 2296.73s
+Epoch 72/600
+  rollouts: 49, samples: 490
+  平均奖励: -19.1601, 成功率: 77.6%
+  optimizer steps: 11, KL: 0.004684
+  累计RL时间: 2330.92s
+Epoch 73/600
+  rollouts: 48, samples: 490
+  平均奖励: -18.2999, 成功率: 81.2%
+  optimizer steps: 10, KL: 0.004936
+  累计RL时间: 2364.90s
+Epoch 74/600
+  rollouts: 52, samples: 486
+  平均奖励: -9.0152, 成功率: 61.5%
+  optimizer steps: 11, KL: 0.005694
+  累计RL时间: 2393.73s
+Epoch 75/600
+  rollouts: 47, samples: 486
+  平均奖励: -23.4476, 成功率: 85.1%
+  optimizer steps: 12, KL: 0.004252
+  累计RL时间: 2428.54s
+Epoch 76/600
+  rollouts: 50, samples: 490
+  平均奖励: -10.8956, 成功率: 72.0%
+  optimizer steps: 14, KL: 0.006114
+  累计RL时间: 2460.67s
+Epoch 77/600
+  rollouts: 48, samples: 490
+  平均奖励: -20.1054, 成功率: 81.2%
+  optimizer steps: 15, KL: 0.005819
+  累计RL时间: 2494.74s
+Epoch 78/600
+  rollouts: 50, samples: 489
+  平均奖励: -16.0718, 成功率: 74.0%
+  optimizer steps: 9, KL: 0.004872
+  累计RL时间: 2527.19s
+Epoch 79/600
+  rollouts: 51, samples: 483
+  平均奖励: -9.7203, 成功率: 64.7%
+  optimizer steps: 11, KL: 0.005257
+  累计RL时间: 2556.82s
+Epoch 80/600
+  rollouts: 52, samples: 482
+  平均奖励: -6.8384, 成功率: 59.6%
+  optimizer steps: 13, KL: 0.005912
+  累计RL时间: 2584.68s
+Epoch 81/600
+  rollouts: 49, samples: 489
+  平均奖励: -21.1958, 成功率: 77.6%
+  optimizer steps: 13, KL: 0.004587
+  累计RL时间: 2618.19s
+Epoch 82/600
+  rollouts: 49, samples: 480
+  平均奖励: -15.9885, 成功率: 73.5%
+  optimizer steps: 11, KL: 0.005774
+  累计RL时间: 2650.24s
+Epoch 83/600
+  rollouts: 51, samples: 482
+  平均奖励: -10.6294, 成功率: 64.7%
+  optimizer steps: 11, KL: 0.005290
+  累计RL时间: 2679.65s
+Epoch 84/600
+  rollouts: 49, samples: 482
+  平均奖励: -12.2951, 成功率: 71.4%
+  optimizer steps: 11, KL: 0.006143
+  累计RL时间: 2710.43s
+Epoch 85/600
+  rollouts: 51, samples: 486
+  平均奖励: -13.1895, 成功率: 66.7%
+  optimizer steps: 14, KL: 0.005974
+  累计RL时间: 2740.79s
+Epoch 86/600
+  rollouts: 48, samples: 484
+  平均奖励: -20.9718, 成功率: 79.2%
+  optimizer steps: 10, KL: 0.004541
+  累计RL时间: 2774.99s
+Epoch 87/600
+  rollouts: 49, samples: 485
+  平均奖励: -15.3883, 成功率: 73.5%
+  optimizer steps: 11, KL: 0.006079
+  累计RL时间: 2807.56s
+Epoch 88/600
+  rollouts: 48, samples: 489
+  平均奖励: -20.6573, 成功率: 81.2%
+  optimizer steps: 9, KL: 0.005124
+  累计RL时间: 2841.05s
+Epoch 89/600
+  rollouts: 48, samples: 482
+  平均奖励: -22.8164, 成功率: 77.1%
+  optimizer steps: 10, KL: 0.005154
+  累计RL时间: 2873.57s
+Epoch 90/600
+  rollouts: 48, samples: 481
+  平均奖励: -16.9451, 成功率: 77.1%
+  optimizer steps: 12, KL: 0.006070
+  累计RL时间: 2906.24s
+Epoch 91/600
+  rollouts: 51, samples: 482
+  平均奖励: -8.4230, 成功率: 62.7%
+  optimizer steps: 14, KL: 0.006441
+  累计RL时间: 2936.09s
+Epoch 92/600
+  rollouts: 48, samples: 485
+  平均奖励: -19.9256, 成功率: 79.2%
+  optimizer steps: 14, KL: 0.005482
+  累计RL时间: 2969.49s
+Epoch 93/600
+  rollouts: 49, samples: 480
+  平均奖励: -13.8008, 成功率: 71.4%
+  optimizer steps: 9, KL: 0.004528
+  累计RL时间: 3000.61s
+Epoch 94/600
+  rollouts: 50, samples: 482
+  平均奖励: -15.6976, 成功率: 70.0%
+  optimizer steps: 8, KL: 0.006300
+  累计RL时间: 3031.55s
+Epoch 95/600
+  rollouts: 50, samples: 483
+  平均奖励: -17.3812, 成功率: 70.0%
+  optimizer steps: 10, KL: 0.005105
+  累计RL时间: 3062.65s
+Epoch 96/600
+  rollouts: 51, samples: 482
+  平均奖励: -8.4947, 成功率: 62.7%
+  optimizer steps: 14, KL: 0.005610
+  累计RL时间: 3091.69s
+Epoch 97/600
+  rollouts: 47, samples: 481
+  平均奖励: -21.9982, 成功率: 80.9%
+  optimizer steps: 14, KL: 0.005506
+  累计RL时间: 3124.70s
+Epoch 98/600
+  rollouts: 47, samples: 481
+  平均奖励: -20.3854, 成功率: 80.9%
+  optimizer steps: 10, KL: 0.007295
+  累计RL时间: 3158.28s
+Epoch 99/600
+  rollouts: 51, samples: 487
+  平均奖励: -12.9916, 成功率: 68.6%
+  optimizer steps: 13, KL: 0.006173
+  累计RL时间: 3189.39s
+Epoch 100/600
+  rollouts: 50, samples: 488
+  平均奖励: -13.2985, 成功率: 70.0%
+  optimizer steps: 9, KL: 0.005554
+  累计RL时间: 3221.21s
+Epoch 101/600
+  rollouts: 48, samples: 485
+  平均奖励: -18.4414, 成功率: 79.2%
+  optimizer steps: 11, KL: 0.004888
+  累计RL时间: 3254.84s
+Epoch 102/600
+  rollouts: 48, samples: 484
+  平均奖励: -18.1989, 成功率: 79.2%
+  optimizer steps: 9, KL: 0.004589
+  累计RL时间: 3288.16s
+Epoch 103/600
+  rollouts: 49, samples: 488
+  平均奖励: -16.4428, 成功率: 75.5%
+  optimizer steps: 11, KL: 0.004886
+  累计RL时间: 3320.89s
+Epoch 104/600
+  rollouts: 51, samples: 490
+  平均奖励: -14.6321, 成功率: 68.6%
+  optimizer steps: 12, KL: 0.005207
+  累计RL时间: 3351.79s
+Epoch 105/600
+  rollouts: 48, samples: 489
+  平均奖励: -19.7681, 成功率: 81.2%
+  optimizer steps: 11, KL: 0.005208
+  累计RL时间: 3386.75s
+Epoch 106/600
+  rollouts: 19, samples: 181
+  平均奖励: -13.0799, 成功率: 68.4%
+  optimizer steps: 11, KL: 0.004887
+  累计RL时间: 3398.38s
+模型已保存到 /root/placement/flow_tap/baseline/RL/runs/shard3/hp11_m_seed2/checkpoints/ppo_best.pt
+模型已保存到 /root/placement/flow_tap/baseline/RL/runs/shard3/hp11_m_seed2/checkpoints/ppo_best_cost.pt
+
+======================================================================
+训练完成！
+  请求epochs: 600
+  完整epochs: 105
+  已执行epoch轮次: 106
+  总rollouts: 5183
+  总transitions: 51075
+  最终成功率: 73.7%
+  最近平均奖励: -15.5920
+  optimizer steps: 1094
+  终止原因: time_limit
+======================================================================
+
+运行时间统计:
+  热阻表: 171.947s
+  RL求解: 3398.703s
+  总时间: 3570.651s
+  best layout发现时间: 2026-09-12T06:13:41
+  best layout累计RL时间: 1884.276s
+  best layout累计总时间: 2056.224s

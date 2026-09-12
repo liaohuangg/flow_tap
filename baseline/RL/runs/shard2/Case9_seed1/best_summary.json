@@ -1,0 +1,324 @@
+{
+  "reward": -59.6883777068863,
+  "episode": 10,
+  "json": "/root/placement/flow_tap/baseline/RL/runs/shard2/Case9_seed1/results/top_layouts/layout_best_ep10_r-59.69.json",
+  "metrics_json": "/root/placement/flow_tap/baseline/RL/runs/shard2/Case9_seed1/results/top_layouts/layout_best_ep10_r-59.69.metrics.json",
+  "img": "/root/placement/flow_tap/baseline/RL/runs/shard2/Case9_seed1/results/top_layouts/layout_best_ep10_r-59.69.png",
+  "metrics": {
+    "rlplanner_total_wirelength": 594746.3222298399,
+    "rlplanner_avg_wirelength": 38.84184445074712,
+    "rlplanner_emib_wirelength": 0.0,
+    "rlplanner_normal_wirelength": 594746.3222298399,
+    "rlplanner_total_wire_count": 15312,
+    "rlplanner_wirelength_source": "cplex_microbump_assignment",
+    "rlplanner_temperature": 112.78362915306414,
+    "rlplanner_temperature_penalty": 93.40156149783172,
+    "rlplanner_cost": 132.24340594857884,
+    "thermal_layout_offset_x": 0.0,
+    "thermal_layout_offset_y": 0.0,
+    "thermal_bbox_width": 64.661414,
+    "thermal_bbox_height": 64.661414,
+    "thermal_bbox_min_x": 0.0,
+    "thermal_bbox_min_y": 0.0,
+    "thermal_bbox_max_x": 64.661414,
+    "thermal_bbox_max_y": 64.661414,
+    "thermal_intp_size": 64.661414,
+    "thermal_layout_fits_interposer": true,
+    "chiplet_area": 2011.0,
+    "microbump_occupied_area": 2090.5491999999995,
+    "microbump_halos": {
+      "CPU1_0": 0.09,
+      "CPU1_1": 0.09,
+      "CPU1_2": 0.09,
+      "CPU1_3": 0.09,
+      "CPU2_0": 0.09,
+      "CPU2_1": 0.09,
+      "CPU2_2": 0.09,
+      "CPU2_3": 0.09,
+      "CPU2_4": 0.09,
+      "CPU2_5": 0.09,
+      "CPU2_6": 0.09,
+      "CPU2_7": 0.09,
+      "CPU2_8": 0.09,
+      "CPU2_9": 0.09,
+      "CPU2_10": 0.135,
+      "CPU2_11": 0.135,
+      "GPU_0": 0.09,
+      "GPU_1": 0.09,
+      "GPU_2": 0.09,
+      "GPU_3": 0.09,
+      "GPU_4": 0.09,
+      "GPU_5": 0.09,
+      "GPU_6": 0.09,
+      "GPU_7": 0.09,
+      "HBM_0": 0.045,
+      "HBM_1": 0.045,
+      "HBM_2": 0.045,
+      "HBM_3": 0.045,
+      "HBM_4": 0.045,
+      "HBM_5": 0.045,
+      "HBM_6": 0.045,
+      "HBM_7": 0.045,
+      "DRAM_0": 0.045,
+      "DRAM_1": 0.045,
+      "IODie_0": 0.09,
+      "IODie_1": 0.09,
+      "Analog_0": 0.045,
+      "Analog_1": 0.045,
+      "Analog_2": 0.045,
+      "Analog_3": 0.045,
+      "Analog_4": 0.045,
+      "Analog_5": 0.045,
+      "Analog_6": 0.045,
+      "Analog_7": 0.045
+    },
+    "microbump_footprints": {
+      "CPU1_0": [
+        2.68,
+        3.68
+      ],
+      "CPU1_1": [
+        2.68,
+        3.68
+      ],
+      "CPU1_2": [
+        2.68,
+        3.68
+      ],
+      "CPU1_3": [
+        2.68,
+        3.68
+      ],
+      "CPU2_0": [
+        5.18,
+        5.18
+      ],
+      "CPU2_1": [
+        5.18,
+        5.18
+      ],
+      "CPU2_2": [
+        5.18,
+        5.18
+      ],
+      "CPU2_3": [
+        5.18,
+        5.18
+      ],
+      "CPU2_4": [
+        5.18,
+        5.18
+      ],
+      "CPU2_5": [
+        5.18,
+        5.18
+      ],
+      "CPU2_6": [
+        5.18,
+        5.18
+      ],
+      "CPU2_7": [
+        5.18,
+        5.18
+      ],
+      "CPU2_8": [
+        5.18,
+        5.18
+      ],
+      "CPU2_9": [
+        5.18,
+        5.18
+      ],
+      "CPU2_10": [
+        5.27,
+        5.27
+      ],
+      "CPU2_11": [
+        5.27,
+        5.27
+      ],
+      "GPU_0": [
+        9.18,
+        9.18
+      ],
+      "GPU_1": [
+        9.18,
+        9.18
+      ],
+      "GPU_2": [
+        9.18,
+        9.18
+      ],
+      "GPU_3": [
+        9.18,
+        9.18
+      ],
+      "GPU_4": [
+        9.18,
+        9.18
+      ],
+      "GPU_5": [
+        9.18,
+        9.18
+      ],
+      "GPU_6": [
+        9.18,
+        9.18
+      ],
+      "GPU_7": [
+        9.18,
+        9.18
+      ],
+      "HBM_0": [
+        8.09,
+        12.09
+      ],
+      "HBM_1": [
+        8.09,
+        12.09
+      ],
+      "HBM_2": [
+        8.09,
+        12.09
+      ],
+      "HBM_3": [
+        8.09,
+        12.09
+      ],
+      "HBM_4": [
+        8.09,
+        12.09
+      ],
+      "HBM_5": [
+        8.09,
+        12.09
+      ],
+      "HBM_6": [
+        8.09,
+        12.09
+      ],
+      "HBM_7": [
+        8.09,
+        12.09
+      ],
+      "DRAM_0": [
+        9.09,
+        9.09
+      ],
+      "DRAM_1": [
+        9.09,
+        9.09
+      ],
+      "IODie_0": [
+        5.18,
+        5.18
+      ],
+      "IODie_1": [
+        5.18,
+        5.18
+      ],
+      "Analog_0": [
+        3.09,
+        2.09
+      ],
+      "Analog_1": [
+        3.09,
+        2.09
+      ],
+      "Analog_2": [
+        3.09,
+        2.09
+      ],
+      "Analog_3": [
+        3.09,
+        2.09
+      ],
+      "Analog_4": [
+        3.09,
+        2.09
+      ],
+      "Analog_5": [
+        3.09,
+        2.09
+      ],
+      "Analog_6": [
+        3.09,
+        2.09
+      ],
+      "Analog_7": [
+        3.09,
+        2.09
+      ]
+    },
+    "occupied_envelope_sources": {
+      "CPU1_0": "json_footprint",
+      "CPU1_1": "json_footprint",
+      "CPU1_2": "json_footprint",
+      "CPU1_3": "json_footprint",
+      "CPU2_0": "json_footprint",
+      "CPU2_1": "json_footprint",
+      "CPU2_2": "json_footprint",
+      "CPU2_3": "json_footprint",
+      "CPU2_4": "json_footprint",
+      "CPU2_5": "json_footprint",
+      "CPU2_6": "json_footprint",
+      "CPU2_7": "json_footprint",
+      "CPU2_8": "json_footprint",
+      "CPU2_9": "json_footprint",
+      "CPU2_10": "json_footprint",
+      "CPU2_11": "json_footprint",
+      "GPU_0": "json_footprint",
+      "GPU_1": "json_footprint",
+      "GPU_2": "json_footprint",
+      "GPU_3": "json_footprint",
+      "GPU_4": "json_footprint",
+      "GPU_5": "json_footprint",
+      "GPU_6": "json_footprint",
+      "GPU_7": "json_footprint",
+      "HBM_0": "json_footprint",
+      "HBM_1": "json_footprint",
+      "HBM_2": "json_footprint",
+      "HBM_3": "json_footprint",
+      "HBM_4": "json_footprint",
+      "HBM_5": "json_footprint",
+      "HBM_6": "json_footprint",
+      "HBM_7": "json_footprint",
+      "DRAM_0": "json_footprint",
+      "DRAM_1": "json_footprint",
+      "IODie_0": "json_footprint",
+      "IODie_1": "json_footprint",
+      "Analog_0": "json_footprint",
+      "Analog_1": "json_footprint",
+      "Analog_2": "json_footprint",
+      "Analog_3": "json_footprint",
+      "Analog_4": "json_footprint",
+      "Analog_5": "json_footprint",
+      "Analog_6": "json_footprint",
+      "Analog_7": "json_footprint"
+    },
+    "footprint_mode": "json_first",
+    "bbox_min_x": 0.0,
+    "bbox_min_y": 0.0,
+    "bbox_max_x": 64.661414,
+    "bbox_max_y": 64.661414,
+    "bbox_width": 64.661414,
+    "bbox_height": 64.661414,
+    "bbox_area": 4181.098460479395,
+    "bbox_utilization": 0.4999999927675231,
+    "silicon_bbox_utilization": 0.4809740834874823,
+    "canvas_area": 4181.098460479395,
+    "canvas_utilization": 0.4999999927675231,
+    "silicon_canvas_utilization": 0.4809740834874823
+  },
+  "timing": {
+    "run_started_at": "2026-09-11T23:35:53",
+    "found_at": "2026-09-12T00:33:52",
+    "epoch": 10,
+    "rollout": 108,
+    "rl_elapsed_seconds": 3376.2236553569674,
+    "total_elapsed_seconds": 3478.5720684039698,
+    "pre_rl_seconds": 102.3484130470024
+  },
+  "success": true,
+  "checkpoint": "/root/placement/flow_tap/baseline/RL/runs/shard2/Case9_seed1/checkpoints/ppo_best.pt"
+}

@@ -1,0 +1,594 @@
+{
+  "name": "Case8_seed3",
+  "run_dir": "/root/placement/flow_tap/baseline/RL/runs/shard1/Case8_seed3",
+  "started_at": "2026-09-12T11:49:28",
+  "thermal_tables": {
+    "status": "ok",
+    "returncode": 0,
+    "seconds": 75.0341296660481,
+    "started_at": "2026-09-12T11:49:28",
+    "ended_at": "2026-09-12T11:50:48",
+    "command": [
+      "/root/anaconda3/envs/chipdiffusion/bin/python",
+      "/root/placement/flow_tap/baseline/RL/generate_thermal_tables.py",
+      "/root/placement/flow_tap/baseline/RL/examples/Case8.json",
+      "--intp-size",
+      "23.677382",
+      "--overwrite-config",
+      "--force"
+    ],
+    "cwd": "/root/placement/flow_tap/baseline/RL/fastTM",
+    "hotspot": "/root/placement/flow_tap/baseline/RL/fastTM/util/hotspot",
+    "log": "/root/placement/flow_tap/baseline/RL/runs/shard1/Case8_seed3/thermal_tables.log",
+    "intp_size": 23.677382,
+    "existing_intp_size": 23.677382,
+    "force": true,
+    "force_requested": true,
+    "force_reason": null
+  },
+  "rl_solve": {
+    "seconds": 3500.339222768962,
+    "started_at": "2026-09-12T11:50:48",
+    "ended_at": "2026-09-12T12:51:46"
+  },
+  "best_layout": {
+    "reward": 53.57380390460958,
+    "episode": 3,
+    "json": "/root/placement/flow_tap/baseline/RL/runs/shard1/Case8_seed3/results/top_layouts/layout_best_ep3_r53.57.json",
+    "metrics_json": "/root/placement/flow_tap/baseline/RL/runs/shard1/Case8_seed3/results/top_layouts/layout_best_ep3_r53.57.metrics.json",
+    "img": "/root/placement/flow_tap/baseline/RL/runs/shard1/Case8_seed3/results/top_layouts/layout_best_ep3_r53.57.png",
+    "metrics": {
+      "rlplanner_total_wirelength": 65597.59970348,
+      "rlplanner_avg_wirelength": 11.12578013966757,
+      "rlplanner_emib_wirelength": 0.0,
+      "rlplanner_normal_wirelength": 65597.59970348,
+      "rlplanner_total_wire_count": 5896,
+      "rlplanner_wirelength_source": "cplex_microbump_assignment",
+      "rlplanner_temperature": 80.5972192210032,
+      "rlplanner_temperature_penalty": 0.330025114124048,
+      "rlplanner_cost": 11.455805253791619,
+      "thermal_layout_offset_x": 0.0,
+      "thermal_layout_offset_y": -0.09588690999999927,
+      "thermal_bbox_width": 23.677382,
+      "thermal_bbox_height": 23.48560818,
+      "thermal_bbox_min_x": 0.0,
+      "thermal_bbox_min_y": 0.09588691000000082,
+      "thermal_bbox_max_x": 23.677382,
+      "thermal_bbox_max_y": 23.58149509,
+      "thermal_intp_size": 23.677382,
+      "thermal_layout_fits_interposer": true,
+      "chiplet_area": 249.0,
+      "microbump_occupied_area": 280.30920000000015,
+      "microbump_halos": {
+        "CPU1_0": 0.135,
+        "CPU1_1": 0.135,
+        "CPU1_2": 0.135,
+        "CPU1_3": 0.135,
+        "CPU1_4": 0.135,
+        "CPU1_5": 0.135,
+        "CPU1_6": 0.135,
+        "CPU1_7": 0.135,
+        "CPU1_8": 0.135,
+        "CPU1_9": 0.135,
+        "CPU1_10": 0.135,
+        "CPU1_11": 0.135,
+        "Analog_0": 0.045,
+        "Analog_1": 0.045,
+        "Analog_2": 0.045,
+        "Analog_3": 0.045,
+        "Analog_4": 0.045,
+        "Analog_5": 0.045,
+        "Analog_6": 0.045,
+        "Analog_7": 0.045,
+        "Analog_8": 0.045,
+        "Analog_9": 0.045,
+        "Analog_10": 0.045,
+        "Analog_11": 0.045,
+        "Analog_12": 0.045,
+        "Analog_13": 0.045,
+        "Analog_14": 0.045,
+        "Analog_15": 0.045,
+        "Analog_16": 0.045,
+        "Analog_17": 0.045,
+        "Analog_18": 0.045,
+        "Analog_19": 0.045,
+        "Analog_20": 0.045,
+        "Analog_21": 0.045,
+        "Analog_22": 0.045,
+        "Analog_23": 0.045
+      },
+      "microbump_footprints": {
+        "CPU1_0": [
+          2.77,
+          3.77
+        ],
+        "CPU1_1": [
+          2.77,
+          3.77
+        ],
+        "CPU1_2": [
+          2.77,
+          3.77
+        ],
+        "CPU1_3": [
+          2.77,
+          3.77
+        ],
+        "CPU1_4": [
+          2.77,
+          3.77
+        ],
+        "CPU1_5": [
+          2.77,
+          3.77
+        ],
+        "CPU1_6": [
+          2.77,
+          3.77
+        ],
+        "CPU1_7": [
+          2.77,
+          3.77
+        ],
+        "CPU1_8": [
+          2.77,
+          3.77
+        ],
+        "CPU1_9": [
+          2.77,
+          3.77
+        ],
+        "CPU1_10": [
+          2.77,
+          3.77
+        ],
+        "CPU1_11": [
+          2.77,
+          3.77
+        ],
+        "Analog_0": [
+          3.09,
+          2.09
+        ],
+        "Analog_1": [
+          3.09,
+          2.09
+        ],
+        "Analog_2": [
+          3.09,
+          2.09
+        ],
+        "Analog_3": [
+          3.09,
+          2.09
+        ],
+        "Analog_4": [
+          3.09,
+          2.09
+        ],
+        "Analog_5": [
+          3.09,
+          2.09
+        ],
+        "Analog_6": [
+          3.09,
+          2.09
+        ],
+        "Analog_7": [
+          3.09,
+          2.09
+        ],
+        "Analog_8": [
+          3.09,
+          2.09
+        ],
+        "Analog_9": [
+          3.09,
+          2.09
+        ],
+        "Analog_10": [
+          3.09,
+          2.09
+        ],
+        "Analog_11": [
+          3.09,
+          2.09
+        ],
+        "Analog_12": [
+          3.09,
+          2.09
+        ],
+        "Analog_13": [
+          3.09,
+          2.09
+        ],
+        "Analog_14": [
+          3.09,
+          2.09
+        ],
+        "Analog_15": [
+          3.09,
+          2.09
+        ],
+        "Analog_16": [
+          3.09,
+          2.09
+        ],
+        "Analog_17": [
+          3.09,
+          2.09
+        ],
+        "Analog_18": [
+          3.09,
+          2.09
+        ],
+        "Analog_19": [
+          3.09,
+          2.09
+        ],
+        "Analog_20": [
+          3.09,
+          2.09
+        ],
+        "Analog_21": [
+          3.09,
+          2.09
+        ],
+        "Analog_22": [
+          3.09,
+          2.09
+        ],
+        "Analog_23": [
+          3.09,
+          2.09
+        ]
+      },
+      "occupied_envelope_sources": {
+        "CPU1_0": "json_footprint",
+        "CPU1_1": "json_footprint",
+        "CPU1_2": "json_footprint",
+        "CPU1_3": "json_footprint",
+        "CPU1_4": "json_footprint",
+        "CPU1_5": "json_footprint",
+        "CPU1_6": "json_footprint",
+        "CPU1_7": "json_footprint",
+        "CPU1_8": "json_footprint",
+        "CPU1_9": "json_footprint",
+        "CPU1_10": "json_footprint",
+        "CPU1_11": "json_footprint",
+        "Analog_0": "json_footprint",
+        "Analog_1": "json_footprint",
+        "Analog_2": "json_footprint",
+        "Analog_3": "json_footprint",
+        "Analog_4": "json_footprint",
+        "Analog_5": "json_footprint",
+        "Analog_6": "json_footprint",
+        "Analog_7": "json_footprint",
+        "Analog_8": "json_footprint",
+        "Analog_9": "json_footprint",
+        "Analog_10": "json_footprint",
+        "Analog_11": "json_footprint",
+        "Analog_12": "json_footprint",
+        "Analog_13": "json_footprint",
+        "Analog_14": "json_footprint",
+        "Analog_15": "json_footprint",
+        "Analog_16": "json_footprint",
+        "Analog_17": "json_footprint",
+        "Analog_18": "json_footprint",
+        "Analog_19": "json_footprint",
+        "Analog_20": "json_footprint",
+        "Analog_21": "json_footprint",
+        "Analog_22": "json_footprint",
+        "Analog_23": "json_footprint"
+      },
+      "footprint_mode": "json_first",
+      "bbox_min_x": 0.0,
+      "bbox_min_y": 0.1917738200000001,
+      "bbox_max_x": 23.677382,
+      "bbox_max_y": 23.677382,
+      "bbox_width": 23.677382,
+      "bbox_height": 23.48560818,
+      "bbox_area": 556.0777163801848,
+      "bbox_utilization": 0.5040827778978209,
+      "silicon_bbox_utilization": 0.44777913709773826,
+      "canvas_area": 560.6184183739241,
+      "canvas_utilization": 0.49999998361280756,
+      "silicon_canvas_utilization": 0.4441523714512011
+    },
+    "timing": {
+      "run_started_at": "2026-09-12T11:49:28",
+      "found_at": "2026-09-12T12:00:49",
+      "epoch": 3,
+      "rollout": 33,
+      "rl_elapsed_seconds": 577.0937828950118,
+      "total_elapsed_seconds": 652.1285505710403,
+      "pre_rl_seconds": 75.03476767602842
+    },
+    "success": true,
+    "checkpoint": "/root/placement/flow_tap/baseline/RL/runs/shard1/Case8_seed3/checkpoints/ppo_best.pt"
+  },
+  "total_seconds": 3575.3740220260224,
+  "best_cost_layout": {
+    "reward": 53.34291579680288,
+    "episode": 11,
+    "json": "/root/placement/flow_tap/baseline/RL/runs/shard1/Case8_seed3/results/top_layouts/layout_best_cost_ep11_r53.34.json",
+    "metrics_json": "/root/placement/flow_tap/baseline/RL/runs/shard1/Case8_seed3/results/top_layouts/layout_best_cost_ep11_r53.34.metrics.json",
+    "img": "/root/placement/flow_tap/baseline/RL/runs/shard1/Case8_seed3/results/top_layouts/layout_best_cost_ep11_r53.34.png",
+    "metrics": {
+      "rlplanner_total_wirelength": 65263.7782282,
+      "rlplanner_avg_wirelength": 11.069161843317502,
+      "rlplanner_emib_wirelength": 0.0,
+      "rlplanner_normal_wirelength": 65263.7782282,
+      "rlplanner_total_wire_count": 5896,
+      "rlplanner_wirelength_source": "cplex_microbump_assignment",
+      "rlplanner_temperature": 80.10738099168574,
+      "rlplanner_temperature_penalty": 0.02896459503261717,
+      "rlplanner_cost": 11.09812643835012,
+      "thermal_layout_offset_x": 0.0,
+      "thermal_layout_offset_y": 0.016529829999999635,
+      "thermal_bbox_width": 23.677382,
+      "thermal_bbox_height": 23.644322340000002,
+      "thermal_bbox_min_x": 0.0,
+      "thermal_bbox_min_y": 0.016529829999999635,
+      "thermal_bbox_max_x": 23.677382,
+      "thermal_bbox_max_y": 23.660852170000002,
+      "thermal_intp_size": 23.677382,
+      "thermal_layout_fits_interposer": true,
+      "chiplet_area": 249.0,
+      "microbump_occupied_area": 280.30920000000015,
+      "microbump_halos": {
+        "CPU1_0": 0.135,
+        "CPU1_1": 0.135,
+        "CPU1_2": 0.135,
+        "CPU1_3": 0.135,
+        "CPU1_4": 0.135,
+        "CPU1_5": 0.135,
+        "CPU1_6": 0.135,
+        "CPU1_7": 0.135,
+        "CPU1_8": 0.135,
+        "CPU1_9": 0.135,
+        "CPU1_10": 0.135,
+        "CPU1_11": 0.135,
+        "Analog_0": 0.045,
+        "Analog_1": 0.045,
+        "Analog_2": 0.045,
+        "Analog_3": 0.045,
+        "Analog_4": 0.045,
+        "Analog_5": 0.045,
+        "Analog_6": 0.045,
+        "Analog_7": 0.045,
+        "Analog_8": 0.045,
+        "Analog_9": 0.045,
+        "Analog_10": 0.045,
+        "Analog_11": 0.045,
+        "Analog_12": 0.045,
+        "Analog_13": 0.045,
+        "Analog_14": 0.045,
+        "Analog_15": 0.045,
+        "Analog_16": 0.045,
+        "Analog_17": 0.045,
+        "Analog_18": 0.045,
+        "Analog_19": 0.045,
+        "Analog_20": 0.045,
+        "Analog_21": 0.045,
+        "Analog_22": 0.045,
+        "Analog_23": 0.045
+      },
+      "microbump_footprints": {
+        "CPU1_0": [
+          2.77,
+          3.77
+        ],
+        "CPU1_1": [
+          2.77,
+          3.77
+        ],
+        "CPU1_2": [
+          2.77,
+          3.77
+        ],
+        "CPU1_3": [
+          2.77,
+          3.77
+        ],
+        "CPU1_4": [
+          2.77,
+          3.77
+        ],
+        "CPU1_5": [
+          2.77,
+          3.77
+        ],
+        "CPU1_6": [
+          2.77,
+          3.77
+        ],
+        "CPU1_7": [
+          2.77,
+          3.77
+        ],
+        "CPU1_8": [
+          2.77,
+          3.77
+        ],
+        "CPU1_9": [
+          2.77,
+          3.77
+        ],
+        "CPU1_10": [
+          2.77,
+          3.77
+        ],
+        "CPU1_11": [
+          2.77,
+          3.77
+        ],
+        "Analog_0": [
+          3.09,
+          2.09
+        ],
+        "Analog_1": [
+          3.09,
+          2.09
+        ],
+        "Analog_2": [
+          3.09,
+          2.09
+        ],
+        "Analog_3": [
+          3.09,
+          2.09
+        ],
+        "Analog_4": [
+          3.09,
+          2.09
+        ],
+        "Analog_5": [
+          3.09,
+          2.09
+        ],
+        "Analog_6": [
+          3.09,
+          2.09
+        ],
+        "Analog_7": [
+          3.09,
+          2.09
+        ],
+        "Analog_8": [
+          3.09,
+          2.09
+        ],
+        "Analog_9": [
+          3.09,
+          2.09
+        ],
+        "Analog_10": [
+          3.09,
+          2.09
+        ],
+        "Analog_11": [
+          3.09,
+          2.09
+        ],
+        "Analog_12": [
+          3.09,
+          2.09
+        ],
+        "Analog_13": [
+          3.09,
+          2.09
+        ],
+        "Analog_14": [
+          3.09,
+          2.09
+        ],
+        "Analog_15": [
+          3.09,
+          2.09
+        ],
+        "Analog_16": [
+          3.09,
+          2.09
+        ],
+        "Analog_17": [
+          3.09,
+          2.09
+        ],
+        "Analog_18": [
+          3.09,
+          2.09
+        ],
+        "Analog_19": [
+          3.09,
+          2.09
+        ],
+        "Analog_20": [
+          3.09,
+          2.09
+        ],
+        "Analog_21": [
+          3.09,
+          2.09
+        ],
+        "Analog_22": [
+          3.09,
+          2.09
+        ],
+        "Analog_23": [
+          3.09,
+          2.09
+        ]
+      },
+      "occupied_envelope_sources": {
+        "CPU1_0": "json_footprint",
+        "CPU1_1": "json_footprint",
+        "CPU1_2": "json_footprint",
+        "CPU1_3": "json_footprint",
+        "CPU1_4": "json_footprint",
+        "CPU1_5": "json_footprint",
+        "CPU1_6": "json_footprint",
+        "CPU1_7": "json_footprint",
+        "CPU1_8": "json_footprint",
+        "CPU1_9": "json_footprint",
+        "CPU1_10": "json_footprint",
+        "CPU1_11": "json_footprint",
+        "Analog_0": "json_footprint",
+        "Analog_1": "json_footprint",
+        "Analog_2": "json_footprint",
+        "Analog_3": "json_footprint",
+        "Analog_4": "json_footprint",
+        "Analog_5": "json_footprint",
+        "Analog_6": "json_footprint",
+        "Analog_7": "json_footprint",
+        "Analog_8": "json_footprint",
+        "Analog_9": "json_footprint",
+        "Analog_10": "json_footprint",
+        "Analog_11": "json_footprint",
+        "Analog_12": "json_footprint",
+        "Analog_13": "json_footprint",
+        "Analog_14": "json_footprint",
+        "Analog_15": "json_footprint",
+        "Analog_16": "json_footprint",
+        "Analog_17": "json_footprint",
+        "Analog_18": "json_footprint",
+        "Analog_19": "json_footprint",
+        "Analog_20": "json_footprint",
+        "Analog_21": "json_footprint",
+        "Analog_22": "json_footprint",
+        "Analog_23": "json_footprint"
+      },
+      "footprint_mode": "json_first",
+      "bbox_min_x": 0.0,
+      "bbox_min_y": 0.0,
+      "bbox_max_x": 23.677382,
+      "bbox_max_y": 23.644322340000002,
+      "bbox_width": 23.677382,
+      "bbox_height": 23.644322340000002,
+      "bbox_area": 559.835652175314,
+      "bbox_utilization": 0.5006990871532072,
+      "silicon_bbox_utilization": 0.44477338846227144,
+      "canvas_area": 560.6184183739241,
+      "canvas_utilization": 0.49999998361280756,
+      "silicon_canvas_utilization": 0.4441523714512011
+    },
+    "timing": {
+      "run_started_at": "2026-09-12T11:49:28",
+      "found_at": "2026-09-12T12:35:18",
+      "epoch": 11,
+      "rollout": 147,
+      "rl_elapsed_seconds": 2554.9109864820493,
+      "total_elapsed_seconds": 2629.9457554610563,
+      "pre_rl_seconds": 75.03476767602842
+    },
+    "success": true,
+    "rlplanner_cost": 11.09812643835012,
+    "checkpoint": "/root/placement/flow_tap/baseline/RL/runs/shard1/Case8_seed3/checkpoints/ppo_best_cost.pt"
+  },
+  "seed": 3,
+  "time_limit_seconds": 3600.0,
+  "termination_reason": "time_limit",
+  "completed_epochs": 14,
+  "total_transitions": 7236,
+  "ended_at": "2026-09-12T12:51:46"
+}

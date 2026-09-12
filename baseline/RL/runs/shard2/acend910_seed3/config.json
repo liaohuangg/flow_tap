@@ -1,0 +1,58 @@
+{
+  "name": "acend910_seed3",
+  "run_dir": "/root/placement/flow_tap/baseline/RL/runs/shard2/acend910_seed3",
+  "json_path": "/root/placement/flow_tap/baseline/RL/examples/acend910.json",
+  "num_epochs": 600,
+  "rollout_batch_size": 480,
+  "learning_rate": 0.00025,
+  "num_minibatches": 4,
+  "ppo_update_epochs": 4,
+  "target_kl": 0.015,
+  "save_interval": 10,
+  "save_checkpoint": true,
+  "seed": 3,
+  "time_limit_seconds": 3600.0,
+  "runtime": {
+    "python": "3.10.20 (main, Mar 11 2026, 17:46:40) [GCC 14.3.0]",
+    "numpy": "2.2.5",
+    "torch": "2.11.0+cu130",
+    "cuda": "13.0",
+    "device": "cuda",
+    "gpu": "NVIDIA GeForce RTX 5090"
+  },
+  "log_interval": 1,
+  "generate_thermal_tables": true,
+  "force_thermal_tables": true,
+  "microbump_model": {
+    "pitch_mm": 0.045,
+    "capacity_source": "FastTM PassiveInterposer.compute_ubump_overhead",
+    "included_in_bounds_and_overlap": true
+  },
+  "env_kwargs": {
+    "grid_resolution": "auto",
+    "max_width": 44.923337,
+    "max_height": 44.923337,
+    "placement_area_weight": 1.0,
+    "placement_pin_weight": 1.0,
+    "thermal_intp_size": 44.923337,
+    "min_overlap": 0.5,
+    "exact_action_slots": 50000,
+    "max_auto_grid_resolution": 100,
+    "footprint_mode": "json_first",
+    "verify_footprint": false,
+    "placement_reward": 1,
+    "adjacency_reward": 20,
+    "compact": 10,
+    "min_wirelength_reward_scale": 0,
+    "extra_adjacency_reward": 5,
+    "terminal_util_reward_scale": 30,
+    "terminal_wirelength_reward_scale": 0,
+    "terminal_rlplanner_cost_scale": 1.0,
+    "lenbase_samples": 0
+  },
+  "canvas_defaults": {
+    "thermal_intp_size": 44.923337,
+    "updates": {}
+  },
+  "started_at": "2026-09-12T11:28:55"
+}

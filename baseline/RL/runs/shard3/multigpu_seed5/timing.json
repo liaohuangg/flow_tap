@@ -1,0 +1,234 @@
+{
+  "name": "multigpu_seed5",
+  "run_dir": "/root/placement/flow_tap/baseline/RL/runs/shard3/multigpu_seed5",
+  "started_at": "2026-09-12T13:14:52",
+  "thermal_tables": {
+    "status": "ok",
+    "returncode": 0,
+    "seconds": 72.92485952796414,
+    "started_at": "2026-09-12T13:14:52",
+    "ended_at": "2026-09-12T13:16:08",
+    "command": [
+      "/root/anaconda3/envs/chipdiffusion/bin/python",
+      "/root/placement/flow_tap/baseline/RL/generate_thermal_tables.py",
+      "/root/placement/flow_tap/baseline/RL/examples/multigpu.json",
+      "--intp-size",
+      "47.292496",
+      "--overwrite-config",
+      "--force"
+    ],
+    "cwd": "/root/placement/flow_tap/baseline/RL/fastTM",
+    "hotspot": "/root/placement/flow_tap/baseline/RL/fastTM/util/hotspot",
+    "log": "/root/placement/flow_tap/baseline/RL/runs/shard3/multigpu_seed5/thermal_tables.log",
+    "intp_size": 47.292496,
+    "existing_intp_size": 47.292496,
+    "force": true,
+    "force_requested": true,
+    "force_reason": null
+  },
+  "rl_solve": {
+    "seconds": 2946.1464810409816,
+    "started_at": "2026-09-12T13:16:08",
+    "ended_at": "2026-09-12T14:07:36"
+  },
+  "best_layout": {
+    "reward": -1.7954902518026117,
+    "episode": 104,
+    "json": "/root/placement/flow_tap/baseline/RL/runs/shard3/multigpu_seed5/results/top_layouts/layout_best_ep104_r-1.80.json",
+    "metrics_json": "/root/placement/flow_tap/baseline/RL/runs/shard3/multigpu_seed5/results/top_layouts/layout_best_ep104_r-1.80.metrics.json",
+    "img": "/root/placement/flow_tap/baseline/RL/runs/shard3/multigpu_seed5/results/top_layouts/layout_best_ep104_r-1.80.png",
+    "metrics": {
+      "rlplanner_total_wirelength": 104424.52877503999,
+      "rlplanner_avg_wirelength": 15.107715389907405,
+      "rlplanner_emib_wirelength": 0.0,
+      "rlplanner_normal_wirelength": 104424.52877503999,
+      "rlplanner_total_wire_count": 6912,
+      "rlplanner_wirelength_source": "cplex_microbump_assignment",
+      "rlplanner_temperature": 90.14630440094996,
+      "rlplanner_temperature_penalty": 20.332146053681065,
+      "rlplanner_cost": 35.43986144358847,
+      "thermal_layout_offset_x": 0.6174616800000037,
+      "thermal_layout_offset_y": 0.12552447999999955,
+      "thermal_bbox_width": 45.38172271999999,
+      "thermal_bbox_height": 46.27559712,
+      "thermal_bbox_min_x": 0.955386640000004,
+      "thermal_bbox_min_y": 0.5084494399999997,
+      "thermal_bbox_max_x": 46.33710936,
+      "thermal_bbox_max_y": 46.78404656,
+      "thermal_intp_size": 47.292496,
+      "thermal_layout_fits_interposer": true,
+      "chiplet_area": 1082.4574999999998,
+      "microbump_occupied_area": 1118.2900999999997,
+      "microbump_halos": {
+        "A": 0.135,
+        "B": 0.09,
+        "C": 0.09,
+        "D": 0.135,
+        "E": 0.135,
+        "F": 0.135
+      },
+      "microbump_footprints": {
+        "A": [
+          12.27,
+          12.27
+        ],
+        "B": [
+          18.38,
+          18.38
+        ],
+        "C": [
+          18.38,
+          18.38
+        ],
+        "D": [
+          8.02,
+          12.14
+        ],
+        "E": [
+          8.02,
+          12.14
+        ],
+        "F": [
+          8.02,
+          12.14
+        ]
+      },
+      "occupied_envelope_sources": {
+        "A": "json_footprint",
+        "B": "json_footprint",
+        "C": "json_footprint",
+        "D": "json_footprint",
+        "E": "json_footprint",
+        "F": "json_footprint"
+      },
+      "footprint_mode": "json_first",
+      "bbox_min_x": 0.3379249600000002,
+      "bbox_min_y": 0.38292496000000015,
+      "bbox_max_x": 45.719647679999994,
+      "bbox_max_y": 46.65852208,
+      "bbox_width": 45.38172271999999,
+      "bbox_height": 46.27559712,
+      "bbox_area": 2100.06631720227,
+      "bbox_utilization": 0.5325022790184061,
+      "silicon_bbox_utilization": 0.5154396749918169,
+      "canvas_area": 2236.580177910016,
+      "canvas_utilization": 0.5000000049383393,
+      "silicon_canvas_utilization": 0.4839788489100837
+    },
+    "timing": {
+      "run_started_at": "2026-09-12T13:14:52",
+      "found_at": "2026-09-12T13:31:07",
+      "epoch": 104,
+      "rollout": 9187,
+      "rl_elapsed_seconds": 856.566595308017,
+      "total_elapsed_seconds": 929.492114491004,
+      "pre_rl_seconds": 72.92551918298705
+    },
+    "success": true,
+    "checkpoint": "/root/placement/flow_tap/baseline/RL/runs/shard3/multigpu_seed5/checkpoints/ppo_best.pt"
+  },
+  "total_seconds": 3019.0720302609843,
+  "best_cost_layout": {
+    "reward": -1.7954902518026117,
+    "episode": 104,
+    "json": "/root/placement/flow_tap/baseline/RL/runs/shard3/multigpu_seed5/results/top_layouts/layout_best_cost_ep104_r-1.80.json",
+    "metrics_json": "/root/placement/flow_tap/baseline/RL/runs/shard3/multigpu_seed5/results/top_layouts/layout_best_cost_ep104_r-1.80.metrics.json",
+    "img": "/root/placement/flow_tap/baseline/RL/runs/shard3/multigpu_seed5/results/top_layouts/layout_best_cost_ep104_r-1.80.png",
+    "metrics": {
+      "rlplanner_total_wirelength": 104424.52877503999,
+      "rlplanner_avg_wirelength": 15.107715389907405,
+      "rlplanner_emib_wirelength": 0.0,
+      "rlplanner_normal_wirelength": 104424.52877503999,
+      "rlplanner_total_wire_count": 6912,
+      "rlplanner_wirelength_source": "cplex_microbump_assignment",
+      "rlplanner_temperature": 90.14630440094996,
+      "rlplanner_temperature_penalty": 20.332146053681065,
+      "rlplanner_cost": 35.43986144358847,
+      "thermal_layout_offset_x": 0.6174616800000037,
+      "thermal_layout_offset_y": 0.12552447999999955,
+      "thermal_bbox_width": 45.38172271999999,
+      "thermal_bbox_height": 46.27559712,
+      "thermal_bbox_min_x": 0.955386640000004,
+      "thermal_bbox_min_y": 0.5084494399999997,
+      "thermal_bbox_max_x": 46.33710936,
+      "thermal_bbox_max_y": 46.78404656,
+      "thermal_intp_size": 47.292496,
+      "thermal_layout_fits_interposer": true,
+      "chiplet_area": 1082.4574999999998,
+      "microbump_occupied_area": 1118.2900999999997,
+      "microbump_halos": {
+        "A": 0.135,
+        "B": 0.09,
+        "C": 0.09,
+        "D": 0.135,
+        "E": 0.135,
+        "F": 0.135
+      },
+      "microbump_footprints": {
+        "A": [
+          12.27,
+          12.27
+        ],
+        "B": [
+          18.38,
+          18.38
+        ],
+        "C": [
+          18.38,
+          18.38
+        ],
+        "D": [
+          8.02,
+          12.14
+        ],
+        "E": [
+          8.02,
+          12.14
+        ],
+        "F": [
+          8.02,
+          12.14
+        ]
+      },
+      "occupied_envelope_sources": {
+        "A": "json_footprint",
+        "B": "json_footprint",
+        "C": "json_footprint",
+        "D": "json_footprint",
+        "E": "json_footprint",
+        "F": "json_footprint"
+      },
+      "footprint_mode": "json_first",
+      "bbox_min_x": 0.3379249600000002,
+      "bbox_min_y": 0.38292496000000015,
+      "bbox_max_x": 45.719647679999994,
+      "bbox_max_y": 46.65852208,
+      "bbox_width": 45.38172271999999,
+      "bbox_height": 46.27559712,
+      "bbox_area": 2100.06631720227,
+      "bbox_utilization": 0.5325022790184061,
+      "silicon_bbox_utilization": 0.5154396749918169,
+      "canvas_area": 2236.580177910016,
+      "canvas_utilization": 0.5000000049383393,
+      "silicon_canvas_utilization": 0.4839788489100837
+    },
+    "timing": {
+      "run_started_at": "2026-09-12T13:14:52",
+      "found_at": "2026-09-12T13:31:07",
+      "epoch": 104,
+      "rollout": 9187,
+      "rl_elapsed_seconds": 856.2090835850104,
+      "total_elapsed_seconds": 929.134603818995,
+      "pre_rl_seconds": 72.92551918298705
+    },
+    "success": true,
+    "rlplanner_cost": 35.43986144358847,
+    "checkpoint": "/root/placement/flow_tap/baseline/RL/runs/shard3/multigpu_seed5/checkpoints/ppo_best_cost.pt"
+  },
+  "seed": 5,
+  "time_limit_seconds": 3600.0,
+  "termination_reason": "epochs_complete",
+  "completed_epochs": 600,
+  "total_transitions": 288406,
+  "ended_at": "2026-09-12T14:07:36"
+}

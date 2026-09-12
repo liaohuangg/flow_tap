@@ -1,0 +1,402 @@
+{
+  "name": "Case6_seed2",
+  "run_dir": "/root/placement/flow_tap/baseline/RL/runs/shard1/Case6_seed2",
+  "started_at": "2026-09-12T00:35:27",
+  "thermal_tables": {
+    "status": "ok",
+    "returncode": 0,
+    "seconds": 69.45081488002324,
+    "started_at": "2026-09-12T00:35:27",
+    "ended_at": "2026-09-12T00:36:36",
+    "command": [
+      "/root/anaconda3/envs/chipdiffusion/bin/python",
+      "/root/placement/flow_tap/baseline/RL/generate_thermal_tables.py",
+      "/root/placement/flow_tap/baseline/RL/examples/Case6.json",
+      "--intp-size",
+      "50.767533",
+      "--overwrite-config",
+      "--force"
+    ],
+    "cwd": "/root/placement/flow_tap/baseline/RL/fastTM",
+    "hotspot": "/root/placement/flow_tap/baseline/RL/fastTM/util/hotspot",
+    "log": "/root/placement/flow_tap/baseline/RL/runs/shard1/Case6_seed2/thermal_tables.log",
+    "intp_size": 50.767533,
+    "existing_intp_size": 50.767533,
+    "force": true,
+    "force_requested": true,
+    "force_reason": null
+  },
+  "rl_solve": {
+    "seconds": 3501.4335446920013,
+    "started_at": "2026-09-12T00:36:36",
+    "ended_at": "2026-09-12T01:35:03"
+  },
+  "best_layout": {
+    "reward": -6.446811961910697,
+    "episode": 59,
+    "json": "/root/placement/flow_tap/baseline/RL/runs/shard1/Case6_seed2/results/top_layouts/layout_best_ep59_r-6.45.json",
+    "metrics_json": "/root/placement/flow_tap/baseline/RL/runs/shard1/Case6_seed2/results/top_layouts/layout_best_ep59_r-6.45.metrics.json",
+    "img": "/root/placement/flow_tap/baseline/RL/runs/shard1/Case6_seed2/results/top_layouts/layout_best_ep59_r-6.45.png",
+    "metrics": {
+      "rlplanner_total_wirelength": 287167.4779992,
+      "rlplanner_avg_wirelength": 25.494271839417614,
+      "rlplanner_emib_wirelength": 0.0,
+      "rlplanner_normal_wirelength": 287167.4779992,
+      "rlplanner_total_wire_count": 11264,
+      "rlplanner_wirelength_source": "cplex_microbump_assignment",
+      "rlplanner_temperature": 93.91523672993269,
+      "rlplanner_temperature_penalty": 30.657545798881138,
+      "rlplanner_cost": 56.15181763829875,
+      "thermal_layout_offset_x": 0.30041563500000024,
+      "thermal_layout_offset_y": -0.9012726899999999,
+      "thermal_bbox_width": 50.16670173,
+      "thermal_bbox_height": 48.86867574,
+      "thermal_bbox_min_x": 0.30041563500000024,
+      "thermal_bbox_min_y": 0.9494286299999999,
+      "thermal_bbox_max_x": 50.467117365,
+      "thermal_bbox_max_y": 49.81810437,
+      "thermal_intp_size": 50.767533,
+      "thermal_layout_fits_interposer": true,
+      "chiplet_area": 1232.0,
+      "microbump_occupied_area": 1288.6712000000002,
+      "microbump_halos": {
+        "CPU2_0": 0.18,
+        "CPU2_1": 0.18,
+        "CPU2_2": 0.18,
+        "CPU2_3": 0.18,
+        "CPU2_4": 0.18,
+        "CPU2_5": 0.18,
+        "CPU2_6": 0.18,
+        "CPU2_7": 0.18,
+        "GPU_0": 0.09,
+        "GPU_1": 0.09,
+        "GPU_2": 0.09,
+        "GPU_3": 0.09,
+        "HBM_0": 0.045,
+        "HBM_1": 0.045,
+        "HBM_2": 0.045,
+        "HBM_3": 0.045,
+        "DRAM_0": 0.045,
+        "DRAM_1": 0.045,
+        "DRAM_2": 0.045,
+        "DRAM_3": 0.045
+      },
+      "microbump_footprints": {
+        "CPU2_0": [
+          5.36,
+          5.36
+        ],
+        "CPU2_1": [
+          5.36,
+          5.36
+        ],
+        "CPU2_2": [
+          5.36,
+          5.36
+        ],
+        "CPU2_3": [
+          5.36,
+          5.36
+        ],
+        "CPU2_4": [
+          5.36,
+          5.36
+        ],
+        "CPU2_5": [
+          5.36,
+          5.36
+        ],
+        "CPU2_6": [
+          5.36,
+          5.36
+        ],
+        "CPU2_7": [
+          5.36,
+          5.36
+        ],
+        "GPU_0": [
+          9.18,
+          9.18
+        ],
+        "GPU_1": [
+          9.18,
+          9.18
+        ],
+        "GPU_2": [
+          9.18,
+          9.18
+        ],
+        "GPU_3": [
+          9.18,
+          9.18
+        ],
+        "HBM_0": [
+          8.09,
+          12.09
+        ],
+        "HBM_1": [
+          8.09,
+          12.09
+        ],
+        "HBM_2": [
+          8.09,
+          12.09
+        ],
+        "HBM_3": [
+          8.09,
+          12.09
+        ],
+        "DRAM_0": [
+          9.09,
+          9.09
+        ],
+        "DRAM_1": [
+          9.09,
+          9.09
+        ],
+        "DRAM_2": [
+          9.09,
+          9.09
+        ],
+        "DRAM_3": [
+          9.09,
+          9.09
+        ]
+      },
+      "occupied_envelope_sources": {
+        "CPU2_0": "json_footprint",
+        "CPU2_1": "json_footprint",
+        "CPU2_2": "json_footprint",
+        "CPU2_3": "json_footprint",
+        "CPU2_4": "json_footprint",
+        "CPU2_5": "json_footprint",
+        "CPU2_6": "json_footprint",
+        "CPU2_7": "json_footprint",
+        "GPU_0": "json_footprint",
+        "GPU_1": "json_footprint",
+        "GPU_2": "json_footprint",
+        "GPU_3": "json_footprint",
+        "HBM_0": "json_footprint",
+        "HBM_1": "json_footprint",
+        "HBM_2": "json_footprint",
+        "HBM_3": "json_footprint",
+        "DRAM_0": "json_footprint",
+        "DRAM_1": "json_footprint",
+        "DRAM_2": "json_footprint",
+        "DRAM_3": "json_footprint"
+      },
+      "footprint_mode": "json_first",
+      "bbox_min_x": 0.0,
+      "bbox_min_y": 1.8507013199999998,
+      "bbox_max_x": 50.16670173,
+      "bbox_max_y": 50.71937706,
+      "bbox_width": 50.16670173,
+      "bbox_height": 48.86867574,
+      "bbox_area": 2451.580279788667,
+      "bbox_utilization": 0.5256491947761495,
+      "silicon_bbox_utilization": 0.5025330029601158,
+      "canvas_area": 2577.342406906089,
+      "canvas_utilization": 0.4999999986602307,
+      "silicon_canvas_utilization": 0.478011767741379
+    },
+    "timing": {
+      "run_started_at": "2026-09-12T00:35:27",
+      "found_at": "2026-09-12T01:10:03",
+      "epoch": 59,
+      "rollout": 1485,
+      "rl_elapsed_seconds": 2006.7085758559988,
+      "total_elapsed_seconds": 2076.1600206469884,
+      "pre_rl_seconds": 69.45144479098963
+    },
+    "success": true,
+    "checkpoint": "/root/placement/flow_tap/baseline/RL/runs/shard1/Case6_seed2/checkpoints/ppo_best.pt"
+  },
+  "total_seconds": 3570.885016780987,
+  "best_cost_layout": {
+    "reward": -6.446811961910697,
+    "episode": 59,
+    "json": "/root/placement/flow_tap/baseline/RL/runs/shard1/Case6_seed2/results/top_layouts/layout_best_cost_ep59_r-6.45.json",
+    "metrics_json": "/root/placement/flow_tap/baseline/RL/runs/shard1/Case6_seed2/results/top_layouts/layout_best_cost_ep59_r-6.45.metrics.json",
+    "img": "/root/placement/flow_tap/baseline/RL/runs/shard1/Case6_seed2/results/top_layouts/layout_best_cost_ep59_r-6.45.png",
+    "metrics": {
+      "rlplanner_total_wirelength": 287167.4779992,
+      "rlplanner_avg_wirelength": 25.494271839417614,
+      "rlplanner_emib_wirelength": 0.0,
+      "rlplanner_normal_wirelength": 287167.4779992,
+      "rlplanner_total_wire_count": 11264,
+      "rlplanner_wirelength_source": "cplex_microbump_assignment",
+      "rlplanner_temperature": 93.91523672993269,
+      "rlplanner_temperature_penalty": 30.657545798881138,
+      "rlplanner_cost": 56.15181763829875,
+      "thermal_layout_offset_x": 0.30041563500000024,
+      "thermal_layout_offset_y": -0.9012726899999999,
+      "thermal_bbox_width": 50.16670173,
+      "thermal_bbox_height": 48.86867574,
+      "thermal_bbox_min_x": 0.30041563500000024,
+      "thermal_bbox_min_y": 0.9494286299999999,
+      "thermal_bbox_max_x": 50.467117365,
+      "thermal_bbox_max_y": 49.81810437,
+      "thermal_intp_size": 50.767533,
+      "thermal_layout_fits_interposer": true,
+      "chiplet_area": 1232.0,
+      "microbump_occupied_area": 1288.6712000000002,
+      "microbump_halos": {
+        "CPU2_0": 0.18,
+        "CPU2_1": 0.18,
+        "CPU2_2": 0.18,
+        "CPU2_3": 0.18,
+        "CPU2_4": 0.18,
+        "CPU2_5": 0.18,
+        "CPU2_6": 0.18,
+        "CPU2_7": 0.18,
+        "GPU_0": 0.09,
+        "GPU_1": 0.09,
+        "GPU_2": 0.09,
+        "GPU_3": 0.09,
+        "HBM_0": 0.045,
+        "HBM_1": 0.045,
+        "HBM_2": 0.045,
+        "HBM_3": 0.045,
+        "DRAM_0": 0.045,
+        "DRAM_1": 0.045,
+        "DRAM_2": 0.045,
+        "DRAM_3": 0.045
+      },
+      "microbump_footprints": {
+        "CPU2_0": [
+          5.36,
+          5.36
+        ],
+        "CPU2_1": [
+          5.36,
+          5.36
+        ],
+        "CPU2_2": [
+          5.36,
+          5.36
+        ],
+        "CPU2_3": [
+          5.36,
+          5.36
+        ],
+        "CPU2_4": [
+          5.36,
+          5.36
+        ],
+        "CPU2_5": [
+          5.36,
+          5.36
+        ],
+        "CPU2_6": [
+          5.36,
+          5.36
+        ],
+        "CPU2_7": [
+          5.36,
+          5.36
+        ],
+        "GPU_0": [
+          9.18,
+          9.18
+        ],
+        "GPU_1": [
+          9.18,
+          9.18
+        ],
+        "GPU_2": [
+          9.18,
+          9.18
+        ],
+        "GPU_3": [
+          9.18,
+          9.18
+        ],
+        "HBM_0": [
+          8.09,
+          12.09
+        ],
+        "HBM_1": [
+          8.09,
+          12.09
+        ],
+        "HBM_2": [
+          8.09,
+          12.09
+        ],
+        "HBM_3": [
+          8.09,
+          12.09
+        ],
+        "DRAM_0": [
+          9.09,
+          9.09
+        ],
+        "DRAM_1": [
+          9.09,
+          9.09
+        ],
+        "DRAM_2": [
+          9.09,
+          9.09
+        ],
+        "DRAM_3": [
+          9.09,
+          9.09
+        ]
+      },
+      "occupied_envelope_sources": {
+        "CPU2_0": "json_footprint",
+        "CPU2_1": "json_footprint",
+        "CPU2_2": "json_footprint",
+        "CPU2_3": "json_footprint",
+        "CPU2_4": "json_footprint",
+        "CPU2_5": "json_footprint",
+        "CPU2_6": "json_footprint",
+        "CPU2_7": "json_footprint",
+        "GPU_0": "json_footprint",
+        "GPU_1": "json_footprint",
+        "GPU_2": "json_footprint",
+        "GPU_3": "json_footprint",
+        "HBM_0": "json_footprint",
+        "HBM_1": "json_footprint",
+        "HBM_2": "json_footprint",
+        "HBM_3": "json_footprint",
+        "DRAM_0": "json_footprint",
+        "DRAM_1": "json_footprint",
+        "DRAM_2": "json_footprint",
+        "DRAM_3": "json_footprint"
+      },
+      "footprint_mode": "json_first",
+      "bbox_min_x": 0.0,
+      "bbox_min_y": 1.8507013199999998,
+      "bbox_max_x": 50.16670173,
+      "bbox_max_y": 50.71937706,
+      "bbox_width": 50.16670173,
+      "bbox_height": 48.86867574,
+      "bbox_area": 2451.580279788667,
+      "bbox_utilization": 0.5256491947761495,
+      "silicon_bbox_utilization": 0.5025330029601158,
+      "canvas_area": 2577.342406906089,
+      "canvas_utilization": 0.4999999986602307,
+      "silicon_canvas_utilization": 0.478011767741379
+    },
+    "timing": {
+      "run_started_at": "2026-09-12T00:35:27",
+      "found_at": "2026-09-12T01:10:03",
+      "epoch": 59,
+      "rollout": 1485,
+      "rl_elapsed_seconds": 2006.2547759070294,
+      "total_elapsed_seconds": 2075.70622183301,
+      "pre_rl_seconds": 69.45144479098963
+    },
+    "success": true,
+    "rlplanner_cost": 56.15181763829875,
+    "checkpoint": "/root/placement/flow_tap/baseline/RL/runs/shard1/Case6_seed2/checkpoints/ppo_best_cost.pt"
+  },
+  "seed": 2,
+  "time_limit_seconds": 3600.0,
+  "termination_reason": "time_limit",
+  "completed_epochs": 104,
+  "total_transitions": 51057,
+  "ended_at": "2026-09-12T01:35:03"
+}

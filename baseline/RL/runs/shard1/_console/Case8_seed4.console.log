@@ -1,0 +1,162 @@
+command: /root/anaconda3/envs/chipdiffusion/bin/python /root/placement/flow_tap/baseline/RL/train.py --json /root/placement/flow_tap/baseline/RL/examples/Case8.json --name Case8_seed4 --runs-dir /root/placement/flow_tap/baseline/RL/runs/shard1 --seed 4 --time_limit_seconds 3600.0 --max_width 23.677382 --max_height 23.677382 --thermal_intp_size 23.677382 --footprint_mode json_first --save_checkpoint --log_interval 1 --force_thermal_tables
+started_at: 2026-09-12T12:51:47
+
+使用设备: cuda
+Run name: Case8_seed4
+Run directory: /root/placement/flow_tap/baseline/RL/runs/shard1/Case8_seed4
+Training log: /root/placement/flow_tap/baseline/RL/runs/shard1/Case8_seed4/train.log
+
+生成/检查 fastTM 热阻表...
+  热阻表阶段状态: ok
+  热阻表阶段耗时: 75.370s
+  热阻表日志: /root/placement/flow_tap/baseline/RL/runs/shard1/Case8_seed4/thermal_tables.log
+======================================================================
+PPO训练 - 芯片布局优化
+======================================================================
+
+环境信息:
+  芯片数量: 36
+  放置顺序: ['CPU1_6', 'CPU1_7', 'CPU1_0', 'CPU1_1', 'CPU1_2', 'CPU1_3', 'CPU1_4', 'CPU1_5', 'CPU1_8', 'CPU1_9', 'CPU1_10', 'CPU1_11', 'Analog_0', 'Analog_1', 'Analog_2', 'Analog_3', 'Analog_4', 'Analog_5', 'Analog_6', 'Analog_7', 'Analog_8', 'Analog_9', 'Analog_10', 'Analog_11', 'Analog_12', 'Analog_13', 'Analog_14', 'Analog_15', 'Analog_16', 'Analog_17', 'Analog_18', 'Analog_19', 'Analog_20', 'Analog_21', 'Analog_22', 'Analog_23']
+  观察维度: 10
+  动作维度: 70000
+  rollout batch: 480 transitions
+  minibatches: 4
+  PPO update epochs: 4
+  随机种子: 4
+  剩余总时间预算: 3524.6s
+
+开始训练...
+----------------------------------------------------------------------
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 1
+  rlplanner_cost: 12.1792
+  reward: 52.9405
+  温度: 80.5920
+  CPLEX平均线长: 11.8535
+BEST_LAYOUT
+  epoch: 1/600, rollout: 1
+  reward: 52.9405
+  温度: 80.5920
+  CPLEX平均线长: 11.8535
+Epoch 1/600
+  rollouts: 14, samples: 504
+  平均奖励: 50.6559, 成功率: 100.0%
+  optimizer steps: 16, KL: 0.000614
+  累计RL时间: 244.05s
+BEST_COST_LAYOUT
+  epoch: 2/600, rollout: 19
+  rlplanner_cost: 11.8674
+  reward: 52.8318
+  温度: 80.4635
+  CPLEX平均线长: 11.6416
+Epoch 2/600
+  rollouts: 14, samples: 504
+  平均奖励: 50.8151, 成功率: 100.0%
+  optimizer steps: 16, KL: 0.002187
+  累计RL时间: 489.74s
+Epoch 3/600
+  rollouts: 14, samples: 504
+  平均奖励: 50.2422, 成功率: 100.0%
+  optimizer steps: 15, KL: 0.004758
+  累计RL时间: 734.88s
+Epoch 4/600
+  rollouts: 14, samples: 504
+  平均奖励: 50.9121, 成功率: 100.0%
+  optimizer steps: 13, KL: 0.004585
+  累计RL时间: 978.26s
+BEST_LAYOUT
+  epoch: 5/600, rollout: 61
+  reward: 53.0772
+  温度: 80.1922
+  CPLEX平均线长: 12.1453
+Epoch 5/600
+  rollouts: 14, samples: 504
+  平均奖励: 49.7948, 成功率: 100.0%
+  optimizer steps: 13, KL: 0.005647
+  累计RL时间: 1222.59s
+Epoch 6/600
+  rollouts: 14, samples: 504
+  平均奖励: 49.8023, 成功率: 100.0%
+  optimizer steps: 10, KL: 0.004738
+  累计RL时间: 1465.35s
+Epoch 7/600
+  rollouts: 14, samples: 504
+  平均奖励: 49.8435, 成功率: 100.0%
+  optimizer steps: 10, KL: 0.005369
+  累计RL时间: 1708.65s
+Epoch 8/600
+  rollouts: 14, samples: 504
+  平均奖励: 50.4503, 成功率: 100.0%
+  optimizer steps: 10, KL: 0.005736
+  累计RL时间: 1952.35s
+Epoch 9/600
+  rollouts: 14, samples: 504
+  平均奖励: 51.0498, 成功率: 100.0%
+  optimizer steps: 11, KL: 0.005566
+  累计RL时间: 2193.66s
+Epoch 10/600
+  rollouts: 14, samples: 504
+  平均奖励: 50.2152, 成功率: 100.0%
+  optimizer steps: 10, KL: 0.005557
+  累计RL时间: 2439.12s
+BEST_COST_LAYOUT
+  epoch: 11/600, rollout: 146
+  rlplanner_cost: 11.4470
+  reward: 53.5300
+  温度: 79.9123
+  CPLEX平均线长: 11.4470
+BEST_LAYOUT
+  epoch: 11/600, rollout: 146
+  reward: 53.5300
+  温度: 79.9123
+  CPLEX平均线长: 11.4470
+Epoch 11/600
+  rollouts: 14, samples: 504
+  平均奖励: 50.0801, 成功率: 100.0%
+  optimizer steps: 10, KL: 0.005302
+  累计RL时间: 2684.95s
+Epoch 12/600
+  rollouts: 14, samples: 504
+  平均奖励: 50.3317, 成功率: 100.0%
+  optimizer steps: 11, KL: 0.006317
+  累计RL时间: 2928.34s
+Epoch 13/600
+  rollouts: 14, samples: 504
+  平均奖励: 49.6568, 成功率: 100.0%
+  optimizer steps: 10, KL: 0.005200
+  累计RL时间: 3170.67s
+Epoch 14/600
+  rollouts: 14, samples: 504
+  平均奖励: 49.7387, 成功率: 100.0%
+  optimizer steps: 10, KL: 0.005309
+  累计RL时间: 3413.34s
+Epoch 15/600
+  rollouts: 5, samples: 180
+  平均奖励: 50.9526, 成功率: 100.0%
+  optimizer steps: 9, KL: 0.005613
+  累计RL时间: 3501.99s
+模型已保存到 /root/placement/flow_tap/baseline/RL/runs/shard1/Case8_seed4/checkpoints/ppo_best.pt
+模型已保存到 /root/placement/flow_tap/baseline/RL/runs/shard1/Case8_seed4/checkpoints/ppo_best_cost.pt
+
+======================================================================
+训练完成！
+  请求epochs: 600
+  完整epochs: 14
+  已执行epoch轮次: 15
+  总rollouts: 201
+  总transitions: 7236
+  最终成功率: 100.0%
+  最近平均奖励: 50.3027
+  optimizer steps: 174
+  终止原因: time_limit
+======================================================================
+
+运行时间统计:
+  热阻表: 75.370s
+  RL求解: 3502.319s
+  总时间: 3577.689s
+  best layout发现时间: 2026-09-12T13:37:33
+  best layout累计RL时间: 2545.821s
+  best layout累计总时间: 2621.192s
+
+Model saved to /root/placement/flow_tap/baseline/RL/runs/shard1/Case8_seed4/checkpoints/ppo_best.pt

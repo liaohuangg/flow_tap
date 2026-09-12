@@ -1,0 +1,236 @@
+Run name: Case7_seed4
+Run directory: /root/placement/flow_tap/baseline/RL/runs/shard1/Case7_seed4
+Training log: /root/placement/flow_tap/baseline/RL/runs/shard1/Case7_seed4/train.log
+
+生成/检查 fastTM 热阻表...
+  热阻表阶段状态: ok
+  热阻表阶段耗时: 164.308s
+  热阻表日志: /root/placement/flow_tap/baseline/RL/runs/shard1/Case7_seed4/thermal_tables.log
+======================================================================
+PPO训练 - 芯片布局优化
+======================================================================
+
+环境信息:
+  芯片数量: 28
+  放置顺序: ['CPU2_0', 'CPU2_1', 'DRAM_0', 'DRAM_1', 'CPU1_0', 'CPU1_1', 'CPU1_2', 'CPU1_3', 'CPU1_4', 'CPU1_5', 'CPU1_6', 'CPU1_7', 'Analog_0', 'Analog_1', 'Analog_2', 'Analog_3', 'Analog_4', 'Analog_5', 'Analog_6', 'Analog_7', 'MEMS_0', 'MEMS_1', 'MEMS_2', 'MEMS_3', 'MEMS_4', 'MEMS_5', 'MEMS_6', 'MEMS_7']
+  观察维度: 10
+  动作维度: 70000
+  rollout batch: 480 transitions
+  minibatches: 4
+  PPO update epochs: 4
+  随机种子: 4
+  剩余总时间预算: 3435.7s
+
+开始训练...
+----------------------------------------------------------------------
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 1
+  rlplanner_cost: 17.8152
+  reward: 39.0136
+  温度: 78.7859
+  CPLEX平均线长: 17.8152
+BEST_LAYOUT
+  epoch: 1/600, rollout: 1
+  reward: 39.0136
+  温度: 78.7859
+  CPLEX平均线长: 17.8152
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 2
+  rlplanner_cost: 15.9320
+  reward: 39.4782
+  温度: 80.4848
+  CPLEX平均线长: 15.6905
+BEST_LAYOUT
+  epoch: 1/600, rollout: 2
+  reward: 39.4782
+  温度: 80.4848
+  CPLEX平均线长: 15.6905
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 4
+  rlplanner_cost: 15.5251
+  reward: 40.8637
+  温度: 78.7929
+  CPLEX平均线长: 15.5251
+BEST_LAYOUT
+  epoch: 1/600, rollout: 4
+  reward: 40.8637
+  温度: 78.7929
+  CPLEX平均线长: 15.5251
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 5
+  rlplanner_cost: 14.7656
+  reward: 43.2701
+  温度: 79.3124
+  CPLEX平均线长: 14.7656
+BEST_LAYOUT
+  epoch: 1/600, rollout: 5
+  reward: 43.2701
+  温度: 79.3124
+  CPLEX平均线长: 14.7656
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 6
+  rlplanner_cost: 14.0397
+  reward: 41.9890
+  温度: 79.8710
+  CPLEX平均线长: 14.0397
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 16
+  rlplanner_cost: 12.2049
+  reward: 43.9531
+  温度: 79.5521
+  CPLEX平均线长: 12.2049
+BEST_LAYOUT
+  epoch: 1/600, rollout: 16
+  reward: 43.9531
+  温度: 79.5521
+  CPLEX平均线长: 12.2049
+Epoch 1/600
+  rollouts: 18, samples: 504
+  平均奖励: 40.7716, 成功率: 100.0%
+  optimizer steps: 16, KL: 0.000414
+  累计RL时间: 161.46s
+Epoch 2/600
+  rollouts: 18, samples: 504
+  平均奖励: 40.0845, 成功率: 100.0%
+  optimizer steps: 16, KL: 0.001424
+  累计RL时间: 317.24s
+Epoch 3/600
+  rollouts: 18, samples: 504
+  平均奖励: 40.0009, 成功率: 100.0%
+  optimizer steps: 16, KL: 0.003990
+  累计RL时间: 475.48s
+Epoch 4/600
+  rollouts: 18, samples: 504
+  平均奖励: 40.0346, 成功率: 100.0%
+  optimizer steps: 14, KL: 0.005380
+  累计RL时间: 632.96s
+BEST_COST_LAYOUT
+  epoch: 5/600, rollout: 81
+  rlplanner_cost: 11.8291
+  reward: 43.6749
+  温度: 79.4110
+  CPLEX平均线长: 11.8291
+Epoch 5/600
+  rollouts: 18, samples: 504
+  平均奖励: 40.3060, 成功率: 100.0%
+  optimizer steps: 14, KL: 0.006310
+  累计RL时间: 789.49s
+Epoch 6/600
+  rollouts: 18, samples: 504
+  平均奖励: 39.2391, 成功率: 100.0%
+  optimizer steps: 12, KL: 0.005268
+  累计RL时间: 948.26s
+Epoch 7/600
+  rollouts: 18, samples: 504
+  平均奖励: 39.8550, 成功率: 100.0%
+  optimizer steps: 11, KL: 0.005099
+  累计RL时间: 1104.52s
+Epoch 8/600
+  rollouts: 18, samples: 504
+  平均奖励: 39.6638, 成功率: 100.0%
+  optimizer steps: 10, KL: 0.005078
+  累计RL时间: 1260.45s
+Epoch 9/600
+  rollouts: 18, samples: 504
+  平均奖励: 39.0768, 成功率: 100.0%
+  optimizer steps: 9, KL: 0.004608
+  累计RL时间: 1416.77s
+Epoch 10/600
+  rollouts: 18, samples: 504
+  平均奖励: 39.7022, 成功率: 100.0%
+  optimizer steps: 11, KL: 0.005182
+  累计RL时间: 1572.30s
+Epoch 11/600
+  rollouts: 18, samples: 504
+  平均奖励: 39.1962, 成功率: 100.0%
+  optimizer steps: 11, KL: 0.005600
+  累计RL时间: 1728.53s
+Epoch 12/600
+  rollouts: 18, samples: 504
+  平均奖励: 39.8447, 成功率: 100.0%
+  optimizer steps: 9, KL: 0.006473
+  累计RL时间: 1884.64s
+Epoch 13/600
+  rollouts: 18, samples: 504
+  平均奖励: 39.7645, 成功率: 100.0%
+  optimizer steps: 9, KL: 0.005237
+  累计RL时间: 2040.45s
+Epoch 14/600
+  rollouts: 18, samples: 504
+  平均奖励: 39.6818, 成功率: 100.0%
+  optimizer steps: 10, KL: 0.006020
+  累计RL时间: 2195.12s
+Epoch 15/600
+  rollouts: 18, samples: 504
+  平均奖励: 39.9787, 成功率: 100.0%
+  optimizer steps: 9, KL: 0.004919
+  累计RL时间: 2350.03s
+Epoch 16/600
+  rollouts: 18, samples: 504
+  平均奖励: 39.3304, 成功率: 100.0%
+  optimizer steps: 10, KL: 0.006272
+  累计RL时间: 2505.91s
+Epoch 17/600
+  rollouts: 18, samples: 504
+  平均奖励: 39.6664, 成功率: 100.0%
+  optimizer steps: 10, KL: 0.005183
+  累计RL时间: 2661.44s
+Epoch 18/600
+  rollouts: 18, samples: 504
+  平均奖励: 39.7342, 成功率: 100.0%
+  optimizer steps: 9, KL: 0.006501
+  累计RL时间: 2818.72s
+Epoch 19/600
+  rollouts: 18, samples: 504
+  平均奖励: 40.1495, 成功率: 100.0%
+  optimizer steps: 10, KL: 0.005908
+  累计RL时间: 2976.84s
+Epoch 20/600
+  rollouts: 18, samples: 504
+  平均奖励: 40.6602, 成功率: 100.0%
+  optimizer steps: 11, KL: 0.005805
+  累计RL时间: 3133.68s
+Epoch 21/600
+  rollouts: 18, samples: 504
+  平均奖励: 39.1577, 成功率: 100.0%
+  optimizer steps: 12, KL: 0.006295
+  累计RL时间: 3290.81s
+BEST_COST_LAYOUT
+  epoch: 22/600, rollout: 382
+  rlplanner_cost: 11.6064
+  reward: 44.8127
+  温度: 80.1031
+  CPLEX平均线长: 11.5790
+BEST_LAYOUT
+  epoch: 22/600, rollout: 382
+  reward: 44.8127
+  温度: 80.1031
+  CPLEX平均线长: 11.5790
+Epoch 22/600
+  rollouts: 14, samples: 392
+  平均奖励: 40.2470, 成功率: 100.0%
+  optimizer steps: 10, KL: 0.005618
+  累计RL时间: 3413.30s
+模型已保存到 /root/placement/flow_tap/baseline/RL/runs/shard1/Case7_seed4/checkpoints/ppo_best.pt
+模型已保存到 /root/placement/flow_tap/baseline/RL/runs/shard1/Case7_seed4/checkpoints/ppo_best_cost.pt
+
+======================================================================
+训练完成！
+  请求epochs: 600
+  完整epochs: 21
+  已执行epoch轮次: 22
+  总rollouts: 392
+  总transitions: 10976
+  最终成功率: 100.0%
+  最近平均奖励: 39.8248
+  optimizer steps: 249
+  终止原因: time_limit
+======================================================================
+
+运行时间统计:
+  热阻表: 164.308s
+  RL求解: 3413.619s
+  总时间: 3577.928s
+  best layout发现时间: 2026-09-12T08:41:22
+  best layout累计RL时间: 3325.928s
+  best layout累计总时间: 3490.236s
