@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -18,6 +19,8 @@ import models
 import guidance
 import common
 from omegaconf import OmegaConf, open_dict
+from wirelength_surrogate import WirelengthSurrogate
+from training_monitor import update_training_monitor
 
 from train_graph import load_checkpoint
 
@@ -52,11 +55,34 @@ def _masked_mean(value, active):
     return (value * active_f).sum() / active_f.sum().clamp_min(1.0)
 
 
-def _legality_node_risks(x_hat, cond, mask=None):
+def _legality_sizes(cond, V, dtype, device, use_footprint=False):
+    """Body sizes by default; hubump-EXPANDED (footprint) sizes when enabled.
+
+    Training and in-sampler guidance historically used body-only sizes while the
+    reported `legal` flag and the legalizer use `expanded_legality_2`
+    (footprint).  Measured on the 20-seed pool: 8.3% of body-legal candidates are
+    footprint-illegal (cpu-dram: 8 of 14).  The expansion matches
+    eval_thermal_guided._prepare_tap_expanded_cond: normalised sizes are
+    2*size/side, so adding 4*hubump/side gives the footprint.
+    """
+    sizes = cond.x[:, :2].to(device=device, dtype=dtype).view(1, V, 2).clamp_min(1e-8)
+    if not use_footprint or "tap_hubump" not in cond:
+        return sizes
+    hub = cond.tap_hubump.to(device=device, dtype=dtype).view(-1)
+    if "chip_size" in cond:
+        cs = torch.as_tensor(cond.chip_size, dtype=dtype, device=device).view(-1)
+        side = (cs[2:] - cs[:2]) if cs.numel() == 4 else cs[:2]
+        side = side.clamp_min(1e-8)
+    else:
+        side = torch.ones(2, dtype=dtype, device=device)
+    return sizes + (4.0 * hub).view(1, -1, 1) / side.view(1, 1, -1)
+
+
+def _legality_node_risks(x_hat, cond, mask=None, use_footprint=False):
     B, V, _ = x_hat.shape
     dtype = x_hat.dtype
     device = x_hat.device
-    sizes = cond.x[:, :2].to(device=device, dtype=dtype).view(1, V, 2).clamp_min(1e-8)
+    sizes = _legality_sizes(cond, V, dtype, device, use_footprint)
     active = _active_node_mask(cond, mask, B, device)
 
     pos_i = x_hat[..., :2].unsqueeze(2)
@@ -79,8 +105,70 @@ def _legality_node_risks(x_hat, cond, mask=None):
     return overlap_risk, boundary_risk, active
 
 
-def _build_thermal_model_from_ckpt(ckpt, device):
+def _is_gnn_hrnet_checkpoint(ckpt):
+    state = ckpt.get("model", {}) if isinstance(ckpt, dict) else {}
+    return (
+        any(key.startswith("encoder.") for key in state)
+        and any(key.startswith("field_head.") for key in state)
+    )
+
+
+def _indexed_module_count(state, prefix):
+    indices = set()
+    pattern = re.compile(rf"^{re.escape(prefix)}\.(\d+)\.")
+    for key in state:
+        match = pattern.match(key)
+        if match:
+            indices.add(int(match.group(1)))
+    return max(indices) + 1 if indices else 0
+
+
+def _gnn_hrnet_config_from_state(state, model_cfg=None):
+    model_cfg = dict(model_cfg or {})
+    in_weight = state["encoder.in_proj.weight"]
+    stem_weight = state["field_head.stem.0.conv.weight"]
+    attention = state.get("encoder.layers.0.gat.att")
+    expand_weight = state.get("field_head.stem.1.net.0.conv.weight")
+    hidden = int(in_weight.shape[0])
+    base = int(stem_weight.shape[0])
+    inferred = {
+        "node_dim": int(in_weight.shape[1]),
+        "hidden": hidden,
+        "heads": int(attention.shape[1]) if attention is not None else 4,
+        "num_layers": _indexed_module_count(state, "encoder.layers") or 3,
+        "edge_dim": 1,
+        "grid": int(model_cfg.get("grid_size", model_cfg.get("grid", 64))),
+        "base": base,
+        "stages": _indexed_module_count(state, "field_head.stages") or 4,
+        "blocks_per_stage": _indexed_module_count(state, "field_head.stages.0.b64.blocks") or 2,
+        "expand_ratio": (
+            int(expand_weight.shape[0] // base)
+            if expand_weight is not None and base > 0
+            else 2
+        ),
+        "dropout": float(model_cfg.get("dropout", 0.1)),
+    }
+    for key in tuple(inferred):
+        if key in model_cfg and key not in {"grid_size"}:
+            inferred[key] = model_cfg[key]
+    return inferred
+
+
+def _build_thermal_model_from_ckpt(ckpt, device, model_cfg=None):
     state = ckpt.get("model", {})
+    if _is_gnn_hrnet_checkpoint(ckpt):
+        from thermalmodel.gnnhrnet import GNNHRNetModel
+
+        config = _gnn_hrnet_config_from_state(state, model_cfg)
+        model = GNNHRNetModel(**config).to(device)
+        model.load_state_dict(state, strict=True)
+        model._flow_tap_thermal_kind = "gnn_hrnet"
+        model._flow_tap_thermal_config = config
+        model.eval()
+        for param in model.parameters():
+            param.requires_grad_(False)
+        return model
+
     is_hrnet = (
         "stages" in ckpt
         or "blocks_per_stage" in ckpt
@@ -111,6 +199,19 @@ def _build_thermal_model_from_ckpt(ckpt, device):
     return model
 
 
+def _thermal_stats_from_checkpoint(ckpt):
+    stats = ckpt.get("stats") if isinstance(ckpt, dict) else None
+    if isinstance(stats, dict):
+        return dict(stats)
+    if _is_gnn_hrnet_checkpoint(ckpt):
+        return {
+            "temp_min": 45.22,
+            "temp_max": 276.12,
+            "temp_unit": "celsius",
+        }
+    return None
+
+
 def _windows_long_path(path):
     path = str(path)
     if os.name != "nt" or path.startswith("\\\\?\\"):
@@ -121,7 +222,16 @@ def _windows_long_path(path):
 
 
 def _load_thermal_checkpoint(path):
-    load_path = _windows_long_path(path)
+    path = Path(os.path.expandvars(os.path.expanduser(str(path))))
+    if not path.is_absolute():
+        candidates = (
+            Path.cwd() / path,
+            _DIFFUSION_DIR / path,
+            _REPO_ROOT / path,
+            _FLOW_GCN_ROOT / path,
+        )
+        path = next((candidate for candidate in candidates if candidate.exists()), candidates[-1])
+    load_path = _windows_long_path(path.resolve())
     try:
         if os.path.getsize(load_path) < 1024:
             with open(load_path, "rb") as f:
@@ -147,8 +257,21 @@ def _thermal_output_to_grid_and_avg(output):
 
 
 class ThermalFlowMatchingModel(models.FlowMatchingModel):
-    def __init__(self, *args, thermal_cfg=None, bbox_cfg=None, legality_aux_cfg=None, **kwargs):
+    def __init__(self, *args, thermal_cfg=None, wirelength_cfg=None, bbox_cfg=None,
+                 legality_aux_cfg=None, flow_cfg=None, **kwargs):
         super().__init__(*args, **kwargs)
+        # Stage-2 fine-tuning knob.  Default 1.0 reproduces the historical
+        # behaviour exactly (loss = flow_loss), so existing runs/configs are
+        # unaffected unless "+flow.train_weight=..." is passed explicitly.
+        self.flow_cfg = dict(flow_cfg or {})
+        self.flow_train_weight = float(self.flow_cfg.get("train_weight", 1.0))
+        # Aux-loss t reweighting (opt-in; default reproduces historical behaviour)
+        self.aux_t_reweight = bool(flow_cfg.get("aux_t_reweight", False)) if flow_cfg else False
+        self.aux_t_eps = float(self.flow_cfg.get("aux_t_eps", 0.05) or 0.05)
+        self.aux_t_max = float(self.flow_cfg.get("aux_t_max", 1.0) or 1.0)
+        # 0 = disabled.  When >0, every N steps also measures per-term
+        # parameter-gradient norms / shares / pairwise cosines.
+        self.grad_diag_every = int(self.flow_cfg.get("grad_diag_every", 0) or 0)
         self.thermal_cfg = dict(thermal_cfg or {})
         self.thermal_train_weight = float(self.thermal_cfg.get("train_weight", 0.0) or 0.0)
         self.thermal_ckpt = self.thermal_cfg.get("ckpt", "none")
@@ -160,6 +283,10 @@ class ThermalFlowMatchingModel(models.FlowMatchingModel):
         self.thermal_target_max_k = float(self.thermal_cfg.get("target_max_k", 0.0) or 0.0)
         self.thermal_start_step = int(self.thermal_cfg.get("start_step", 0) or 0)
         self.thermal_warmup_steps = int(self.thermal_cfg.get("warmup_steps", 0) or 0)
+        self.wirelength_cfg = dict(wirelength_cfg or {})
+        self.wirelength_train_weight = float(self.wirelength_cfg.get("train_weight", 0.0) or 0.0)
+        self.wirelength_start_step = int(self.wirelength_cfg.get("start_step", 0) or 0)
+        self.wirelength_warmup_steps = int(self.wirelength_cfg.get("warmup_steps", 0) or 0)
         self.bbox_cfg = dict(bbox_cfg or {})
         self.bbox_train_weight = float(self.bbox_cfg.get("train_weight", 0.0) or 0.0)
         self.bbox_softmax_beta = float(self.bbox_cfg.get("softmax_beta", 30.0))
@@ -174,10 +301,15 @@ class ThermalFlowMatchingModel(models.FlowMatchingModel):
         self.boundary_head_weight = float(self.legality_aux_cfg.get("boundary_head_weight", 0.0) or 0.0)
         self.overlap_direct_weight = float(self.legality_aux_cfg.get("overlap_direct_weight", 0.0) or 0.0)
         self.boundary_direct_weight = float(self.legality_aux_cfg.get("boundary_direct_weight", 0.0) or 0.0)
+        # Use hubump-expanded (footprint) sizes in the legality penalties, matching
+        # the reported `expanded_legality_2` metric.  Default False = historical
+        # body-only behaviour.
+        self.legality_use_footprint = bool(self.legality_aux_cfg.get("use_footprint", False))
         # Keep the frozen thermal surrogate out of this module's state_dict.
         # It is an external loss model, not part of the diffusion checkpoint.
         self.__dict__["_thermal_model"] = None
         self.__dict__["_thermal_stats"] = None
+        self.__dict__["_wirelength_surrogate"] = None
         self.__dict__["_thermal_current_step"] = None
 
     def set_thermal_step(self, step):
@@ -197,6 +329,15 @@ class ThermalFlowMatchingModel(models.FlowMatchingModel):
             self.bbox_train_weight,
             self.bbox_start_step,
             self.bbox_warmup_steps,
+            train_step=train_step,
+            current_step=self.__dict__.get("_thermal_current_step"),
+        )
+
+    def _effective_wirelength_weight(self, train_step=None):
+        return _scheduled_train_weight(
+            self.wirelength_train_weight,
+            self.wirelength_start_step,
+            self.wirelength_warmup_steps,
             train_step=train_step,
             current_step=self.__dict__.get("_thermal_current_step"),
         )
@@ -229,10 +370,29 @@ class ThermalFlowMatchingModel(models.FlowMatchingModel):
         velocity_target = z - x
         velocity_pred = self(x_t, cond, t)
         flow_loss = self._loss(velocity_pred, velocity_target, mask)
-        loss = flow_loss
+        loss = self.flow_train_weight * flow_loss
+
+        # ---- auxiliary-loss t reweighting (default OFF: reproduces history) ----
+        # d L_aux / d v = -t * d L_aux / d x_hat, so with t ~ U(1e-4,1) the gradient
+        # reaching v is ~43x stronger at t~1 (where x_hat is noise) than at t~0
+        # (where x_hat is the data).  Measured by overnight/t_buckets.py.
+        # Weighting each sample by 1/clamp(t) and renormalising to mean 1 makes
+        # w_i * t_i constant -> every t contributes equally to the gradient on v.
+        t_w = None
+        if self.aux_t_reweight:
+            inv = 1.0 / t.clamp_min(self.aux_t_eps)
+            if self.aux_t_max < 1.0:
+                inv = torch.where(t <= self.aux_t_max, inv,
+                                  torch.zeros_like(inv))
+            t_w = inv / inv.mean().clamp_min(1e-12)
+
+        def _reduce_aux(per_sample):
+            return (per_sample * t_w).mean() if t_w is not None else per_sample.mean()
 
         thermal_loss = None
         thermal_weight = self._effective_thermal_weight(train_step)
+        wirelength_loss = None
+        wirelength_weight = self._effective_wirelength_weight(train_step)
         bbox_loss = None
         bbox_area_ratio = None
         bbox_weight = self._effective_bbox_weight(train_step)
@@ -248,6 +408,7 @@ class ThermalFlowMatchingModel(models.FlowMatchingModel):
         )
         if (
             (thermal_weight > 0.0 and self.thermal_ckpt not in (None, "", "none"))
+            or wirelength_weight > 0.0
             or bbox_weight > 0.0
             or legality_aux_active
         ):
@@ -258,8 +419,11 @@ class ThermalFlowMatchingModel(models.FlowMatchingModel):
             x_hat = None
 
         if thermal_weight > 0.0 and self.thermal_ckpt not in (None, "", "none"):
-            thermal_loss = self._thermal_potential(x_hat, cond).mean()
+            thermal_loss = _reduce_aux(self._thermal_potential(x_hat, cond))
             loss = loss + thermal_weight * thermal_loss
+        if wirelength_weight > 0.0:
+            wirelength_loss = _reduce_aux(self._wirelength_potential(x_hat, cond))
+            loss = loss + wirelength_weight * wirelength_loss
         if bbox_weight > 0.0:
             pred_bbox_area = guidance.bbox_area_guidance_potential(
                 x_hat,
@@ -270,7 +434,8 @@ class ThermalFlowMatchingModel(models.FlowMatchingModel):
             with torch.no_grad():
                 ref_bbox_area = guidance.bbox_extents(x, cond, mask=mask)[2].detach().clamp_min(1e-12)
             bbox_area_ratio = pred_bbox_area / ref_bbox_area
-            bbox_loss = torch.relu(bbox_area_ratio - self.bbox_target_ratio).mean()
+            bbox_loss = torch.relu(bbox_area_ratio - self.bbox_target_ratio)
+            bbox_loss = _reduce_aux(bbox_loss)
             loss = loss + bbox_weight * bbox_loss
 
         overlap_risk = None
@@ -280,7 +445,15 @@ class ThermalFlowMatchingModel(models.FlowMatchingModel):
         overlap_head_loss = None
         boundary_head_loss = None
         if legality_aux_active:
-            overlap_risk, boundary_risk, active_nodes = _legality_node_risks(x_hat, cond, mask=mask)
+            overlap_risk, boundary_risk, active_nodes = _legality_node_risks(
+                x_hat, cond, mask=mask, use_footprint=self.legality_use_footprint)
+            # The auxiliary HEADS regress onto the physical risk, so keep an
+            # unweighted copy for their targets; only the direct penalties get the
+            # t reweighting (which has mean 1, so the scale is unchanged).
+            overlap_risk_raw, boundary_risk_raw = overlap_risk, boundary_risk
+            if t_w is not None:
+                overlap_risk = overlap_risk * t_w.view(-1, 1)
+                boundary_risk = boundary_risk * t_w.view(-1, 1)
             if overlap_direct_weight > 0.0:
                 overlap_direct_loss = _masked_mean(overlap_risk, active_nodes)
                 loss = loss + overlap_direct_weight * overlap_direct_loss
@@ -295,7 +468,7 @@ class ThermalFlowMatchingModel(models.FlowMatchingModel):
                     overlap_head_loss = _masked_mean(
                         torch.nn.functional.smooth_l1_loss(
                             pred_overlap,
-                            overlap_risk.detach(),
+                            overlap_risk_raw.detach(),
                             reduction="none",
                         ),
                         active_nodes,
@@ -306,17 +479,59 @@ class ThermalFlowMatchingModel(models.FlowMatchingModel):
                     boundary_head_loss = _masked_mean(
                         torch.nn.functional.smooth_l1_loss(
                             pred_boundary,
-                            boundary_risk.detach(),
+                            boundary_risk_raw.detach(),
                             reduction="none",
                         ),
                         active_nodes,
                     )
                     loss = loss + boundary_head_weight * boundary_head_loss
 
+        # ---- optional gradient-balance diagnostic (default OFF) --------------
+        # Weights set from loss VALUES do not tell you the terms' actual influence:
+        # what updates theta is ||grad_theta L_term||.  On diagnostic steps this
+        # measures each term's parameter-gradient norm and the pairwise cosines
+        # (a negative cosine means two terms fight each other on shared params).
+        # Uses retain_graph so the outer loss.backward() still works.
+        grad_diag = {}
+        if self.grad_diag_every > 0 and isinstance(train_step, int) \
+                and train_step % self.grad_diag_every == 0:
+            terms = {"flow": self.flow_train_weight * flow_loss}
+            if thermal_loss is not None and thermal_weight > 0.0:
+                terms["thermal"] = thermal_weight * thermal_loss
+            if wirelength_loss is not None and wirelength_weight > 0.0:
+                terms["wirelength"] = wirelength_weight * wirelength_loss
+            if overlap_direct_loss is not None and overlap_direct_weight > 0.0:
+                terms["legality"] = overlap_direct_weight * overlap_direct_loss
+            params = [p for p in self.parameters() if p.requires_grad]
+            gs = {}
+            for nm, term in terms.items():
+                try:
+                    grads = torch.autograd.grad(term, params, retain_graph=True,
+                                                allow_unused=True)
+                except RuntimeError:
+                    continue
+                flat = [g.reshape(-1) for g in grads if g is not None]
+                if flat:
+                    gs[nm] = torch.cat(flat).detach()
+            tot = sum(g.square().sum() for g in gs.values()).sqrt() if gs else None
+            for nm, g in gs.items():
+                grad_diag[f"gradnorm/{nm}"] = float(g.norm())
+                if tot is not None and tot > 0:
+                    grad_diag[f"gradshare/{nm}"] = float(g.norm() / tot)
+            nms = list(gs)
+            for i in range(len(nms)):
+                for j in range(i + 1, len(nms)):
+                    a, b = gs[nms[i]], gs[nms[j]]
+                    den = (a.norm() * b.norm()).clamp_min(1e-12)
+                    grad_diag[f"gradcos/{nms[i]}_{nms[j]}"] = float((a * b).sum() / den)
+
         pred_masked = velocity_pred.detach()[torch.logical_not(mask).expand(x.shape)] if mask is not None else velocity_pred.detach()
         metrics = {
             "flow_loss": flow_loss.detach().cpu().item(),
+            "flow_train_weight": self.flow_train_weight,
+            "flow_weighted_loss": (self.flow_train_weight * flow_loss.detach()).cpu().item(),
             "thermal_weight": thermal_weight,
+            "wirelength_weight": wirelength_weight,
             "bbox_weight": bbox_weight,
             "legality_overlap_head_weight": overlap_head_weight,
             "legality_boundary_head_weight": boundary_head_weight,
@@ -329,14 +544,20 @@ class ThermalFlowMatchingModel(models.FlowMatchingModel):
         if thermal_loss is not None:
             metrics["thermal_train_loss"] = thermal_loss.detach().cpu().item()
             metrics["thermal_weighted_loss"] = (thermal_weight * thermal_loss.detach()).cpu().item()
+        if wirelength_loss is not None:
+            metrics["wirelength_train_loss"] = wirelength_loss.detach().cpu().item()
+            metrics["wirelength_weighted_loss"] = (wirelength_weight * wirelength_loss.detach()).cpu().item()
         if bbox_loss is not None:
             metrics["bbox_train_loss"] = bbox_loss.detach().cpu().item()
             metrics["bbox_hinge_loss"] = bbox_loss.detach().cpu().item()
             metrics["bbox_area_ratio"] = bbox_area_ratio.detach().mean().cpu().item()
             metrics["bbox_weighted_loss"] = (bbox_weight * bbox_loss.detach()).cpu().item()
         if overlap_risk is not None:
-            metrics["legality_overlap_risk"] = _masked_mean(overlap_risk.detach(), active_nodes).cpu().item()
-            metrics["legality_boundary_risk"] = _masked_mean(boundary_risk.detach(), active_nodes).cpu().item()
+            metrics["legality_overlap_risk"] = _masked_mean(overlap_risk_raw.detach(), active_nodes).cpu().item()
+            metrics["legality_boundary_risk"] = _masked_mean(boundary_risk_raw.detach(), active_nodes).cpu().item()
+            if t_w is not None:
+                metrics["aux_t_weight_mean"] = float(t_w.mean())
+                metrics["aux_t_weight_max"] = float(t_w.max())
         if overlap_direct_loss is not None:
             metrics["legality_overlap_direct_loss"] = overlap_direct_loss.detach().cpu().item()
             metrics["legality_overlap_direct_weighted_loss"] = (
@@ -357,18 +578,20 @@ class ThermalFlowMatchingModel(models.FlowMatchingModel):
             metrics["legality_boundary_head_weighted_loss"] = (
                 boundary_head_weight * boundary_head_loss.detach()
             ).cpu().item()
+        metrics.update(grad_diag)
         return loss, metrics
 
     def _thermal_potential(self, x_hat, cond):
         model, stats = self._load_thermal_model(x_hat.device)
-        power_grid, layout_grid, total_power = _thermal_rasterize(
+        output = _thermal_forward(
+            model,
             x_hat,
             cond,
             grid_size=self.thermal_grid_size,
             rect_sharpness=self.thermal_rect_sharpness,
             stats=stats,
         )
-        temp, avg_temp = _thermal_output_to_grid_and_avg(model(power_grid, layout_grid, total_power))
+        temp, avg_temp = _thermal_output_to_grid_and_avg(output)
         flat = temp.flatten(1)
         smooth_max = torch.logsumexp(flat * self.thermal_smooth_max_beta, dim=1) / self.thermal_smooth_max_beta
         mean_temp = avg_temp.view(-1) if avg_temp is not None else flat.mean(dim=1)
@@ -377,13 +600,20 @@ class ThermalFlowMatchingModel(models.FlowMatchingModel):
             return torch.relu(max_k - self.thermal_target_max_k).square()
         return self.thermal_max_weight * smooth_max + self.thermal_mean_weight * mean_temp
 
+    def _wirelength_potential(self, x_hat, cond):
+        surrogate = self.__dict__.get("_wirelength_surrogate")
+        if surrogate is None:
+            surrogate = WirelengthSurrogate(self.wirelength_cfg, x_hat.device)
+            self.__dict__["_wirelength_surrogate"] = surrogate
+        return surrogate.potential(x_hat, cond)
+
     def _load_thermal_model(self, device):
         if self.__dict__.get("_thermal_model") is not None:
             return self.__dict__["_thermal_model"], self.__dict__["_thermal_stats"]
         ckpt = _load_thermal_checkpoint(self.thermal_ckpt)
-        model = _build_thermal_model_from_ckpt(ckpt, device)
+        model = _build_thermal_model_from_ckpt(ckpt, device, self.thermal_cfg)
         self.__dict__["_thermal_model"] = model
-        self.__dict__["_thermal_stats"] = ckpt.get("stats") if isinstance(ckpt.get("stats"), dict) else None
+        self.__dict__["_thermal_stats"] = _thermal_stats_from_checkpoint(ckpt)
         return self.__dict__["_thermal_model"], self.__dict__["_thermal_stats"]
 
 
@@ -477,6 +707,203 @@ def _thermal_rasterize(x_hat, cond, grid_size, rect_sharpness, stats=None):
     return power, layout, total_power
 
 
+def _thermal_canvas(cond, device, dtype):
+    if "chip_size" not in cond:
+        return (
+            torch.ones((2,), dtype=dtype, device=device),
+            torch.zeros((2,), dtype=dtype, device=device),
+        )
+    value = torch.as_tensor(cond.chip_size, dtype=dtype, device=device).view(-1)
+    if value.numel() == 4:
+        return (value[2:] - value[:2]).clamp_min(1e-12), value[:2]
+    return value[:2].clamp_min(1e-12), torch.zeros((2,), dtype=dtype, device=device)
+
+
+def _thermal_active_nodes(cond, device):
+    if "is_macros" in cond:
+        active = cond.is_macros.to(device=device).view(-1).bool()
+    elif "is_ports" in cond:
+        active = ~cond.is_ports.to(device=device).view(-1).bool()
+    else:
+        active = torch.ones(cond.x.shape[0], dtype=torch.bool, device=device)
+    if not bool(active.any()):
+        active = torch.ones_like(active)
+    return active
+
+
+def _thermal_hubump_widths(cond, sizes, active, device, dtype):
+    if "tap_hubump" in cond:
+        return cond.tap_hubump.to(device=device, dtype=dtype).view(-1)[active]
+
+    node_count = cond.x.shape[0]
+    demand = torch.zeros(node_count, dtype=dtype, device=device)
+    if "edge_index" in cond and "edge_weight" in cond:
+        edge_index = cond.edge_index.to(device=device, dtype=torch.long)
+        weights = cond.edge_weight.to(device=device, dtype=dtype).view(-1)
+        demand.index_add_(0, edge_index[0], weights)
+
+    values = []
+    # TAP's hubump sizing counts both communication directions for each incident link.
+    directed_demand = 2.0 * demand[active]
+    for (width, height), required in zip(sizes.detach().cpu(), directed_demand.detach().cpu()):
+        rows = 1
+        ring = 0.045
+        while ((float(width) + float(height)) * 2.0 * ring + 4.0 * ring * ring) / (0.045 ** 2) < float(required):
+            rows += 1
+            ring = 0.045 * rows
+            if rows > 1000:
+                raise RuntimeError("infeasible microbump demand while building thermal features")
+        values.append(ring)
+    return torch.tensor(values, dtype=dtype, device=device)
+
+
+def _thermal_rect_field(left, bottom, right, top, grid_size, sharpness, differentiable):
+    dtype, device = left.dtype, left.device
+    if differentiable:
+        coords = (torch.arange(grid_size, dtype=dtype, device=device) + 0.5) / float(grid_size)
+        yy, xx = torch.meshgrid(coords, coords, indexing="ij")
+        xx = xx.view(1, 1, grid_size, grid_size)
+        yy = yy.view(1, 1, grid_size, grid_size)
+        left = left.unsqueeze(-1).unsqueeze(-1)
+        right = right.unsqueeze(-1).unsqueeze(-1)
+        bottom = bottom.unsqueeze(-1).unsqueeze(-1)
+        top = top.unsqueeze(-1).unsqueeze(-1)
+        sx = torch.sigmoid(sharpness * (xx - left)) * torch.sigmoid(sharpness * (right - xx))
+        sy = torch.sigmoid(sharpness * (yy - bottom)) * torch.sigmoid(sharpness * (top - yy))
+        return sx * sy
+
+    cell_left = torch.arange(grid_size, dtype=dtype, device=device) / float(grid_size)
+    cell_right = (torch.arange(grid_size, dtype=dtype, device=device) + 1.0) / float(grid_size)
+    x0 = cell_left.view(1, 1, 1, grid_size)
+    x1 = cell_right.view(1, 1, 1, grid_size)
+    y0 = cell_left.view(1, 1, grid_size, 1)
+    y1 = cell_right.view(1, 1, grid_size, 1)
+    return (
+        (x1 > left.unsqueeze(-1).unsqueeze(-1))
+        & (x0 < right.unsqueeze(-1).unsqueeze(-1))
+        & (y1 > bottom.unsqueeze(-1).unsqueeze(-1))
+        & (y0 < top.unsqueeze(-1).unsqueeze(-1))
+    ).to(dtype=dtype)
+
+
+def _thermal_gnn_hrnet_inputs(x_hat, cond, grid_size, rect_sharpness, differentiable=True):
+    """Build the exact GNN schema and a differentiable approximation of its raster schema."""
+    if x_hat.dim() == 2:
+        x_hat = x_hat.unsqueeze(0)
+    batch_size, node_count, _ = x_hat.shape
+    dtype, device = x_hat.dtype, x_hat.device
+    canvas, origin = _thermal_canvas(cond, device, dtype)
+    side = canvas.max().clamp_min(1e-12)
+    active = _thermal_active_nodes(cond, device)
+
+    if "tap_source_chiplet_sizes" in cond and cond.tap_source_chiplet_sizes.shape[0] == node_count:
+        all_sizes = cond.tap_source_chiplet_sizes.to(device=device, dtype=dtype)
+    else:
+        all_sizes = cond.x[:, :2].to(device=device, dtype=dtype) * canvas.view(1, 2) / 2.0
+    sizes = all_sizes[active].clamp_min(1e-12)
+    centers = ((x_hat[..., :2] + 1.0) * canvas.view(1, 1, 2) / 2.0 + origin.view(1, 1, 2))[:, active]
+    lower = centers - sizes.view(1, -1, 2) / 2.0
+
+    if "node_power" in cond:
+        powers = cond.node_power.to(device=device, dtype=dtype).view(-1)[active].abs()
+    else:
+        powers = torch.ones(sizes.shape[0], dtype=dtype, device=device)
+    hubump = _thermal_hubump_widths(cond, sizes, active, device, dtype)
+
+    centers01 = (centers - origin.view(1, 1, 2)) / side
+    sizes01 = sizes / side
+    lower01 = (lower - origin.view(1, 1, 2)) / side
+    hubump01 = hubump / side
+    area = sizes[:, 0] * sizes[:, 1]
+    hubump_area = 2.0 * (sizes[:, 0] + sizes[:, 1]) * hubump
+    nodes = torch.stack(
+        (
+            powers.view(1, -1).expand(batch_size, -1) / 200.0,
+            sizes01[:, 0].view(1, -1).expand(batch_size, -1),
+            sizes01[:, 1].view(1, -1).expand(batch_size, -1),
+            (area / side.square()).view(1, -1).expand(batch_size, -1),
+            centers01[..., 0],
+            centers01[..., 1],
+            (hubump / 2.0).view(1, -1).expand(batch_size, -1),
+            (hubump_area / side.square()).view(1, -1).expand(batch_size, -1),
+        ),
+        dim=-1,
+    )
+
+    n_active = sizes.shape[0]
+    local = torch.arange(n_active, dtype=torch.long, device=device)
+    src = local.repeat_interleave(n_active)
+    dst = local.repeat(n_active)
+    keep = src != dst
+    src, dst = src[keep], dst[keep]
+    edge_copies = [torch.stack((src, dst), dim=0) + graph_id * n_active for graph_id in range(batch_size)]
+    edge_index = torch.cat(edge_copies, dim=1) if edge_copies else torch.empty((2, 0), dtype=torch.long, device=device)
+    if src.numel():
+        edge_attr = torch.cat(
+            [torch.linalg.vector_norm(centers01[graph_id, src] - centers01[graph_id, dst], dim=-1)
+             for graph_id in range(batch_size)],
+            dim=0,
+        ).view(-1, 1)
+    else:
+        edge_attr = torch.empty((0, 1), dtype=dtype, device=device)
+
+    left = lower01[..., 0]
+    bottom = lower01[..., 1]
+    right = left + sizes01[:, 0].view(1, -1)
+    top = bottom + sizes01[:, 1].view(1, -1)
+    body = _thermal_rect_field(left, bottom, right, top, grid_size, rect_sharpness, differentiable)
+    layout = body.sum(dim=1, keepdim=True).clamp(0.0, 1.0)
+    density = powers / area / 10.0
+    power = (body * density.view(1, -1, 1, 1)).sum(dim=1, keepdim=True)
+
+    hb = hubump01.view(1, -1)
+    strip_masks = (
+        _thermal_rect_field(left - hb, bottom, left, top, grid_size, rect_sharpness, differentiable),
+        _thermal_rect_field(left, top, right, top + hb, grid_size, rect_sharpness, differentiable),
+        _thermal_rect_field(right, bottom, right + hb, top, grid_size, rect_sharpness, differentiable),
+        _thermal_rect_field(left, bottom - hb, right, bottom, grid_size, rect_sharpness, differentiable),
+    )
+    valid_hubump = (hubump > 0.0).to(dtype=dtype).view(1, -1, 1, 1)
+    hubump_mask = torch.stack(strip_masks, dim=0).sum(dim=0).mul(valid_hubump)
+    hubump_field = hubump_mask.sum(dim=1, keepdim=True).clamp(0.0, 1.0)
+    field = torch.cat((power, layout, hubump_field), dim=1)
+
+    return {
+        "x": nodes.reshape(batch_size * n_active, 8),
+        "edge_index": edge_index,
+        "edge_attr": edge_attr,
+        "batch": torch.arange(batch_size, device=device).repeat_interleave(n_active),
+        "field": field,
+    }
+
+
+def _thermal_forward(model, x_hat, cond, grid_size, rect_sharpness, stats=None, differentiable=True):
+    if getattr(model, "_flow_tap_thermal_kind", None) == "gnn_hrnet":
+        inputs = _thermal_gnn_hrnet_inputs(
+            x_hat,
+            cond,
+            grid_size=grid_size,
+            rect_sharpness=rect_sharpness,
+            differentiable=differentiable,
+        )
+        return model(
+            inputs["x"],
+            inputs["edge_index"],
+            inputs["batch"],
+            inputs["edge_attr"],
+            inputs["field"],
+        )
+
+    power_grid, layout_grid, total_power = _thermal_rasterize(
+        x_hat,
+        cond,
+        grid_size=grid_size,
+        rect_sharpness=rect_sharpness,
+        stats=stats,
+    )
+    return model(power_grid, layout_grid, total_power)
+
+
 def _denorm_temp_k(x01, stats):
     temp_min = float(stats["temp_min"])
     temp_max = float(stats["temp_max"])
@@ -497,8 +924,11 @@ def main(cfg):
             cfg.logger.wandb = cfg.wandb
 
     thermal_cfg = dict(cfg.get("thermal", {}) or {})
+    flow_cfg = dict(cfg.get("flow", {}) or {})
+    wirelength_cfg = dict(cfg.get("wirelength", {}) or {})
     bbox_cfg = dict(cfg.get("bbox", {}) or {})
     legality_aux_cfg = dict(cfg.get("legality_aux", {}) or {})
+    monitor_cfg = dict(cfg.get("monitor", {}) or {})
     device = "cuda" if torch.cuda.is_available() else "cpu"
     log_dir = utils.model_log_dir(cfg)
     sample_dir = os.path.join(log_dir, "samples")
@@ -531,12 +961,15 @@ def main(cfg):
     model = ThermalFlowMatchingModel(
         **cfg.model,
         thermal_cfg=thermal_cfg,
+        wirelength_cfg=wirelength_cfg,
         bbox_cfg=bbox_cfg,
         legality_aux_cfg=legality_aux_cfg,
+        flow_cfg=flow_cfg,
     ).to(device)
     optim = torch.optim.Adam(model.parameters(), lr=cfg.lr)
     grad_scaler = torch.cuda.amp.GradScaler(enabled=(device == "cuda"))
     train_metrics = common.Metrics()
+    monitor_metrics = common.Metrics()
 
     num_params = sum(param.numel() for param in model.parameters())
     with open_dict(cfg):
@@ -564,6 +997,8 @@ def main(cfg):
 
     print(OmegaConf.to_yaml(cfg))
     print(f"model has {num_params} params")
+    if monitor_cfg.get("enabled", False):
+        print(f"live training monitor: {os.path.join(log_dir, monitor_cfg.get('filename', 'training_monitor.png'))}")
     load_checkpoint(checkpointer, cfg, step, model, optim, grad_scaler)
 
     print(f"==== Start Thermal Training on Device: {device} ====")
@@ -587,7 +1022,23 @@ def main(cfg):
 
         train_metrics.add({"loss": loss.detach().cpu().item()})
         train_metrics.add(model_metrics)
+        monitor_metrics.add({"loss": loss.detach().cpu().item()})
+        monitor_metrics.add(model_metrics)
         step.increment()
+
+        monitor_every = max(1, int(monitor_cfg.get("every", 100) or 100))
+        if monitor_cfg.get("enabled", False) and int(step) % monitor_every == 0:
+            monitor_logs = monitor_metrics.result()
+            try:
+                update_training_monitor(
+                    log_dir,
+                    int(step),
+                    monitor_logs,
+                    filename=str(monitor_cfg.get("filename", "training_monitor.png")),
+                    history_filename=str(monitor_cfg.get("history_filename", "training_monitor.jsonl")),
+                )
+            except Exception as error:
+                print(f"warning: failed to update training monitor: {error}", flush=True)
 
         if int(step) % cfg.print_every == 0:
             t_2 = time.time()

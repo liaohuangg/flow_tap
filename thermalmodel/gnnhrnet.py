@@ -31,7 +31,10 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 from torch_geometric.nn import GATv2Conv
 
-import dataLoader as dl
+try:
+    from . import dataLoader as dl
+except ImportError:  # Allow `python gnnhrnet.py` from this directory.
+    import dataLoader as dl
 
 PROJ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DATA_ROOT = os.path.join(PROJ, "Dataset/dataset/thermal_dataset_64")

@@ -1,6 +1,8 @@
 from typing import Any
 import torch
 import os
+import time
+import uuid
 
 class Checkpointer:
     def __init__(self, ckpt_path = None):
@@ -10,10 +12,8 @@ class Checkpointer:
 
     def save(self, path_override = None):
         path = path_override or self.ckpt_path
-        try:
-            os.makedirs(os.path.dirname(path))
-        except FileExistsError:
-            pass
+        directory = os.path.dirname(path)
+        os.makedirs(directory, exist_ok=True)
         models = {}
         for k, v in self.models.items():
             try:
@@ -23,7 +23,32 @@ class Checkpointer:
                     models[k] = v.save()
                 except:
                     models[k] = v
-        torch.save(models, path)
+        # Directly overwriting a torch zip archive on WSL DrvFS (/mnt/*) can
+        # intermittently fail with PyTorchFileWriter "Invalid argument". Write
+        # a new file and atomically replace the destination so the previous
+        # checkpoint also remains valid until the new archive is complete.
+        last_error = None
+        for attempt in range(3):
+            temp_path = os.path.join(
+                directory,
+                f".{os.path.basename(path)}.{os.getpid()}.{uuid.uuid4().hex}.tmp",
+            )
+            try:
+                torch.save(models, temp_path)
+                if not os.path.isfile(temp_path) or os.path.getsize(temp_path) == 0:
+                    raise RuntimeError(f"checkpoint temporary file is empty: {temp_path}")
+                os.replace(temp_path, path)
+                return
+            except (OSError, RuntimeError) as error:
+                last_error = error
+                try:
+                    if os.path.exists(temp_path):
+                        os.remove(temp_path)
+                except OSError:
+                    pass
+                if attempt < 2:
+                    time.sleep(0.5 * (attempt + 1))
+        raise last_error
     
     def register(self, models):
         self.models.update(models)

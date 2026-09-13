@@ -40,7 +40,7 @@ from pathlib import Path
 
 import cplex
 
-PROJECT = Path("/root/placement/flow_tap")
+PROJECT = Path(__file__).resolve().parents[1]
 DATASET = PROJECT / "Dataset" / "dataset"
 PLACE_DATASET = DATASET / "placement_dataset" / "placement_dataset_tw"
 OUT_DIR = DATASET / "wirelength_dataset"
@@ -61,8 +61,9 @@ NCLUMP = 4              # 每个 chiplet 4 个 pin clump (上下左右)
 TIMELIMIT_AVG = 500.0   # avg 变体的 CPLEX 时间上限 (s), 与 routing.py 一致
 TIMELIMIT_MAX = 300.0   # maxL 变体的 CPLEX 时间上限 (s), 与 routing_maxL.py 一致
 
-for _d in (AVG_DIR, TOTAL_DIR, MAX_DIR, TIME_DIR, EDGE_DIR, SIDE_DIR):
-    _d.mkdir(parents=True, exist_ok=True)
+def _ensure_output_dirs() -> None:
+    for directory in (AVG_DIR, TOTAL_DIR, MAX_DIR, TIME_DIR, EDGE_DIR, SIDE_DIR):
+        directory.mkdir(parents=True, exist_ok=True)
 
 
 # --------------------------------------------------------------------------- #
@@ -413,7 +414,7 @@ def solve_cplex_avg(system):
         total_wirelength = problem.solution.get_objective_value()
         avg_wirelength = total_wirelength / wire_count
     except Exception:
-        return 100.0, None, {}
+        return 100.0, None, {}, []
 
     # 抽取每个有向 net 的单根线平均路由距离: d_net[n] = Σ_{i,h,j,k} f[i][h][j][k][n]·d[i][h][j][k] / R[s][t]
     # get_values() 返回的变量顺序与 Eq.11 添加顺序 (i,h,j,k,n 嵌套) 一致, 即 get_index 的展平索引。
@@ -746,6 +747,7 @@ def process_layout(args) -> tuple[int, dict]:
 # main
 # --------------------------------------------------------------------------- #
 def main() -> None:
+    _ensure_output_dirs()
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--start", type=int, default=340001)
     ap.add_argument("--end", type=int, default=340010)

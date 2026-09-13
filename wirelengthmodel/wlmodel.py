@@ -18,7 +18,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from dataloader import get_dataloaders
+try:
+    from .dataloader import EDGE_FEATURES, NODE_FEATURES, get_dataloaders
+except ImportError:  # Allow `python wlmodel.py` from this directory.
+    from dataloader import EDGE_FEATURES, NODE_FEATURES, get_dataloaders
 
 
 # ----------------------------------------------------------------------------
@@ -257,12 +260,46 @@ def evaluate(model, loader, device):
     }
 
 
+def _model_config(config):
+    return {
+        "node_dim": config.get("node_features", 18),
+        "edge_dim": 2,
+        "global_dim": 4,
+        "cong_dim": 8,
+        "hidden": config["hidden"],
+        "num_layers": config["num_layers"],
+        "heads": config.get("heads", 4),
+        "dropout": config.get("dropout", 0.1),
+        "use_residual": not config.get("no_residual", False),
+        "use_global": not config.get("no_global", False),
+    }
+
+
+def _checkpoint_payload(model, normalizer, config, metrics=None):
+    return {
+        "model": model.state_dict(),
+        "model_config": _model_config(config),
+        "normalizer": normalizer.to_dict(),
+        "feature_schema": {
+            "node": list(NODE_FEATURES),
+            "edge": list(EDGE_FEATURES),
+        },
+        "normalizer_seed": config["seed"],
+        "metrics": dict(metrics or {}),
+    }
+
+
+def _load_state(path, device):
+    checkpoint = torch.load(path, map_location=device)
+    return checkpoint["model"] if isinstance(checkpoint, dict) and "model" in checkpoint else checkpoint
+
+
 def train(config: dict):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"device = {device}")
 
     use_congestion = config.get("node_features", 18) == 18
-    train_loader, val_loader, test_loader, _ = get_dataloaders(
+    train_loader, val_loader, test_loader, normalizer = get_dataloaders(
         batch_size=config["batch_size"], num_workers=config["num_workers"],
         seed=config["seed"], use_congestion=use_congestion)
 
@@ -274,7 +311,7 @@ def train(config: dict):
                           use_global=not config.get("no_global", False)).to(device)
     if config.get("resume"):
         resume_path = os.path.abspath(config["resume"])
-        model.load_state_dict(torch.load(resume_path, map_location=device))
+        model.load_state_dict(_load_state(resume_path, device))
         print(f"warm start: 已加载 {resume_path}")
     opt = torch.optim.AdamW(model.parameters(), lr=config["lr"], weight_decay=config["wd"])
     sched = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=config["epochs"])
@@ -326,11 +363,11 @@ def train(config: dict):
 
         if val_metrics["mae_log"] < best_val:
             best_val = val_metrics["mae_log"]
-            torch.save(model.state_dict(), best_path)
+            torch.save(_checkpoint_payload(model, normalizer, config, val_metrics), best_path)
 
         if snapshot_every and epoch % snapshot_every == 0:
             snap_path = best_path.replace(".pt", f"_epoch{epoch}.pt")
-            torch.save(model.state_dict(), snap_path)
+            torch.save(_checkpoint_payload(model, normalizer, config, val_metrics), snap_path)
 
         if epoch % config["log_every"] == 0 or epoch == 1:
             print(f"[epoch {epoch:3d}] loss={epoch_loss / nb:.4f}  "
@@ -338,7 +375,7 @@ def train(config: dict):
                   f"val(mae_log={val_metrics['mae_log']:.4f}, med_rel={val_metrics['med_rel']:.3%})  "
                   f"({time.time() - t0:.1f}s)")
 
-    model.load_state_dict(torch.load(best_path))
+    model.load_state_dict(_load_state(best_path, device))
     test_metrics = evaluate(model, test_loader, device)
     print("\n=== 测试集(总线长) ===")
     print(f"  MAE(log)          : {test_metrics['mae_log']:.4f}")

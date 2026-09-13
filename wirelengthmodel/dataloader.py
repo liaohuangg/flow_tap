@@ -11,7 +11,9 @@
 import json
 import math
 import os
+import random
 from dataclasses import dataclass
+from pathlib import Path
 from typing import List, Dict, Tuple
 
 import torch
@@ -20,8 +22,15 @@ from torch.utils.data import Dataset, DataLoader
 # ----------------------------------------------------------------------------
 # 路径 / 常量
 # ----------------------------------------------------------------------------
-PLACEMENT_DIR = "/root/placement/flow_tap/Dataset/dataset/placement_dataset/placement_dataset_tw"
-WIRELENGTH_DIR = "/root/placement/flow_tap/Dataset/dataset/wirelength_dataset"
+_REPO_ROOT = Path(__file__).resolve().parents[1]
+PLACEMENT_DIR = os.environ.get(
+    "FLOW_TAP_PLACEMENT_DIR",
+    str(_REPO_ROOT / "Dataset" / "dataset" / "placement_dataset" / "placement_dataset_tw"),
+)
+WIRELENGTH_DIR = os.environ.get(
+    "FLOW_TAP_WIRELENGTH_DIR",
+    str(_REPO_ROOT / "Dataset" / "dataset" / "wirelength_dataset"),
+)
 
 # 有 total 线长标签的布局文件:69..80,对应 system_340001 .. system_400000,共 60000 个
 # (边距离/每侧流量标签只有 69..76 即 340001..380000; total-only 训练不需要这些,故可扩展)
@@ -280,14 +289,45 @@ def load_labeled_systems(use_congestion: bool = True) -> List[dict]:
 # ----------------------------------------------------------------------------
 @dataclass
 class Normalizer:
-    node_mean: torch.Tensor  # [7]
-    node_std: torch.Tensor   # [7]
+    node_mean: torch.Tensor  # [18]
+    node_std: torch.Tensor   # [18]
     edge_mean: torch.Tensor  # [2]
     edge_std: torch.Tensor   # [2]
 
+    def to_dict(self) -> dict:
+        return {
+            "node_mean": self.node_mean.detach().cpu().tolist(),
+            "node_std": self.node_std.detach().cpu().tolist(),
+            "edge_mean": self.edge_mean.detach().cpu().tolist(),
+            "edge_std": self.edge_std.detach().cpu().tolist(),
+        }
+
+    @classmethod
+    def from_dict(cls, value: dict) -> "Normalizer":
+        required = ("node_mean", "node_std", "edge_mean", "edge_std")
+        missing = [key for key in required if key not in value]
+        if missing:
+            raise ValueError(f"normalizer missing keys: {missing}")
+        return cls(*(torch.as_tensor(value[key], dtype=torch.float32) for key in required))
+
     @classmethod
     def fit(cls, graphs: List[dict]) -> "Normalizer":
-        node_dim = len(graphs[0]["nodes"][0])
+        return cls.fit_iter(graphs)
+
+    @classmethod
+    def fit_iter(cls, graphs) -> "Normalizer":
+        """Fit statistics from an iterable without retaining every parsed graph."""
+        iterator = iter(graphs)
+        try:
+            first = next(iterator)
+        except StopIteration as exc:
+            raise ValueError("cannot fit wirelength normalizer from an empty graph iterable") from exc
+
+        def all_graphs():
+            yield first
+            yield from iterator
+
+        node_dim = len(first["nodes"][0])
         edge_dim = 2
         node_sum = torch.zeros(node_dim, dtype=torch.float64)
         node_sq = torch.zeros(node_dim, dtype=torch.float64)
@@ -296,7 +336,7 @@ class Normalizer:
         edge_sq = torch.zeros(edge_dim, dtype=torch.float64)
         edge_cnt = 0
 
-        for g in graphs:
+        for g in all_graphs():
             for feat in g["nodes"]:
                 f = torch.tensor(feat, dtype=torch.float64)
                 node_sum += f
@@ -313,6 +353,54 @@ class Normalizer:
         edge_mean = edge_sum / edge_cnt
         edge_std = torch.sqrt(edge_sq / edge_cnt - edge_mean ** 2).clamp_min(1e-6)
         return cls(node_mean.float(), node_std.float(), edge_mean.float(), edge_std.float())
+
+
+def fit_normalizer_from_placement_files(
+        placement_dir: str | os.PathLike = PLACEMENT_DIR,
+        file_indices=LABELED_FILES,
+        seed: int = 42,
+        train_ratio: float = 0.8,
+        allow_partial: bool = False,
+        ) -> Normalizer:
+    """Rebuild the legacy checkpoint normalizer without requiring wirelength labels.
+
+    The original training code shuffled all labeled systems and fitted statistics on
+    the first 80 percent. Replaying that split over the placement JSON files yields
+    the same statistics when all original files are available.
+    """
+    placement_dir = Path(placement_dir)
+    requested = [int(index) for index in file_indices]
+    paths = [placement_dir / f"chiplet_dataset_{index}.json" for index in requested]
+    missing = [path.name for path in paths if not path.exists()]
+    if missing and not allow_partial:
+        raise FileNotFoundError(
+            "cannot reproduce the wirelength normalizer; missing placement files: "
+            + ", ".join(missing)
+        )
+    paths = [path for path in paths if path.exists()]
+    if not paths:
+        raise FileNotFoundError(f"no placement files found under {placement_dir}")
+
+    counts = []
+    for path in paths:
+        with path.open("r", encoding="utf-8") as handle:
+            counts.append(len(json.load(handle)))
+    total = sum(counts)
+    order = list(range(total))
+    random.Random(seed).shuffle(order)
+    selected = set(order[:int(total * train_ratio)])
+
+    def selected_graphs():
+        offset = 0
+        for path, count in zip(paths, counts):
+            with path.open("r", encoding="utf-8") as handle:
+                systems = json.load(handle)
+            for local_index, system in enumerate(systems.values()):
+                if offset + local_index in selected:
+                    yield parse_system(system, use_congestion=True)
+            offset += count
+
+    return Normalizer.fit_iter(selected_graphs())
 
 
 # ----------------------------------------------------------------------------

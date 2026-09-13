@@ -32,9 +32,11 @@ from train_graph_thermal import (
     _build_thermal_model_from_ckpt,
     _load_thermal_checkpoint,
     _thermal_output_to_grid_and_avg,
-    _thermal_rasterize,
+    _thermal_forward,
+    _thermal_stats_from_checkpoint,
     _denorm_temp_k,
 )
+from wirelength_surrogate import WirelengthSurrogate
 
 CORE_METRIC_KEYS = (
     "idx",
@@ -43,10 +45,16 @@ CORE_METRIC_KEYS = (
     "thermal_avg_head_c",
     "tap_intp_size",
     "tap_avg_wirelength",
+    "neural_total_wirelength",
+    "neural_avg_wirelength",
     "hpwl_ratio",
     "hpwl_rescaled",
     "legality_2",
     "expanded_legality_2",
+    "legalization_legality_before_extra",
+    "legalization_legality_end",
+    "legalization_extra_steps_used",
+    "legalization_fallback_used",
     "bbox_area_ratio",
     "model_time",
     "generation_time",
@@ -350,77 +358,31 @@ def _solve_tap_avg_wirelength(x_sample, cond):
 
 
 def _solve_tap_avg_wirelength_from_placement_json(placement_json_path):
-    source_json_path = _source_json_for_placement(placement_json_path)
-    if source_json_path is None:
-        return None
-    with source_json_path.open("r", encoding="utf-8") as f:
-        source = json.load(f)
-
-    if "chiplets" not in source:
-        return None
-    source_chiplets = source["chiplets"]
-    source_sizes = _source_chiplet_sizes(source)
-    connection_matrix = _connection_matrix_from_source(source)
-    if source_sizes is None or connection_matrix is None:
-        return None
-
     with open(placement_json_path, "r", encoding="utf-8") as f:
         placement = json.load(f)
-    placed_by_name = {str(ch.get("name", f"C{i}")): ch for i, ch in enumerate(placement.get("chiplets", []))}
-
-    widths = [float(ch.get("width", 0.0)) for ch in source_chiplets]
-    heights = [float(ch.get("height", 0.0)) for ch in source_chiplets]
-    hubumps = _compute_tap_hubump(widths, heights, connection_matrix)
-    centers_x = []
-    centers_y = []
-    for i, src in enumerate(source_chiplets):
-        name = str(src.get("name", f"C{i}"))
-        placed = placed_by_name.get(name)
-        if placed is None:
-            return None
-        centers_x.append(float(placed.get("x-position", placed.get("x", 0.0))) + widths[i] / 2.0)
-        centers_y.append(float(placed.get("y-position", placed.get("y", 0.0))) + heights[i] / 2.0)
-
-    tap_dir = _tap25d_root()
-    routing_path = tap_dir / "routing.py"
-    if not routing_path.exists():
+    if not placement.get("chiplets") or not placement.get("connections"):
+        print(f"WARNING: TAP-2.5D wirelength input is incomplete: {placement_json_path}")
         return None
-
-    import importlib.util
 
     _add_cplex_python_path()
-
-    spec = importlib.util.spec_from_file_location("tap25d_routing_eval_from_json", routing_path)
-    routing = importlib.util.module_from_spec(spec)
     try:
-        spec.loader.exec_module(routing)
+        from gen_dataset.gen_wirelength_dataset import TapSystem, solve_cplex_avg
     except Exception as exc:
-        print(f"WARNING: failed to load TAP-2.5D routing.py: {exc}")
+        print(f"WARNING: failed to load the bundled TAP-2.5D CPLEX solver: {exc}")
         return None
 
-    class TapSystem:
-        pass
-
-    system = TapSystem()
-    system.chiplet_count = len(widths)
-    system.width = widths
-    system.height = heights
-    system.hubump = hubumps
-    system.x = centers_x
-    system.y = centers_y
-    system.connection_matrix = connection_matrix
-    system.intp_type = "passive"
-    system.link_type = "nppl"
-
-    cwd = os.getcwd()
     try:
-        os.chdir(tap_dir)
-        return float(routing.solve_Cplex(system))
+        # This is the original TAP-2.5D routing objective: CPLEX assigns
+        # microbump-side flows and minimizes total routed wirelength.  The
+        # reported value is total routed length divided by directed wire count.
+        system = TapSystem(placement, hubump_mode="die")
+        avg_wirelength, total_wirelength, _edge_lengths, _side_flows = solve_cplex_avg(system)
+        if total_wirelength is None or not np.isfinite(avg_wirelength):
+            raise RuntimeError("CPLEX returned no feasible TAP-2.5D routing solution")
+        return float(avg_wirelength)
     except Exception as exc:
-        print(f"WARNING: TAP-2.5D wirelength evaluation from placement json failed: {exc}")
+        print(f"WARNING: bundled TAP-2.5D wirelength evaluation failed: {exc}")
         return None
-    finally:
-        os.chdir(cwd)
 
 
 def cost(output_metrics):
@@ -429,7 +391,8 @@ def cost(output_metrics):
     """
     legality_target = 0.995
     legality_temp = 0.001
-    hpwl = torch.tensor(output_metrics["hpwl_rescaled"]).mean()
+    wirelength_key = "neural_avg_wirelength" if "neural_avg_wirelength" in output_metrics else "hpwl_rescaled"
+    hpwl = torch.tensor(output_metrics[wirelength_key]).mean()
 
     legality = torch.tensor(output_metrics["legality_2"]).mean()
     legality_cost_factor = 1 + 10 * torch.nn.functional.relu((legality_target - legality)/legality_temp)
@@ -450,21 +413,23 @@ class ThermalEvaluator:
         self.grid_size = int(thermal_cfg.get("grid_size", 128))
         self.rect_sharpness = float(thermal_cfg.get("rect_sharpness", 80.0))
         ckpt = _load_thermal_checkpoint(self.ckpt_path)
-        self.stats = ckpt.get("stats") if isinstance(ckpt.get("stats"), dict) else None
-        self.model = _build_thermal_model_from_ckpt(ckpt, device)
+        self.stats = _thermal_stats_from_checkpoint(ckpt)
+        self.model = _build_thermal_model_from_ckpt(ckpt, device, thermal_cfg)
 
     @torch.no_grad()
     def predict_temperature_c(self, x_sample, cond):
         cond = _thermal_cond(cond)
         x_batch = x_sample.unsqueeze(0).to(self.device)
-        power_grid, layout_grid, total_power = _thermal_rasterize(
+        output = _thermal_forward(
+            self.model,
             x_batch,
             cond,
             grid_size=self.grid_size,
             rect_sharpness=self.rect_sharpness,
             stats=self.stats,
+            differentiable=False,
         )
-        temp, avg_temp = _thermal_output_to_grid_and_avg(self.model(power_grid, layout_grid, total_power))
+        temp, avg_temp = _thermal_output_to_grid_and_avg(output)
         has_temp_stats = self.stats is not None and "temp_min" in self.stats and "temp_max" in self.stats
         if has_temp_stats:
             temp = _denorm_temp_k(temp, self.stats) - 273.15
@@ -477,14 +442,16 @@ class ThermalEvaluator:
     def __call__(self, x_sample, cond):
         cond = _thermal_cond(cond)
         x_batch = x_sample.unsqueeze(0).to(self.device)
-        power_grid, layout_grid, total_power = _thermal_rasterize(
+        output = _thermal_forward(
+            self.model,
             x_batch,
             cond,
             grid_size=self.grid_size,
             rect_sharpness=self.rect_sharpness,
             stats=self.stats,
+            differentiable=False,
         )
-        temp, avg_temp = _thermal_output_to_grid_and_avg(self.model(power_grid, layout_grid, total_power))
+        temp, avg_temp = _thermal_output_to_grid_and_avg(output)
         has_temp_stats = self.stats is not None and "temp_min" in self.stats and "temp_max" in self.stats
         if has_temp_stats:
             temp = _denorm_temp_k(temp, self.stats)
@@ -536,6 +503,7 @@ def _source_json_for_placement(placement_json_path):
     if os.environ.get("MTAP_ROOT"):
         candidates.append(Path(os.environ["MTAP_ROOT"]) / "benchmark" / "test_input" / f"{case_name}.json")
     candidates.extend([
+        flow_root / "benchmark" / "cases_hubump" / f"{case_name}.json",
         flow_root / "benchmark" / "ATPlace_json" / f"{case_name}.json",
         flow_root / "MTAP" / "benchmark" / "test_input" / f"{case_name}.json",
     ])
@@ -856,7 +824,12 @@ def _export_intermediate_layouts(
 
 
 class ThermalGuidedFlowMatchingModel(models.FlowMatchingModel):
-    def __init__(self, *args, thermal_cfg=None, **kwargs):
+    def __init__(self, *args, thermal_cfg=None, wirelength_cfg=None, **kwargs):
+        self.wirelength_cfg = dict(wirelength_cfg or {})
+        self.wirelength_enabled = bool(self.wirelength_cfg.get("enabled", False))
+        if self.wirelength_enabled:
+            # The base class uses this value when deciding whether guidance is active.
+            kwargs["hpwl_guidance_weight"] = float(self.wirelength_cfg.get("guidance_weight", 0.0))
         super().__init__(*args, **kwargs)
         self.thermal_cfg = dict(thermal_cfg or {})
         self.thermal_ckpt = self.thermal_cfg.get("ckpt", "none")
@@ -873,9 +846,52 @@ class ThermalGuidedFlowMatchingModel(models.FlowMatchingModel):
         self.thermal_legality_weight = float(self.thermal_cfg.get("legality_weight", 2.0))
         self.thermal_schedule = self.thermal_cfg.get("schedule", None)
         self.thermal_grad_clip = float(self.thermal_cfg.get("grad_clip", 0.05))
+        self.thermal_gradient_normalize = bool(self.thermal_cfg.get("gradient_normalize", False))
+        self.thermal_gradient_eps = float(self.thermal_cfg.get("gradient_eps", 1e-8))
         self.thermal_clamp = float(self.thermal_cfg.get("clamp", 2.0))
         self.__dict__["_thermal_guidance_model"] = None
         self.__dict__["_thermal_guidance_stats"] = None
+        self.__dict__["_wirelength_surrogate"] = None
+
+    def _load_wirelength_surrogate(self, device):
+        surrogate = self.__dict__.get("_wirelength_surrogate")
+        if surrogate is None:
+            surrogate = WirelengthSurrogate(self.wirelength_cfg, device)
+            self.__dict__["_wirelength_surrogate"] = surrogate
+        return surrogate
+
+    def wirelength_guidance_potential(self, placement, cond):
+        if not self.wirelength_enabled:
+            return super().wirelength_guidance_potential(placement, cond)
+        return self._load_wirelength_surrogate(placement.device).potential(placement, _thermal_cond(cond))
+
+    def get_scheduled_guidance_weights(self, t):
+        legality, wirelength, bbox, heat = super().get_scheduled_guidance_weights(t)
+        if not self.wirelength_enabled:
+            return legality, wirelength, bbox, heat
+        progress = min(1.0, max(0.0, 1.0 - float(t)))
+        start = float(self.wirelength_cfg.get("start", 0.5))
+        full = float(self.wirelength_cfg.get("full", 0.8))
+        initial = float(self.wirelength_cfg.get("initial_weight", 0.0))
+        final = float(self.wirelength_cfg.get("guidance_weight", 0.0))
+        if progress <= start:
+            wirelength = initial
+        elif progress < full:
+            ramp = _smoothstep((progress - start) / max(full - start, 1e-6))
+            wirelength = initial + ramp * (final - initial)
+        else:
+            wirelength = final
+        return legality, wirelength, bbox, heat
+
+    @torch.no_grad()
+    def predict_wirelength_metrics(self, placement, cond):
+        if not self.wirelength_enabled:
+            return {}
+        prediction = self._load_wirelength_surrogate(placement.device).predict(placement, _thermal_cond(cond))
+        return {
+            "neural_total_wirelength": float(prediction["total"].mean().detach().cpu()),
+            "neural_avg_wirelength": float(prediction["average"].mean().detach().cpu()),
+        }
 
     def reverse_samples(self, B, x_in, cond, num_timesteps=-1, intermediate_every=0, mask_override=None):
         batch_shape = (B, cond.x.shape[0], self.input_shape[1])
@@ -979,14 +995,15 @@ class ThermalGuidedFlowMatchingModel(models.FlowMatchingModel):
 
         for _ in range(self.thermal_guidance_steps):
             optimizer.zero_grad()
-            power_grid, layout_grid, total_power = _thermal_rasterize(
+            output = _thermal_forward(
+                thermal_model,
                 x_guided,
                 thermal_cond,
                 grid_size=self.thermal_grid_size,
                 rect_sharpness=self.thermal_rect_sharpness,
                 stats=stats,
             )
-            temp, avg_temp = _thermal_output_to_grid_and_avg(thermal_model(power_grid, layout_grid, total_power))
+            temp, avg_temp = _thermal_output_to_grid_and_avg(output)
             flat = temp.flatten(1)
             thermal_score = torch.logsumexp(flat * self.thermal_smooth_max_beta, dim=1) / self.thermal_smooth_max_beta
             mean_temp = avg_temp.view(-1) if avg_temp is not None else flat.mean(dim=1)
@@ -994,7 +1011,7 @@ class ThermalGuidedFlowMatchingModel(models.FlowMatchingModel):
             objective = thermal_guidance_weight * thermal_score
 
             if self.thermal_hpwl_weight > 0.0:
-                objective = objective + self.thermal_hpwl_weight * guidance.hpwl_guidance_potential(x_guided, cond)
+                objective = objective + self.thermal_hpwl_weight * self.wirelength_guidance_potential(x_guided, cond)
             if self.thermal_legality_weight > 0.0:
                 objective = objective + self.thermal_legality_weight * guidance.legality_guidance_potential(
                     x_guided,
@@ -1006,7 +1023,13 @@ class ThermalGuidedFlowMatchingModel(models.FlowMatchingModel):
             objective.sum().backward()
             if mask is not None and x_guided.grad is not None:
                 x_guided.grad *= (~mask).float()
-            if self.thermal_grad_clip > 0.0 and x_guided.grad is not None:
+            if self.thermal_gradient_normalize and x_guided.grad is not None:
+                grad_rms = x_guided.grad.square().mean(dim=(1, 2), keepdim=True).sqrt()
+                x_guided.grad.div_(grad_rms.clamp_min(self.thermal_gradient_eps))
+                # Normalization removes the scalar objective weight. Restore it
+                # as an explicit, schedule-controlled step multiplier.
+                x_guided.grad.mul_(thermal_guidance_weight)
+            elif self.thermal_grad_clip > 0.0 and x_guided.grad is not None:
                 x_guided.grad.data.clamp_(min=-self.thermal_grad_clip, max=self.thermal_grad_clip)
             optimizer.step()
             with torch.no_grad():
@@ -1019,9 +1042,9 @@ class ThermalGuidedFlowMatchingModel(models.FlowMatchingModel):
             return self.__dict__["_thermal_guidance_model"], self.__dict__["_thermal_guidance_stats"]
 
         ckpt = _load_thermal_checkpoint(self.thermal_ckpt)
-        thermal_model = _build_thermal_model_from_ckpt(ckpt, device)
+        thermal_model = _build_thermal_model_from_ckpt(ckpt, device, self.thermal_cfg)
         self.__dict__["_thermal_guidance_model"] = thermal_model
-        self.__dict__["_thermal_guidance_stats"] = ckpt.get("stats") if isinstance(ckpt.get("stats"), dict) else None
+        self.__dict__["_thermal_guidance_stats"] = _thermal_stats_from_checkpoint(ckpt)
         return self.__dict__["_thermal_guidance_model"], self.__dict__["_thermal_guidance_stats"]
 
 
@@ -1133,6 +1156,42 @@ def save_outputs_with_thermal(
 
     if legalization_fn is not None:
         sample, legalization_metrics, legalization_metrics_special = legalization_fn(sample, cond_preprocessed)
+        fallback_used = 0
+        if getattr(legalization_fn, "enforce_legality", False):
+            target = float(getattr(legalization_fn, "legality_target", 1.0))
+
+            def placement_legality(candidate):
+                return min(
+                    float(utils.check_legality_new(
+                        candidate[b].detach(),
+                        candidate[b].detach(),
+                        cond_once_expanded_preprocessed,
+                        cond_once_expanded_preprocessed.is_ports,
+                        score=True,
+                    ))
+                    for b in range(candidate.shape[0])
+                )
+
+            current_score = placement_legality(sample)
+            if current_score < target:
+                fallback_sample, fallback_metrics, fallback_special = legalization_fn(
+                    x_preprocessed.detach().clone(), cond_preprocessed
+                )
+                fallback_score = placement_legality(fallback_sample)
+                if fallback_score > current_score:
+                    sample = fallback_sample
+                    legalization_metrics = fallback_metrics
+                    legalization_metrics_special = fallback_special
+                    current_score = fallback_score
+                    fallback_used = 1
+                if current_score < target:
+                    reference_score = placement_legality(x_preprocessed)
+                    if reference_score >= target:
+                        sample = x_preprocessed.detach().clone()
+                        current_score = reference_score
+                        fallback_used = 2
+            legalization_metrics["legalization_legality_end"] = current_score
+        legalization_metrics["legalization_fallback_used"] = fallback_used
         metrics.update(legalization_metrics)
         metrics_special.update(legalization_metrics_special)
         cond_bare_preprocessed = _bare_cond_from_expanded(cond_preprocessed)
@@ -1183,6 +1242,9 @@ def save_outputs_with_thermal(
         score=True,
     )
     original_hpwl_normalized = utils.hpwl_fast(x_preprocessed, cond_output_preprocessed, normalized_hpwl=True)
+    neural_wirelength_metrics = model.predict_wirelength_metrics(
+        sample_unprocessed[0], cond_output_preprocessed
+    )
     bbox_metric_values = utils.bbox_metrics(sample_unprocessed[0], cond_output_preprocessed, reference_x=x_preprocessed[0])
 
     if thermal_eval_summary is not None:
@@ -1202,6 +1264,7 @@ def save_outputs_with_thermal(
     cond.to(original_device)
 
     all_metrics = {
+        **metrics,
         **thermal_metrics,
         "idx": idx,
         "hpwl_normalized": hpwl_normalized,
@@ -1212,6 +1275,7 @@ def save_outputs_with_thermal(
         "expanded_legality_2": expanded_legality,
         "original_hpwl_normalized": original_hpwl_normalized,
         "hpwl_ratio": hpwl_normalized / max(1e-12, original_hpwl_normalized),
+        **neural_wirelength_metrics,
         **bbox_metric_values,
         "model_time": t2 - t1,
         "generation_time": t3 - t0,
@@ -1241,6 +1305,7 @@ def main(cfg):
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
     torch.manual_seed(cfg.seed)
     thermal_cfg = dict(cfg.get("thermal", {}) or {})
+    wirelength_cfg = dict(cfg.get("wirelength", {}) or {})
 
     # Prepare legalization function
     if cfg.legalization.mode in [None, "none", "None", ""]:
@@ -1253,6 +1318,8 @@ def main(cfg):
                 thermal_cfg=thermal_cfg,
                 **cfg.legalization,
                 )
+        legalize_fn.enforce_legality = bool(cfg.legalization.get("enforce_legality", False))
+        legalize_fn.legality_target = float(cfg.legalization.get("legality_target", 1.0))
     elif cfg.legalization.mode == "opt":
         def legalize_fn(x, cond):
             return legalization.legalize_opt(
@@ -1337,7 +1404,11 @@ def main(cfg):
     }
     if cfg.implementation == "custom":
         if cfg.family == "flow_matching":
-            model = model_types[cfg.family](**cfg.model, thermal_cfg=thermal_cfg).to(device)
+            model = model_types[cfg.family](
+                **cfg.model,
+                thermal_cfg=thermal_cfg,
+                wirelength_cfg=wirelength_cfg,
+            ).to(device)
         else:
             model = model_types[cfg.family](**cfg.model).to(device)
     else:
@@ -1469,14 +1540,28 @@ def main(cfg):
         if intermediate_export_cfg is not None
         else None
     )
-    num_output_samples = min(int(cfg.num_output_samples), len(val_set))
+    requested_output_indices = OmegaConf.select(cfg, "output_indices")
+    if requested_output_indices is None:
+        output_indices = list(range(min(int(cfg.num_output_samples), len(val_set))))
+    else:
+        output_indices = [int(index) for index in requested_output_indices]
+        invalid_indices = [index for index in output_indices if index < 0 or index >= len(val_set)]
+        if invalid_indices:
+            raise IndexError(f"output_indices outside dataset range [0, {len(val_set)}): {invalid_indices}")
+    num_output_samples = len(output_indices)
+    per_case_seed = bool(OmegaConf.select(cfg, "per_case_seed", default=False))
     if num_output_samples < int(cfg.num_output_samples):
         print(
             f"WARNING: requested {cfg.num_output_samples} output samples, "
             f"but val set only has {len(val_set)}. Generating {num_output_samples} samples."
         )
-    for i in range(num_output_samples):
-        x, cond = val_set[i]
+    for output_position, dataset_index in enumerate(output_indices):
+        if per_case_seed:
+            case_seed = int(cfg.seed) + int(dataset_index)
+            torch.manual_seed(case_seed)
+            if torch.cuda.is_available():
+                torch.cuda.manual_seed_all(case_seed)
+        x, cond = val_set[dataset_index]
         metrics, metrics_special, image, image_legalized = save_outputs_with_thermal(
             x, 
             cond, 
@@ -1492,7 +1577,7 @@ def main(cfg):
             legalization_fn=legalize_fn,
             intermediate_export=intermediate_export,
         )
-        print(f"Finished sample {i+1} of {num_output_samples} \t {metrics}")
+        print(f"Finished sample {output_position+1} of {num_output_samples} \t {metrics}")
         t5 = time.time()
         logger.add({
             "reverse_samples": {

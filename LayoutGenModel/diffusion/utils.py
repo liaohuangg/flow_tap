@@ -566,6 +566,24 @@ def load_graph_data_with_config(dataset_name, train_data_limit = None, val_data_
     placement_path = dataset_path if override_placement_path is None else override_placement_path
     if os.path.exists(dataset_path):
         config = get_dataset_config(dataset_name)
+        if config.get("benchmark_json_dir"):
+            from json_benchmark_dataset import load_json_benchmark_datasets
+
+            return load_json_benchmark_datasets(
+                config,
+                dataset_path,
+                train_limit=train_data_limit,
+                val_limit=val_data_limit,
+            )
+        if config.get("placement_manifest"):
+            from placement_manifest_dataset import load_placement_manifest_datasets
+
+            return load_placement_manifest_datasets(
+                config,
+                dataset_path,
+                train_limit=train_data_limit,
+                val_limit=val_data_limit,
+            )
         consolidated_dataset_path = os.path.join(dataset_path, "dataset.pkl")
         if os.path.exists(consolidated_dataset_path):
             return load_consolidated_graph_data(
@@ -992,7 +1010,10 @@ class GraphDataLoader:
         batch_size = self.train_batch_size if split=="train" else self.val_batch_size
         
         if self.is_shuffle[split]:
-            idx = torch.randint(0, len(dataset), [1]) # TODO support larger batch sizes
+            if hasattr(dataset, "sample_index"):
+                idx = dataset.sample_index()
+            else:
+                idx = torch.randint(0, len(dataset), [1]) # TODO support larger batch sizes
         else:
             idx = self.current_idx[split]
             self.current_idx[split] = (self.current_idx[split] + 1) % len(dataset)
@@ -1849,6 +1870,13 @@ def _cond_benchmark_name(cond):
     return None if name is None else str(name)
 
 def _load_benchmark_input_json(cond):
+    if "source_json_path" in cond:
+        source_path = cond.source_json_path
+        if isinstance(source_path, (list, tuple)):
+            source_path = source_path[0] if source_path else None
+        if source_path and Path(str(source_path)).exists():
+            with Path(str(source_path)).open("r", encoding="utf-8") as f:
+                return json.load(f)
     name = _cond_benchmark_name(cond)
     if not name:
         return None
