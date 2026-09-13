@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """eval_layout.py — 评估 AT / RL 布局的线长、温度、外接框面积。
 
-输入 (两个转换脚本产出的 placement_dataset 格式布局):
+输入 (转换脚本产出的 placement_dataset 格式布局):
   AT_result/format_result/<前缀>_seed<M>.json
   RL_result/format_result/<前缀>_seed<M>.json
+  FM_result/format_result/<前缀>_best{T,WL}_seed<M>.json
 
 三个指标, 全部复用生成数据集时的原始代码, 不另起一套实现:
 
@@ -69,6 +70,9 @@ rh.HOTSPOT_BIN = PROJECT / "hotspot" / "hotspot"
 METHOD_DIR = {
     "AT": RESULT_EVAL / "AT_result",
     "RL": RESULT_EVAL / "RL_result",
+    # ChipletFM (flow matching)。文件名保留了 bestT/bestWL 标记, 所以 case 列形如
+    # "Case6_bestT" —— 一个 case 两个 pick, 去掉标记则 cpu-dram 的 bestT/bestWL 会同名。
+    "FM": RESULT_EVAL / "FM_result",
 }
 LAYOUT_SUBDIR = "format_result"
 EVAL_SUBDIR = "eval_out"          # HotSpot 中间文件
@@ -384,7 +388,8 @@ def run_method(method: str, args) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--method", default="both", choices=["AT", "RL", "both"])
+    ap.add_argument("--method", default="both", choices=["AT", "RL", "FM", "both"],
+                    help="AT/RL/FM 算单个方法, both=AT+RL (不含 FM, 保持原有行为)")
     ap.add_argument("--stage", default="both", choices=["wl", "thermal", "both"],
                     help="wl=只算线长+外接框 (快), thermal=只算热, both=全算")
     ap.add_argument("--grid", type=int, default=GRID_DEFAULT, help="HotSpot 温度网格 (默认 64, 与 thermal_dataset_64 一致)")
