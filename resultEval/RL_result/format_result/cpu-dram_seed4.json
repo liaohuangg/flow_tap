@@ -1,0 +1,127 @@
+{
+  "system_id": "cpu-dram_seed4",
+  "chiplets": [
+    {
+      "name": "A",
+      "x-position": 3.2395,
+      "y-position": 27.564444,
+      "width": 9.0,
+      "height": 8.25,
+      "rotation": 1,
+      "power": 150,
+      "hubump": 0.18
+    },
+    {
+      "name": "B",
+      "x-position": 24.476222,
+      "y-position": 23.756333,
+      "width": 9.0,
+      "height": 8.25,
+      "rotation": 1,
+      "power": 150,
+      "hubump": 0.18
+    },
+    {
+      "name": "C",
+      "x-position": 24.476222,
+      "y-position": 2.519611,
+      "width": 9.0,
+      "height": 8.25,
+      "rotation": 1,
+      "power": 150,
+      "hubump": 0.18
+    },
+    {
+      "name": "D",
+      "x-position": 5.759111,
+      "y-position": 2.159667,
+      "width": 9.0,
+      "height": 8.25,
+      "rotation": 1,
+      "power": 150,
+      "hubump": 0.18
+    },
+    {
+      "name": "E",
+      "x-position": 1.439778,
+      "y-position": 17.637278,
+      "width": 8.75,
+      "height": 8.75,
+      "rotation": 1,
+      "power": 20,
+      "hubump": 0.135
+    },
+    {
+      "name": "F",
+      "x-position": 13.317944,
+      "y-position": 25.196111,
+      "width": 8.75,
+      "height": 8.75,
+      "rotation": 0,
+      "power": 20,
+      "hubump": 0.135
+    },
+    {
+      "name": "G",
+      "x-position": 25.196111,
+      "y-position": 14.037833,
+      "width": 8.75,
+      "height": 8.75,
+      "rotation": 1,
+      "power": 20,
+      "hubump": 0.135
+    },
+    {
+      "name": "H",
+      "x-position": 15.117666,
+      "y-position": 1.439778,
+      "width": 8.75,
+      "height": 8.75,
+      "rotation": 1,
+      "power": 20,
+      "hubump": 0.135
+    }
+  ],
+  "connections": [
+    {
+      "node1": "A",
+      "node2": "B",
+      "wireCount": 256
+    },
+    {
+      "node1": "A",
+      "node2": "D",
+      "wireCount": 256
+    },
+    {
+      "node1": "A",
+      "node2": "E",
+      "wireCount": 1024
+    },
+    {
+      "node1": "B",
+      "node2": "C",
+      "wireCount": 256
+    },
+    {
+      "node1": "B",
+      "node2": "F",
+      "wireCount": 1024
+    },
+    {
+      "node1": "C",
+      "node2": "D",
+      "wireCount": 256
+    },
+    {
+      "node1": "C",
+      "node2": "G",
+      "wireCount": 1024
+    },
+    {
+      "node1": "D",
+      "node2": "H",
+      "wireCount": 1024
+    }
+  ]
+}

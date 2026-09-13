@@ -13,6 +13,9 @@
 
 用法:
   python comp_wlmodel_time.py --start 340001 --count 1000
+  # 只测 wlmodel 在 CPU 上的推理时间 (不跑 CPLEX):
+  python comp_wlmodel_time.py --start 340001 --count 100 --no_cplex --device cpu \
+      --threads 28 --batch_size 8 --out "" --out_log log/time_CPU.log
 """
 from __future__ import annotations
 
@@ -427,7 +430,15 @@ def main() -> None:
     ap.add_argument("--start", type=int, default=340001)
     ap.add_argument("--count", type=int, default=1000)
     ap.add_argument("--out", type=str, default=os.path.join(os.path.dirname(os.path.abspath(__file__)),
-                                                            "comp_wlmodel_time_results.csv"))
+                                                            "comp_wlmodel_time_results.csv"),
+                    help="逐 case CSV 输出路径; 置空字符串则不写 CSV")
+    ap.add_argument("--batch_size", type=int, default=128, help="wlmodel 批量推理的 batch size (默认 128)")
+    ap.add_argument("--device", type=str, default="auto", choices=["auto", "cuda", "cpu"],
+                    help="推理设备 (默认 auto: 有 GPU 就用 GPU)")
+    ap.add_argument("--threads", type=int, default=0,
+                    help="CPU 推理线程数 (torch.set_num_threads); 0=不改动 torch 默认")
+    ap.add_argument("--no_cplex", action="store_true", help="跳过 CPLEX 与曼哈顿线长的逐 case 计算 (只测模型)")
+    ap.add_argument("--out_log", type=str, default="", help="把汇总写入该日志文件 (如 log/time_CPU.log)")
     args = ap.parse_args()
 
     end = args.start + args.count - 1
@@ -437,8 +448,14 @@ def main() -> None:
     if not sids:
         return
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    print(f"[device] {device}", flush=True)
+    if args.device == "auto":
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    else:
+        device = torch.device(args.device)
+    if device.type == "cpu" and args.threads > 0:
+        torch.set_num_threads(int(args.threads))
+    n_threads = torch.get_num_threads()
+    print(f"[device] {device}  torch threads={n_threads}", flush=True)
 
     # --- 预先加载 wlmodel 归一化器 + 模型 (与 CPLEX 循环无关) ---
     norm = build_normalizer()
@@ -456,7 +473,7 @@ def main() -> None:
     print(f"[wlmodel] 构造 1000 个图 {time.time() - t0:.2f}s", flush=True)
 
     # --- wlmodel 批量推理 (吞吐) ---
-    loader = DataLoader(dataset, batch_size=128, shuffle=False, collate_fn=collate_fn)
+    loader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False, collate_fn=collate_fn)
     # warmup
     for item in loader:
         _forward_batch(model, item, device)
@@ -497,26 +514,32 @@ def main() -> None:
     for idx, sid in enumerate(sids):
         rec = systems[sid]
 
-        # CPLEX
-        t_cplex0 = time.perf_counter()
-        try:
-            system = TapSystem(rec)
-            avg, total, _, _ = solve_cplex_avg(system)
-            cplex_total = None if total is None else float(total)
-            cplex_err = None
-        except Exception as e:  # noqa: BLE001
-            cplex_total = None
-            cplex_err = f"{type(e).__name__}: {e}"
-        t_cplex = time.perf_counter() - t_cplex0
-        cplex_times.append(t_cplex)
+        cplex_total = cplex_err = None
+        t_cplex = 0.0
+        man_total = None
+        t_manhattan = 0.0
 
-        # 曼哈顿
-        t_m0 = time.perf_counter()
-        man_total, man_avg = manhattan_center(rec)
-        t_manhattan = time.perf_counter() - t_m0
-        manhattan_times.append(t_manhattan)
+        if not args.no_cplex:
+            # CPLEX
+            t_cplex0 = time.perf_counter()
+            try:
+                system = TapSystem(rec)
+                avg, total, _, _ = solve_cplex_avg(system)
+                cplex_total = None if total is None else float(total)
+                cplex_err = None
+            except Exception as e:  # noqa: BLE001
+                cplex_total = None
+                cplex_err = f"{type(e).__name__}: {e}"
+            t_cplex = time.perf_counter() - t_cplex0
+            cplex_times.append(t_cplex)
 
-        label = _read_label(sid)
+            # 曼哈顿
+            t_m0 = time.perf_counter()
+            man_total, man_avg = manhattan_center(rec)
+            t_manhattan = time.perf_counter() - t_m0
+            manhattan_times.append(t_manhattan)
+
+        label = _read_label(sid) if not args.no_cplex else None
 
         rows.append({
             "system_id": f"system_{sid}",
@@ -530,10 +553,11 @@ def main() -> None:
         })
 
         if (idx + 1) % 50 == 0 or idx == 0:
+            extra = ("" if args.no_cplex else
+                     f"cplex={cplex_total if cplex_total is not None else 'ERR'}mm "
+                     f"({t_cplex:.2f}s) man={man_total:.1f}mm ")
             print(f"[progress] {idx + 1}/{len(sids)} system_{sid}: "
-                  f"cplex={cplex_total if cplex_total is not None else 'ERR'}mm "
-                  f"({t_cplex:.2f}s) man={man_total:.1f}mm "
-                  f"wl={wl_total[sid]:.1f}mm label={label}", flush=True)
+                  f"{extra}wl={wl_total[sid]:.1f}mm label={label}", flush=True)
 
     # ------------------------------------------------------------------ #
     # 汇总统计
@@ -541,9 +565,12 @@ def main() -> None:
     def stats(vals):
         vals = [v for v in vals if v is not None]
         if not vals:
-            return {"n": 0, "total": 0.0, "mean": 0.0, "min": 0.0, "max": 0.0}
+            return {"n": 0, "total": 0.0, "mean": 0.0, "median": 0.0, "min": 0.0, "max": 0.0}
+        s = sorted(vals)
+        m = len(s) // 2
+        median = s[m] if len(s) % 2 else (s[m - 1] + s[m]) / 2.0
         return {"n": len(vals), "total": sum(vals), "mean": sum(vals) / len(vals),
-                "min": min(vals), "max": max(vals)}
+                "median": median, "min": min(vals), "max": max(vals)}
 
     cplex_ok = [r["cplex_total"] for r in rows if r["cplex_total"] is not None]
     label_ok = [r["label_total"] for r in rows if r["label_total"] is not None]
@@ -568,41 +595,71 @@ def main() -> None:
 
     sc, sm, sw = stats(cplex_times), stats(manhattan_times), stats(single_times)
 
-    print("\n================ 汇总 ================")
-    print(f"case 数: {len(rows)} (system_{args.start}..{end})")
-    print(f"\n[CPLEX]  成功 {len(cplex_ok)}/{len(rows)}")
-    print(f"  总耗时 {sc['total']:.1f}s  单case均值 {sc['mean']:.3f}s  "
-          f"min {sc['min']:.3f}s  max {sc['max']:.3f}s")
-    print(f"[曼哈顿] 总耗时 {sm['total']:.4f}s  单case均值 {sm['mean']*1e6:.1f}us")
-    print(f"[wlmodel] 批量(128)总耗时 {t_batch:.3f}s  摊薄 {t_batch/len(sids)*1e3:.2f}ms/case")
-    print(f"[wlmodel] 单system(batch=1, 含sync) 均值 {sw['mean']*1e3:.2f}ms  "
-          f"min {sw['min']*1e3:.2f}ms  max {sw['max']*1e3:.2f}ms")
+    sc, sm, sw = stats(cplex_times), stats(manhattan_times), stats(single_times)
+    dev_desc = ("CPU only (未使用 GPU)" if device.type == "cpu" else str(device))
+    n_batch = len(loader)
+    per_case_ms = t_batch / len(sids) * 1e3
 
-    print(f"\n[精度] 相对 CPLEX: 曼哈顿 MAPE {man_mape:.2%},  wlmodel MAPE {wl_mape:.2%}")
-    if cplex_vs_label:
-        print(f"[校验] CPLEX 与已存标签 max rel err {max(cplex_vs_label):.4%} "
-              f"(mean {sum(cplex_vs_label)/len(cplex_vs_label):.4%})")
-    if wl_mape_label == wl_mape_label:
-        print(f"[精度] wlmodel 相对已存标签 MAPE {wl_mape_label:.2%}")
+    L = []
+    L.append("=" * 78)
+    L.append(f"wlmodel (WirelengthGNN) 推理时间  (system_{args.start} ~ system_{end}, "
+             f"共 {len(rows)} 个 case)")
+    L.append("=" * 78)
+    L.append(f"date={time.strftime('%Y-%m-%d %H:%M:%S')}")
+    L.append(f"env=conda:chipdiffusion   device={dev_desc}   torch threads={n_threads}")
+    L.append(f"ckpt={CKPT_PATH}")
+    L.append("")
+    L.append(f"[batch size = {args.batch_size}]  {len(sids)} 个 case 的平均耗时")
+    L.append(f"  per_case = {per_case_ms:.4f} ms/case")
+    L.append(f"  total    = {t_batch * 1e3:.3f} ms  ({t_batch:.3f} s, {n_batch} 个 batch)")
+    L.append(f"  throughput = {len(sids) / t_batch:.1f} cases/s")
+    L.append("")
+    L.append("[单个 case 耗时]  (batch=1, 含 sync)")
+    L.append(f"  mean={sw['mean'] * 1e3:.4f} ms   median={sw['median'] * 1e3:.4f} ms")
+    L.append(f"  min={sw['min'] * 1e3:.4f} ms   max={sw['max'] * 1e3:.4f} ms")
+    L.append(f"  total={sw['total']:.3f} s")
+    L.append("")
+
+    if not args.no_cplex:
+        L.append(f"[CPLEX]  成功 {len(cplex_ok)}/{len(rows)}")
+        L.append(f"  总耗时 {sc['total']:.1f}s  单case均值 {sc['mean']:.3f}s  "
+                 f"min {sc['min']:.3f}s  max {sc['max']:.3f}s")
+        L.append(f"[曼哈顿] 总耗时 {sm['total']:.4f}s  单case均值 {sm['mean'] * 1e6:.1f}us")
+        L.append(f"[精度] 相对 CPLEX: 曼哈顿 MAPE {man_mape:.2%},  wlmodel MAPE {wl_mape:.2%}")
+        if cplex_vs_label:
+            L.append(f"[校验] CPLEX 与已存标签 max rel err {max(cplex_vs_label):.4%} "
+                     f"(mean {sum(cplex_vs_label) / len(cplex_vs_label):.4%})")
+        if wl_mape_label == wl_mape_label:
+            L.append(f"[精度] wlmodel 相对已存标签 MAPE {wl_mape_label:.2%}")
+        L.append("")
+
+    summary = "\n".join(L)
+    print("\n" + summary)
+
+    if args.out_log:
+        with open(args.out_log, "a", encoding="utf-8") as f:
+            f.write(summary + "\n\n")
+        print(f"[out_log] appended -> {args.out_log}")
 
     # 写 CSV
-    header = ["system_id", "cplex_total_mm", "cplex_time_s", "cplex_error",
-              "manhattan_total_mm", "manhattan_time_s",
-              "wlmodel_total_mm", "label_total_mm"]
-    with open(args.out, "w", encoding="utf-8") as f:
-        f.write(",".join(header) + "\n")
-        for r in rows:
-            f.write(",".join([
-                r["system_id"],
-                "" if r["cplex_total"] is None else f"{r['cplex_total']:.6f}",
-                f"{r['cplex_time']:.6f}",
-                r["cplex_error"] or "",
-                f"{r['manhattan_total']:.6f}",
-                f"{r['manhattan_time']:.6e}",
-                f"{r['wlmodel_total']:.6f}",
-                "" if r["label_total"] is None else f"{r['label_total']:.6f}",
-            ]) + "\n")
-    print(f"\n结果已写: {args.out}")
+    if args.out:
+        header = ["system_id", "cplex_total_mm", "cplex_time_s", "cplex_error",
+                  "manhattan_total_mm", "manhattan_time_s",
+                  "wlmodel_total_mm", "label_total_mm"]
+        with open(args.out, "w", encoding="utf-8") as f:
+            f.write(",".join(header) + "\n")
+            for r in rows:
+                f.write(",".join([
+                    r["system_id"],
+                    "" if r["cplex_total"] is None else f"{r['cplex_total']:.6f}",
+                    f"{r['cplex_time']:.6f}",
+                    r["cplex_error"] or "",
+                    "" if r["manhattan_total"] is None else f"{r['manhattan_total']:.6f}",
+                    f"{r['manhattan_time']:.6e}",
+                    f"{r['wlmodel_total']:.6f}",
+                    "" if r["label_total"] is None else f"{r['label_total']:.6f}",
+                ]) + "\n")
+        print(f"\n结果已写: {args.out}")
 
 
 if __name__ == "__main__":

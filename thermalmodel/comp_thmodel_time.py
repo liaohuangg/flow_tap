@@ -12,14 +12,17 @@
      计时两种口径: 单 case 前向 (batch=1, GPU 核时间) + 批量吞吐 (bs=训练批大小 32)。
 
 输出:
-  - 每个 case 的单次时间 (hotspot_s / model_forward_ms / model_build_ms) -> {out_root}/times.csv
-  - 汇总 (单次时间 mean/median/min/max + 批量吞吐 + 总时间 + 加速比) -> {out_root}/summary.txt
+  - 汇总 (单次时间 mean/median/std/min/max/p90/p95 + 批量吞吐 + 总时间 + 加速比) -> {out_root}/summary.txt
+  - 全部指标 (汇总 + 逐 batch 明细 + 逐 case 明细) -> --out_log 指定的日志文件
   - 热模型几何/温度文件 -> {out_root}/config, {out_root}/thermal_map, ... (与 gen_thermal_dataset 同构)
 
 用法 (chipdiffusion env, cwd=thermalmodel):
   python comp_thmodel_time.py --n_cases 100                     # 完整跑 100 case (约 20min 单线程)
   python comp_thmodel_time.py --n_cases 100 --no_hotspot        # 只计时模型 (快速)
   python comp_thmodel_time.py --n_cases 100 --no_model          # 只计时 HotSpot
+  # 只计时模型 (CPU, 全部 28 线程, bs=8), 汇总写入 logs/time_CPU.log:
+  python comp_thmodel_time.py --no_hotspot --device cpu --threads 28 \
+      --n_cases 100 --eval_bs 8 --out_root time_eval_out_cpu --out_log logs/time_CPU.log
 
 注意: 模型结构参数 (--base 96 等) 必须与训练时 auto_train.sh 一致 (已按 gnnhrnet_pwin 写死)。
 """
@@ -27,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import re
 import statistics
@@ -258,6 +262,10 @@ def build_argparser() -> argparse.ArgumentParser:
     ap.add_argument("--save_temp", action="store_true", help="额外落盘 thermal_map/maxtemp/avgtemp CSV")
     ap.add_argument("--warmup", type=int, default=5, help="模型前向 warmup 次数 (不计时)")
     ap.add_argument("--eval_bs", type=int, default=32, help="模型批量吞吐的 batch size (默认 32, 与训练一致)")
+    ap.add_argument("--threads", type=int, default=0,
+                    help="CPU 推理线程数 (torch.set_num_threads); 0=不改动 torch 默认")
+    ap.add_argument("--out_log", type=str, default="",
+                    help="额外把汇总写入该日志文件 (如 logs/time_CPU.log)")
     return ap
 
 
@@ -270,6 +278,9 @@ def main() -> None:
     do_model = args.run_model and not args.no_model
 
     device = torch.device("cuda" if args.device == "cuda" and torch.cuda.is_available() else "cpu")
+    if args.threads > 0:
+        torch.set_num_threads(int(args.threads))
+    n_threads = torch.get_num_threads()
 
     out_root = Path(args.out_root)
     if not out_root.is_absolute():
@@ -291,6 +302,7 @@ def main() -> None:
     build_times: list[float] = []
     rows: list[dict] = []
     model_inputs: list = []
+    batch_records: list[dict] = []
     n_chiplets = None
 
     t_all0 = time.perf_counter()
@@ -344,14 +356,15 @@ def main() -> None:
             model_inputs.append((x, ei, ea, batch, field))  # CPU 输入, 供批量吞吐
 
             x, ei, ea, batch, field = (t.to(device) for t in (x, ei, ea, batch, field))
+            if idx == 1:
+                # warmup: 触发内核编译 / cuDNN autotune (CUDA) 或线程池初始化 (CPU), 不计时
+                with torch.no_grad():
+                    for _ in range(args.warmup):
+                        model(x, ei, batch, ea, field)
+                if device.type == "cuda":
+                    torch.cuda.synchronize()
             if device.type == "cuda":
                 torch.cuda.synchronize()
-                if idx == 1:
-                    # warmup: 触发 CUDA 内核编译 / cuDNN autotune, 不计时
-                    with torch.no_grad():
-                        for _ in range(args.warmup):
-                            model(x, ei, batch, ea, field)
-                    torch.cuda.synchronize()
                 start = torch.cuda.Event(enable_timing=True)
                 end = torch.cuda.Event(enable_timing=True)
                 start.record()
@@ -380,34 +393,45 @@ def main() -> None:
     batched_per_case_ms = batched_total_s = None
     if do_model and model_inputs:
         bs = args.eval_bs
+        # warmup 一个 batch (不计时), 避免首 batch 的内核编译/线程池初始化污染吞吐
+        x, ei, ea, b, f = collate_inputs(model_inputs[:bs])
+        x, ei, ea, b, f = (t.to(device) for t in (x, ei, ea, b, f))
+        with torch.no_grad():
+            model(x, ei, b, ea, f)
         if device.type == "cuda":
             torch.cuda.synchronize()
         t0 = time.perf_counter()
         for s in range(0, len(model_inputs), bs):
-            x, ei, ea, b, f = collate_inputs(model_inputs[s:s + bs])
+            chunk = model_inputs[s:s + bs]
+            x, ei, ea, b, f = collate_inputs(chunk)
             x, ei, ea, b, f = (t.to(device) for t in (x, ei, ea, b, f))
+            tb = time.perf_counter()
             with torch.no_grad():
                 model(x, ei, b, ea, f)
+            if device.type == "cuda":
+                torch.cuda.synchronize()
+            dt = time.perf_counter() - tb
+            batch_records.append({"idx": len(batch_records) + 1, "bs": len(chunk),
+                                  "ms": dt * 1e3, "per_case_ms": dt / len(chunk) * 1e3})
         if device.type == "cuda":
             torch.cuda.synchronize()
         batched_total_s = time.perf_counter() - t0
         batched_per_case_ms = batched_total_s / len(model_inputs) * 1e3
 
-    # --- 写 per-case times.csv ---
-    csv_path = out_root / "times.csv"
-    cols = ["i", "n_chiplets", "side_mm", "hotspot_s", "temp_max_C", "temp_avg_C",
-            "model_build_ms", "model_fwd_ms"]
-    with csv_path.open("w", encoding="utf-8") as f:
-        f.write(",".join(cols) + "\n")
-        for r in rows:
-            f.write(",".join(str(r.get(c, "")) for c in cols) + "\n")
-
     # --- 汇总 ---
     def _stat(vals_ms):
         if not vals_ms:
             return None
+        s = sorted(vals_ms)
+
+        def _pct(p: float) -> float:
+            k = (len(s) - 1) * p
+            lo, hi = int(math.floor(k)), int(math.ceil(k))
+            return s[lo] if lo == hi else s[lo] + (s[hi] - s[lo]) * (k - lo)
+
         return dict(mean=statistics.mean(vals_ms), median=statistics.median(vals_ms),
-                    min=min(vals_ms), max=max(vals_ms), total=sum(vals_ms), n=len(vals_ms))
+                    min=min(vals_ms), max=max(vals_ms), total=sum(vals_ms), n=len(vals_ms),
+                    std=statistics.pstdev(vals_ms), p90=_pct(0.90), p95=_pct(0.95))
 
     hs_ms = [t * 1e3 for t in hs_times]
     hs_s = _stat(hs_ms)
@@ -420,7 +444,10 @@ def main() -> None:
     L.append("# comp_thmodel_time summary")
     L.append(f"date={time.strftime('%Y-%m-%d %H:%M:%S')}")
     L.append(f"cases: system_{args.start}..system_{args.start + args.n_cases - 1}  n={args.n_cases}  j={args.j}  grid={GRID}")
-    L.append(f"device={device}  ckpt={args.ckpt}  n_chiplets={n_chiplets}")
+    dev_desc = f"device={device}"
+    if device.type == "cpu":
+        dev_desc += f" (CPU only, torch threads={n_threads})"
+    L.append(f"{dev_desc}  ckpt={args.ckpt}  n_chiplets={n_chiplets}")
     L.append("")
     if hs_s:
         L.append(f"[HotSpot 单线程, 单 case 墙钟时间] n={hs_s['n']}")
@@ -428,24 +455,110 @@ def main() -> None:
         L.append(f"  min={hs_s['min']:.3f} ms   max={hs_s['max']:.3f} ms")
         L.append(f"  total={hs_s['total'] / 1e3 / 3600:.3f} h  ({hs_s['total'] / 1e3:.1f} s)")
     if fwd_s:
-        L.append(f"[模型前向 (batch=1, GPU 核时间)] n={fwd_s['n']}")
+        fwd_tag = "GPU 核时间" if device.type == "cuda" else "CPU 墙钟时间, 含 H2D"
+        L.append(f"[模型前向 (batch=1, {fwd_tag})] n={fwd_s['n']}")
         L.append(f"  mean={fwd_s['mean']:.4f} ms/case   median={fwd_s['median']:.4f} ms")
         L.append(f"  min={fwd_s['min']:.4f} ms   max={fwd_s['max']:.4f} ms")
         L.append(f"  total={fwd_s['total']:.3f} ms  ({fwd_s['total'] / 1e3:.3f} s)")
     if build_s:
         L.append(f"[模型输入构建 (CPU, 单 case)] mean={build_s['mean']:.3f} ms  total={build_s['total'] / 1e3:.3f} s")
     if batched_per_case_ms is not None:
-        L.append(f"[模型批量推理 (bs={args.eval_bs}, 训练批大小)] per_case={batched_per_case_ms:.4f} ms  "
+        L.append(f"[模型批量推理 (bs={args.eval_bs})] per_case={batched_per_case_ms:.4f} ms  "
                  f"total={batched_total_s:.3f} s  ({len(model_inputs) / batched_total_s:.0f} cases/s)")
     if speedup:
         L.append(f"[加速比] HotSpot 单线程 / 模型单次前向(batch=1) = {speedup:.0f}x")
     if hs_s and batched_per_case_ms:
         L.append(f"[加速比] HotSpot 单线程 / 模型批量(bs={args.eval_bs}) = {hs_s['mean'] / batched_per_case_ms:.0f}x")
     L.append(f"[总墙钟] 本脚本 {t_all:.1f} s ({t_all / 3600:.3f} h)")
-    L.append(f"[files] times.csv={csv_path}")
 
     summary = "\n".join(L)
     (out_root / "summary.txt").write_text(summary + "\n", encoding="utf-8")
+
+    if args.out_log:
+        log_path = Path(args.out_log)
+        if not log_path.is_absolute():
+            log_path = THERMALMODEL / log_path
+        log_path.parent.mkdir(parents=True, exist_ok=True)
+
+        dev_title = "CPU only (未使用 GPU)" if device.type == "cpu" else str(device)
+        fwd_tag = "GPU 核时间" if device.type == "cuda" else "CPU 墙钟时间, 含 H2D"
+        bstat = _stat([r["ms"] for r in batch_records])
+
+        F = []
+        F.append("# GNN+HRNet (base=96) 热模型推理速度")
+        F.append(f"date={time.strftime('%Y-%m-%d %H:%M:%S')}")
+        F.append(f"env=conda:chipdiffusion   device={dev_title}   "
+                 f"torch threads={n_threads}   dtype=float32")
+        F.append(f"ckpt={args.ckpt}")
+        F.append(f"cases: system_{args.start}..system_{args.start + args.n_cases - 1}  "
+                 f"n={args.n_cases}  j={args.j}  grid={GRID}   "
+                 f"{'不含 HotSpot 仿真' if not do_hotspot else '含 HotSpot 仿真'}")
+        F.append("")
+
+        # --- 主指标: bs ---
+        if batched_per_case_ms is not None:
+            F.append(f"[模型推理 batch size = {args.eval_bs}]  <-- 主指标")
+            F.append(f"  n_case={len(model_inputs)}  n_batch={len(batch_records)}")
+            F.append(f"  per_case = {batched_per_case_ms:.4f} ms/case")
+            F.append(f"  total    = {batched_total_s:.3f} s")
+            F.append(f"  throughput = {len(model_inputs) / batched_total_s:.1f} cases/s")
+            if bstat:
+                F.append(f"  per_batch: mean={bstat['mean']:.3f} ms  median={bstat['median']:.3f} ms  "
+                         f"std={bstat['std']:.3f} ms")
+                F.append(f"             min={bstat['min']:.3f} ms  max={bstat['max']:.3f} ms  "
+                         f"p90={bstat['p90']:.3f} ms  p95={bstat['p95']:.3f} ms")
+            F.append("")
+
+        # --- 参考: batch=1 ---
+        if fwd_s:
+            F.append(f"[模型前向 batch size = 1]  (参考, 单 case, {fwd_tag})")
+            F.append(f"  n={fwd_s['n']}  mean={fwd_s['mean']:.4f} ms/case  median={fwd_s['median']:.4f} ms")
+            F.append(f"  std={fwd_s['std']:.4f} ms  min={fwd_s['min']:.4f} ms  max={fwd_s['max']:.4f} ms")
+            F.append(f"  p90={fwd_s['p90']:.4f} ms  p95={fwd_s['p95']:.4f} ms  total={fwd_s['total'] / 1e3:.3f} s")
+            F.append("")
+
+        if build_s:
+            F.append(f"[模型输入构建 (CPU, 单 case)]  n={build_s['n']}  mean={build_s['mean']:.3f} ms  "
+                     f"std={build_s['std']:.3f} ms  min={build_s['min']:.3f} ms  max={build_s['max']:.3f} ms  "
+                     f"total={build_s['total'] / 1e3:.3f} s")
+            F.append("")
+
+        # --- HotSpot (若启用) ---
+        if hs_s:
+            F.append(f"[HotSpot 单线程, 单 case 墙钟时间]  n={hs_s['n']}")
+            F.append(f"  mean={hs_s['mean']:.3f} ms  median={hs_s['median']:.3f} ms  std={hs_s['std']:.3f} ms")
+            F.append(f"  min={hs_s['min']:.3f} ms  max={hs_s['max']:.3f} ms  "
+                     f"total={hs_s['total'] / 1e3 / 3600:.3f} h ({hs_s['total'] / 1e3:.1f} s)")
+            F.append("")
+
+        # --- 加速比 ---
+        if hs_s and batched_per_case_ms:
+            F.append(f"[加速比] HotSpot 单线程 / 模型 batch={args.eval_bs} = "
+                     f"{hs_s['mean'] / batched_per_case_ms:.0f}x")
+        if hs_s and fwd_s:
+            F.append(f"[加速比] HotSpot 单线程 / 模型 batch=1 = {hs_s['mean'] / fwd_s['mean']:.0f}x")
+        if hs_s:
+            F.append("")
+
+            # --- 逐 batch 明细 ---
+        if batch_records:
+            F.append(f"[逐 batch 明细]  bs={args.eval_bs}")
+            F.append("  batch,bs,ms,per_case_ms")
+            for r in batch_records:
+                F.append(f"  {r['idx']:>3},{r['bs']:>3},{r['ms']:.3f},{r['per_case_ms']:.4f}")
+            F.append("")
+
+        # --- 逐 case 明细 ---
+        F.append(f"[逐 case 明细]  n={len(rows)}")
+        F.append("  i,n_chiplets,side_mm,build_ms,fwd_ms")
+        for r in rows:
+            F.append(f"  {r['i']},{r['n_chiplets']},{r['side_mm']},"
+                     f"{r.get('model_build_ms', '')},{r.get('model_fwd_ms', '')}")
+        F.append("")
+        F.append(f"[总墙钟] 本脚本 {t_all:.1f} s ({t_all / 3600:.3f} h)")
+
+        log_path.write_text("\n".join(F) + "\n", encoding="utf-8")
+        print(f"[out_log] wrote -> {log_path}")
 
     print("\n" + summary)
 

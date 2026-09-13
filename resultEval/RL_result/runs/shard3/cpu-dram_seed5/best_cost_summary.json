@@ -1,0 +1,109 @@
+{
+  "reward": -29.56894900915612,
+  "episode": 170,
+  "json": "/root/placement/flow_tap/baseline/RL/runs/shard3/cpu-dram_seed5/results/top_layouts/layout_best_cost_ep170_r-29.57.json",
+  "metrics_json": "/root/placement/flow_tap/baseline/RL/runs/shard3/cpu-dram_seed5/results/top_layouts/layout_best_cost_ep170_r-29.57.metrics.json",
+  "img": "/root/placement/flow_tap/baseline/RL/runs/shard3/cpu-dram_seed5/results/top_layouts/layout_best_cost_ep170_r-29.57.png",
+  "metrics": {
+    "rlplanner_total_wirelength": 170343.8525708,
+    "rlplanner_avg_wirelength": 16.63514185261719,
+    "rlplanner_emib_wirelength": 0.0,
+    "rlplanner_normal_wirelength": 170343.8525708,
+    "rlplanner_total_wire_count": 10240,
+    "rlplanner_wirelength_source": "cplex_microbump_assignment",
+    "rlplanner_temperature": 100.14340407846571,
+    "rlplanner_temperature_penalty": 49.58755823040588,
+    "rlplanner_cost": 66.22270008302307,
+    "thermal_layout_offset_x": -0.11247221999999946,
+    "thermal_layout_offset_y": 0.9891388199999973,
+    "thermal_bbox_width": 35.76949956,
+    "thermal_bbox_height": 34.01616636000001,
+    "thermal_bbox_min_x": 0.11247222000000079,
+    "thermal_bbox_min_y": 0.9891388199999973,
+    "thermal_bbox_max_x": 35.88197178,
+    "thermal_bbox_max_y": 35.00530518000001,
+    "thermal_intp_size": 35.994444,
+    "thermal_layout_fits_interposer": true,
+    "chiplet_area": 603.25,
+    "microbump_occupied_area": 647.8,
+    "microbump_halos": {
+      "A": 0.18,
+      "B": 0.18,
+      "C": 0.18,
+      "D": 0.18,
+      "E": 0.135,
+      "F": 0.135,
+      "G": 0.135,
+      "H": 0.135
+    },
+    "microbump_footprints": {
+      "A": [
+        8.61,
+        9.36
+      ],
+      "B": [
+        8.61,
+        9.36
+      ],
+      "C": [
+        8.61,
+        9.36
+      ],
+      "D": [
+        8.61,
+        9.36
+      ],
+      "E": [
+        9.02,
+        9.02
+      ],
+      "F": [
+        9.02,
+        9.02
+      ],
+      "G": [
+        9.02,
+        9.02
+      ],
+      "H": [
+        9.02,
+        9.02
+      ]
+    },
+    "occupied_envelope_sources": {
+      "A": "json_footprint",
+      "B": "json_footprint",
+      "C": "json_footprint",
+      "D": "json_footprint",
+      "E": "json_footprint",
+      "F": "json_footprint",
+      "G": "json_footprint",
+      "H": "json_footprint"
+    },
+    "footprint_mode": "json_first",
+    "bbox_min_x": 0.22494444000000025,
+    "bbox_min_y": 0.0,
+    "bbox_max_x": 35.994444,
+    "bbox_max_y": 34.01616636000001,
+    "bbox_width": 35.76949956,
+    "bbox_height": 34.01616636000001,
+    "bbox_area": 1216.7412476469071,
+    "bbox_utilization": 0.5324057199941237,
+    "silicon_bbox_utilization": 0.49579152606738985,
+    "canvas_area": 1295.599998869136,
+    "canvas_utilization": 0.5000000004364248,
+    "silicon_canvas_utilization": 0.46561438756294116
+  },
+  "timing": {
+    "run_started_at": "2026-09-12T03:36:22",
+    "found_at": "2026-09-12T04:04:35",
+    "epoch": 170,
+    "rollout": 11155,
+    "rl_elapsed_seconds": 1599.011256230995,
+    "total_elapsed_seconds": 1654.846659522038,
+    "pre_rl_seconds": 55.835401949996594
+  },
+  "success": true,
+  "rlplanner_cost": 66.22270008302307,
+  "checkpoint": "/root/placement/flow_tap/baseline/RL/runs/shard3/cpu-dram_seed5/checkpoints/ppo_best_cost.pt"
+}

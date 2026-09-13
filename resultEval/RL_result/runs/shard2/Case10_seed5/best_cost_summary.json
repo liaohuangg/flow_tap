@@ -1,0 +1,427 @@
+{
+  "reward": 2.6911949869222553,
+  "episode": 7,
+  "json": "/root/placement/flow_tap/baseline/RL/runs/shard2/Case10_seed5/results/top_layouts/layout_best_cost_ep7_r2.69.json",
+  "metrics_json": "/root/placement/flow_tap/baseline/RL/runs/shard2/Case10_seed5/results/top_layouts/layout_best_cost_ep7_r2.69.metrics.json",
+  "img": "/root/placement/flow_tap/baseline/RL/runs/shard2/Case10_seed5/results/top_layouts/layout_best_cost_ep7_r2.69.png",
+  "metrics": {
+    "rlplanner_total_wirelength": 302658.38618699997,
+    "rlplanner_avg_wirelength": 28.660832025284087,
+    "rlplanner_emib_wirelength": 0.0,
+    "rlplanner_normal_wirelength": 302658.38618699997,
+    "rlplanner_total_wire_count": 10560,
+    "rlplanner_wirelength_source": "cplex_microbump_assignment",
+    "rlplanner_temperature": 103.07111014390877,
+    "rlplanner_temperature_penalty": 59.15467059091609,
+    "rlplanner_cost": 87.81550261620018,
+    "thermal_layout_offset_x": 0.0,
+    "thermal_layout_offset_y": 0.0,
+    "thermal_bbox_width": 48.556602,
+    "thermal_bbox_height": 48.556602,
+    "thermal_bbox_min_x": 0.0,
+    "thermal_bbox_min_y": 0.0,
+    "thermal_bbox_max_x": 48.556602,
+    "thermal_bbox_max_y": 48.556602,
+    "thermal_intp_size": 48.556602,
+    "thermal_layout_fits_interposer": true,
+    "chiplet_area": 1121.9000000000033,
+    "microbump_occupied_area": 1178.8718000000022,
+    "microbump_halos": {
+      "CPU1_0": 0.135,
+      "CPU1_1": 0.135,
+      "CPU1_2": 0.135,
+      "CPU1_3": 0.135,
+      "CPU1_4": 0.135,
+      "CPU1_5": 0.135,
+      "CPU2_0": 0.18,
+      "CPU2_1": 0.135,
+      "CPU2_2": 0.135,
+      "CPU2_3": 0.135,
+      "CPU2_4": 0.18,
+      "CPU2_5": 0.135,
+      "CPU2_6": 0.135,
+      "CPU2_7": 0.135,
+      "CPU2_8": 0.18,
+      "GPU_0": 0.045,
+      "GPU_1": 0.045,
+      "GPU_2": 0.045,
+      "GPU_3": 0.045,
+      "DUMMY_0": 0.0,
+      "DUMMY_1": 0.0,
+      "DUMMY_2": 0.0,
+      "DUMMY_3": 0.0,
+      "IODie_0": 0.045,
+      "IODie_1": 0.045,
+      "MEMS_0": 0.045,
+      "MEMS_1": 0.045,
+      "MEMS_2": 0.045,
+      "MEMS_3": 0.045,
+      "MEMS_4": 0.045,
+      "MEMS_5": 0.045,
+      "MEMS_6": 0.045,
+      "MEMS_7": 0.045,
+      "MEMS_8": 0.045,
+      "MEMS_9": 0.045,
+      "MEMS_10": 0.045,
+      "MEMS_11": 0.045,
+      "MEMS_12": 0.045,
+      "MEMS_13": 0.045,
+      "MEMS_14": 0.045,
+      "MEMS_15": 0.045,
+      "MEMS_16": 0.045,
+      "MEMS_17": 0.045,
+      "MEMS_18": 0.045,
+      "MEMS_19": 0.045,
+      "MEMS_20": 0.045,
+      "MEMS_21": 0.045,
+      "MEMS_22": 0.045,
+      "MEMS_23": 0.045,
+      "MEMS_24": 0.045,
+      "MEMS_25": 0.045,
+      "MEMS_26": 0.045,
+      "MEMS_27": 0.045,
+      "MEMS_28": 0.045,
+      "MEMS_29": 0.045,
+      "MEMS_30": 0.045,
+      "MEMS_31": 0.045,
+      "MEMS_32": 0.045,
+      "MEMS_33": 0.045,
+      "MEMS_34": 0.045,
+      "MEMS_35": 0.045
+    },
+    "microbump_footprints": {
+      "CPU1_0": [
+        2.77,
+        3.77
+      ],
+      "CPU1_1": [
+        2.77,
+        3.77
+      ],
+      "CPU1_2": [
+        2.77,
+        3.77
+      ],
+      "CPU1_3": [
+        2.77,
+        3.77
+      ],
+      "CPU1_4": [
+        2.77,
+        3.77
+      ],
+      "CPU1_5": [
+        2.77,
+        3.77
+      ],
+      "CPU2_0": [
+        5.36,
+        5.36
+      ],
+      "CPU2_1": [
+        5.27,
+        5.27
+      ],
+      "CPU2_2": [
+        5.27,
+        5.27
+      ],
+      "CPU2_3": [
+        5.27,
+        5.27
+      ],
+      "CPU2_4": [
+        5.36,
+        5.36
+      ],
+      "CPU2_5": [
+        5.27,
+        5.27
+      ],
+      "CPU2_6": [
+        5.27,
+        5.27
+      ],
+      "CPU2_7": [
+        5.27,
+        5.27
+      ],
+      "CPU2_8": [
+        5.36,
+        5.36
+      ],
+      "GPU_0": [
+        9.09,
+        9.09
+      ],
+      "GPU_1": [
+        9.09,
+        9.09
+      ],
+      "GPU_2": [
+        9.09,
+        9.09
+      ],
+      "GPU_3": [
+        9.09,
+        9.09
+      ],
+      "DUMMY_0": [
+        8.0,
+        12.0
+      ],
+      "DUMMY_1": [
+        8.0,
+        12.0
+      ],
+      "DUMMY_2": [
+        8.0,
+        12.0
+      ],
+      "DUMMY_3": [
+        8.0,
+        12.0
+      ],
+      "IODie_0": [
+        5.09,
+        5.09
+      ],
+      "IODie_1": [
+        5.09,
+        5.09
+      ],
+      "MEMS_0": [
+        2.09,
+        1.29
+      ],
+      "MEMS_1": [
+        2.09,
+        1.29
+      ],
+      "MEMS_2": [
+        2.09,
+        1.29
+      ],
+      "MEMS_3": [
+        2.09,
+        1.29
+      ],
+      "MEMS_4": [
+        2.09,
+        1.29
+      ],
+      "MEMS_5": [
+        2.09,
+        1.29
+      ],
+      "MEMS_6": [
+        2.09,
+        1.29
+      ],
+      "MEMS_7": [
+        2.09,
+        1.29
+      ],
+      "MEMS_8": [
+        2.09,
+        1.29
+      ],
+      "MEMS_9": [
+        2.09,
+        1.29
+      ],
+      "MEMS_10": [
+        2.09,
+        1.29
+      ],
+      "MEMS_11": [
+        2.09,
+        1.29
+      ],
+      "MEMS_12": [
+        2.09,
+        1.29
+      ],
+      "MEMS_13": [
+        2.09,
+        1.29
+      ],
+      "MEMS_14": [
+        2.09,
+        1.29
+      ],
+      "MEMS_15": [
+        2.09,
+        1.29
+      ],
+      "MEMS_16": [
+        2.09,
+        1.29
+      ],
+      "MEMS_17": [
+        2.09,
+        1.29
+      ],
+      "MEMS_18": [
+        2.09,
+        1.29
+      ],
+      "MEMS_19": [
+        2.09,
+        1.29
+      ],
+      "MEMS_20": [
+        2.09,
+        1.29
+      ],
+      "MEMS_21": [
+        2.09,
+        1.29
+      ],
+      "MEMS_22": [
+        2.09,
+        1.29
+      ],
+      "MEMS_23": [
+        2.09,
+        1.29
+      ],
+      "MEMS_24": [
+        2.09,
+        1.29
+      ],
+      "MEMS_25": [
+        2.09,
+        1.29
+      ],
+      "MEMS_26": [
+        2.09,
+        1.29
+      ],
+      "MEMS_27": [
+        2.09,
+        1.29
+      ],
+      "MEMS_28": [
+        2.09,
+        1.29
+      ],
+      "MEMS_29": [
+        2.09,
+        1.29
+      ],
+      "MEMS_30": [
+        2.09,
+        1.29
+      ],
+      "MEMS_31": [
+        2.09,
+        1.29
+      ],
+      "MEMS_32": [
+        2.09,
+        1.29
+      ],
+      "MEMS_33": [
+        2.09,
+        1.29
+      ],
+      "MEMS_34": [
+        2.09,
+        1.29
+      ],
+      "MEMS_35": [
+        2.09,
+        1.29
+      ]
+    },
+    "occupied_envelope_sources": {
+      "CPU1_0": "json_footprint",
+      "CPU1_1": "json_footprint",
+      "CPU1_2": "json_footprint",
+      "CPU1_3": "json_footprint",
+      "CPU1_4": "json_footprint",
+      "CPU1_5": "json_footprint",
+      "CPU2_0": "json_footprint",
+      "CPU2_1": "json_footprint",
+      "CPU2_2": "json_footprint",
+      "CPU2_3": "json_footprint",
+      "CPU2_4": "json_footprint",
+      "CPU2_5": "json_footprint",
+      "CPU2_6": "json_footprint",
+      "CPU2_7": "json_footprint",
+      "CPU2_8": "json_footprint",
+      "GPU_0": "json_footprint",
+      "GPU_1": "json_footprint",
+      "GPU_2": "json_footprint",
+      "GPU_3": "json_footprint",
+      "DUMMY_0": "json_footprint",
+      "DUMMY_1": "json_footprint",
+      "DUMMY_2": "json_footprint",
+      "DUMMY_3": "json_footprint",
+      "IODie_0": "json_footprint",
+      "IODie_1": "json_footprint",
+      "MEMS_0": "json_footprint",
+      "MEMS_1": "json_footprint",
+      "MEMS_2": "json_footprint",
+      "MEMS_3": "json_footprint",
+      "MEMS_4": "json_footprint",
+      "MEMS_5": "json_footprint",
+      "MEMS_6": "json_footprint",
+      "MEMS_7": "json_footprint",
+      "MEMS_8": "json_footprint",
+      "MEMS_9": "json_footprint",
+      "MEMS_10": "json_footprint",
+      "MEMS_11": "json_footprint",
+      "MEMS_12": "json_footprint",
+      "MEMS_13": "json_footprint",
+      "MEMS_14": "json_footprint",
+      "MEMS_15": "json_footprint",
+      "MEMS_16": "json_footprint",
+      "MEMS_17": "json_footprint",
+      "MEMS_18": "json_footprint",
+      "MEMS_19": "json_footprint",
+      "MEMS_20": "json_footprint",
+      "MEMS_21": "json_footprint",
+      "MEMS_22": "json_footprint",
+      "MEMS_23": "json_footprint",
+      "MEMS_24": "json_footprint",
+      "MEMS_25": "json_footprint",
+      "MEMS_26": "json_footprint",
+      "MEMS_27": "json_footprint",
+      "MEMS_28": "json_footprint",
+      "MEMS_29": "json_footprint",
+      "MEMS_30": "json_footprint",
+      "MEMS_31": "json_footprint",
+      "MEMS_32": "json_footprint",
+      "MEMS_33": "json_footprint",
+      "MEMS_34": "json_footprint",
+      "MEMS_35": "json_footprint"
+    },
+    "footprint_mode": "json_first",
+    "bbox_min_x": 0.0,
+    "bbox_min_y": 0.0,
+    "bbox_max_x": 48.556602,
+    "bbox_max_y": 48.556602,
+    "bbox_width": 48.556602,
+    "bbox_height": 48.556602,
+    "bbox_area": 2357.743597786404,
+    "bbox_utilization": 0.5000000004694319,
+    "silicon_bbox_utilization": 0.4758363042755424,
+    "canvas_area": 2357.743597786404,
+    "canvas_utilization": 0.5000000004694319,
+    "silicon_canvas_utilization": 0.4758363042755424
+  },
+  "timing": {
+    "run_started_at": "2026-09-12T08:45:52",
+    "found_at": "2026-09-12T09:33:09",
+    "epoch": 7,
+    "rollout": 96,
+    "rl_elapsed_seconds": 2619.5232987009804,
+    "total_elapsed_seconds": 2732.440473156981,
+    "pre_rl_seconds": 112.9171726059867
+  },
+  "success": true,
+  "rlplanner_cost": 87.81550261620018,
+  "checkpoint": "/root/placement/flow_tap/baseline/RL/runs/shard2/Case10_seed5/checkpoints/ppo_best_cost.pt"
+}
