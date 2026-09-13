@@ -25,7 +25,8 @@ from train_graph_thermal import (
     _build_thermal_model_from_ckpt,
     _load_thermal_checkpoint,
     _thermal_output_to_grid_and_avg,
-    _thermal_rasterize,
+    _thermal_forward,
+    _thermal_stats_from_checkpoint,
     _denorm_temp_k,
 )
 
@@ -82,20 +83,22 @@ class ThermalEvaluator:
         self.grid_size = int(thermal_cfg.get("grid_size", 128))
         self.rect_sharpness = float(thermal_cfg.get("rect_sharpness", 80.0))
         ckpt = _load_thermal_checkpoint(self.ckpt_path)
-        self.stats = ckpt.get("stats") if isinstance(ckpt.get("stats"), dict) else None
-        self.model = _build_thermal_model_from_ckpt(ckpt, device)
+        self.stats = _thermal_stats_from_checkpoint(ckpt)
+        self.model = _build_thermal_model_from_ckpt(ckpt, device, thermal_cfg)
 
     @torch.no_grad()
     def __call__(self, x_sample, cond):
         x_batch = x_sample.unsqueeze(0).to(self.device)
-        power_grid, layout_grid, total_power = _thermal_rasterize(
+        output = _thermal_forward(
+            self.model,
             x_batch,
             cond,
             grid_size=self.grid_size,
             rect_sharpness=self.rect_sharpness,
             stats=self.stats,
+            differentiable=False,
         )
-        temp, avg_temp = _thermal_output_to_grid_and_avg(self.model(power_grid, layout_grid, total_power))
+        temp, avg_temp = _thermal_output_to_grid_and_avg(output)
         has_temp_stats = self.stats is not None and "temp_min" in self.stats and "temp_max" in self.stats
         if has_temp_stats:
             temp = _denorm_temp_k(temp, self.stats)

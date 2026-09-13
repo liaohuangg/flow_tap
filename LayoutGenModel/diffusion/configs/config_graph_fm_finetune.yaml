@@ -1,0 +1,7 @@
+defaults:
+  - config_graph_fm
+  - _self_
+
+# Keep this scalar override after the base config has been composed. The base
+# config also has a `mode` config group, so a CLI override becomes nested.
+mode: finetune

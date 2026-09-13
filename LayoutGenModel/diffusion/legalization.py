@@ -20,11 +20,15 @@ def _load_thermal_model(thermal_cfg, device):
     if cache_key in _THERMAL_MODEL_CACHE:
         return _THERMAL_MODEL_CACHE[cache_key]
 
-    from train_graph_thermal import _build_thermal_model_from_ckpt, _load_thermal_checkpoint
+    from train_graph_thermal import (
+        _build_thermal_model_from_ckpt,
+        _load_thermal_checkpoint,
+        _thermal_stats_from_checkpoint,
+    )
 
     ckpt = _load_thermal_checkpoint(ckpt_path)
-    model = _build_thermal_model_from_ckpt(ckpt, device)
-    stats = ckpt.get("stats") if isinstance(ckpt.get("stats"), dict) else None
+    model = _build_thermal_model_from_ckpt(ckpt, device, thermal_cfg)
+    stats = _thermal_stats_from_checkpoint(ckpt)
     _THERMAL_MODEL_CACHE[cache_key] = (model, stats)
     return model, stats
 
@@ -38,16 +42,17 @@ def _thermal_legalization_score(
         smooth_max_beta,
         mean_weight,
         ):
-    from train_graph_thermal import _thermal_output_to_grid_and_avg, _thermal_rasterize
+    from train_graph_thermal import _thermal_forward, _thermal_output_to_grid_and_avg
 
-    power_grid, layout_grid, total_power = _thermal_rasterize(
+    output = _thermal_forward(
+        thermal_model,
         x,
         cond,
         grid_size=grid_size,
         rect_sharpness=rect_sharpness,
         stats=thermal_stats,
     )
-    temp, avg_temp = _thermal_output_to_grid_and_avg(thermal_model(power_grid, layout_grid, total_power))
+    temp, avg_temp = _thermal_output_to_grid_and_avg(output)
     flat = temp.flatten(1)
     smooth_max = torch.logsumexp(flat * smooth_max_beta, dim=1) / smooth_max_beta
     mean_temp = avg_temp.view(-1) if avg_temp is not None else flat.mean(dim=1)
@@ -62,6 +67,12 @@ def legalize(
         softmax_max, 
         save_videos = False,
         legality_weight = 1.0, 
+        legality_clearance = 0.0,
+        enforce_legality = False,
+        legality_extra_steps = 0,
+        legality_check_every = 100,
+        legality_extra_step_size = None,
+        legality_target = 1.0,
         hpwl_weight = 0.0,
         softmax_critical_factor = 3/4,
         guidance_critical_factor = 3/4,
@@ -72,6 +83,7 @@ def legalize(
         thermal_weight = 0.0,
         thermal_start_factor = 0.5,
         thermal_end_factor = 1.0,
+        thermal_zero_factor = None,
         thermal_increase_factor = 1.0,
         thermal_grid_size = None,
         thermal_rect_sharpness = None,
@@ -91,6 +103,18 @@ def legalize(
     cond - Data on CUDA (if possible)
     """
     mask = get_legalization_mask(cond, macros_only=macros_only)
+
+    # Optimize against a slightly inflated footprint while keeping the real
+    # geometry for thermal/wirelength evaluation.  ``cond.x`` stores full
+    # width/height in the normalized [-1, 1] canvas, so a per-side clearance
+    # requires adding twice that value to each full dimension.  A tiny positive
+    # clearance moves solutions away from the contact boundary and makes the
+    # real expanded footprint robustly legal after finite-step optimization.
+    legality_cond = cond
+    legality_clearance = float(legality_clearance or 0.0)
+    if legality_clearance > 0.0:
+        legality_cond = cond.clone()
+        legality_cond.x = cond.x + 2.0 * legality_clearance
 
     x_current = x.detach().clone().requires_grad_(True)
     optimizer = torch.optim.SGD((x_current,), lr=step_size, momentum=0.0)
@@ -140,6 +164,19 @@ def legalize(
                 0.0,
                 thermal_weight * float(thermal_increase_factor),
             )
+            if thermal_zero_factor is not None:
+                thermal_zero_step = round(grad_descent_steps * float(thermal_zero_factor))
+                thermal_zero_step = max(
+                    thermal_end_step + 1,
+                    min(thermal_zero_step, grad_descent_steps),
+                )
+                cooldown_steps = thermal_zero_step - thermal_end_step
+                thermal_schedule[thermal_end_step:thermal_zero_step] = torch.linspace(
+                    thermal_schedule[thermal_end_step],
+                    0.0,
+                    cooldown_steps,
+                )
+                thermal_schedule[thermal_zero_step:] = 0.0
     
     video_frames = []
     legalities = []
@@ -171,7 +208,7 @@ def legalize(
     with torch.enable_grad():
         for i, softmax_factor in zip(range(grad_descent_steps), softmax_factors):
             optimizer.zero_grad()
-            h_legality = legality_schedule[i] * guidance.legality_guidance_potential_tiled(x_current, cond, softmax_factor=softmax_factor, mask=mask)
+            h_legality = legality_schedule[i] * guidance.legality_guidance_potential_tiled(x_current, legality_cond, softmax_factor=softmax_factor, mask=mask)
             # we have to manually rescale because the tiled implementation already called backward()
             assert (not h_legality.requires_grad), "tiled version of h_legality assumed to not have grad"
             x_current.grad *= legality_schedule[i]
@@ -219,6 +256,52 @@ def legalize(
                 hpwls_normalized.append(hpwl_normalized)
                 hpwls_rescaled.append(hpwl_rescaled)
                 legalities.append(legality)
+
+    # A fixed optimization budget is insufficient for a few dense graphs.  If
+    # requested, inspect the exact rectangle-union score and spend an adaptive
+    # tail only on samples that are still illegal.  Thermal and wirelength are
+    # deliberately disabled in this tail: the returned solution is accepted
+    # only after the real (non-inflated) footprint reaches the requested score.
+    def exact_legality_score():
+        return min(
+            float(utils.check_legality_new(
+                x_current[b].detach(),
+                x_current[b].detach(),
+                cond,
+                cond.is_ports,
+                score=True,
+            ))
+            for b in range(x_current.shape[0])
+        )
+
+    legality_before_extra = exact_legality_score()
+    extra_steps_used = 0
+    if bool(enforce_legality) and legality_before_extra < float(legality_target):
+        extra_budget = max(0, int(legality_extra_steps))
+        check_every = max(1, int(legality_check_every))
+        extra_lr = float(legality_extra_step_size or step_size)
+        extra_optimizer = torch.optim.SGD((x_current,), lr=extra_lr, momentum=0.0)
+        final_legality_weight = float(legality_weight) * float(legality_increase_factor)
+        with torch.enable_grad():
+            for extra_index in range(extra_budget):
+                extra_optimizer.zero_grad()
+                h_legality = guidance.legality_guidance_potential_tiled(
+                    x_current,
+                    legality_cond,
+                    softmax_factor=float(softmax_max),
+                    mask=mask,
+                )
+                assert not h_legality.requires_grad
+                x_current.grad *= final_legality_weight
+                x_current.grad *= (~mask).float()
+                extra_optimizer.step()
+                extra_steps_used = extra_index + 1
+                if extra_steps_used % check_every == 0 and exact_legality_score() >= float(legality_target):
+                    break
+
+    metrics["legalization_legality_before_extra"] = legality_before_extra
+    metrics["legalization_legality_end"] = exact_legality_score()
+    metrics["legalization_extra_steps_used"] = extra_steps_used
 
     if thermal_model is not None:
         with torch.no_grad():

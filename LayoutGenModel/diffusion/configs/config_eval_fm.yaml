@@ -64,10 +64,40 @@ model:
     thermal_mp_sigma: 0.35
     thermal_mp_topk: 0
 
+# Frozen neural wirelength surrogate. The legacy checkpoint omitted its
+# normalizer, so this configuration uses the reconstructed compatibility stats
+# below. Replace that file with the original 60k normalizer when available.
+wirelength:
+  enabled: true
+  ckpt: ../wirelengthmodel/checkpoint/best_wlmodel_total_60k.pt
+  normalizer: ../wirelengthmodel/checkpoint/normalizer_compat_69_76.json
+  objective: log_total
+  preferred_side_temperature: 0.25
+  guidance_weight: 0.02
+  initial_weight: 0.0
+  start: 0.5
+  full: 0.8
+  auto_fit_normalizer: false
+  placement_dir: ../Dataset/dataset/placement_dataset/placement_dataset_tw
+  normalizer_files: [69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80]
+  normalizer_seed: 42
+  normalizer_train_ratio: 0.8
+  allow_partial_normalizer: false
+  normalizer_cache: none
+
 thermal:
-  ckpt: checkpoints/thermal/thermal_ep0175.pth
+  ckpt: thermalmodel/checkpoints/gnnhrnet_pwin/best.pth
+  grid_size: 64
+  rect_sharpness: 80.0
+  hidden: 128
+  heads: 4
+  num_layers: 3
+  base: 96
+  stages: 4
+  blocks_per_stage: 2
+  expand_ratio: 2
   report_guidance_enabled: True
-  guidance_weight: 0.0
+  guidance_weight: 0.01
   guidance_lr: 0.002
   guidance_steps: 1
   legality_weight: 10.0

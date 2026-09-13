@@ -88,7 +88,26 @@ def export_wirelength_bbox_results(seed_dir, index_map_path=INDEX_MAP_PATH):
         print(f"[ERROR] placement dir not found: {placement_dir}")
         return None
 
-    index_map = load_index_map(index_map_path)
+    # Derive the benchmark directory from the TASK name in the path
+    # (<...>/logs/output/<task>/<method>/seed_N), not from a substring of the
+    # method name.  The old check looked for the hyphenated "cases-hubump" in the
+    # whole path, so it only worked when the *method* happened to be named e.g.
+    # "cases-hubump-util50-..."; the task directory itself is "cases_hubump"
+    # (underscore), so any other method name silently fell through to the
+    # index_map fallback and raised IndexError.
+    task_name = seed_dir.parent.parent.name
+    benchmark_dir = REPO_ROOT / "benchmark" / task_name
+    if benchmark_dir.is_dir():
+        index_map = []
+        for benchmark_path in sorted(benchmark_dir.glob("*.json")):
+            with benchmark_path.open("r", encoding="utf-8") as f:
+                benchmark = json.load(f)
+            index_map.append({
+                "benchmark_name": str(benchmark.get("case", benchmark_path.stem)),
+                "input_file": str(benchmark_path),
+            })
+    else:
+        index_map = load_index_map(index_map_path)
 
     with csv_path.open(newline="") as f:
         rows = list(csv.DictReader(f))

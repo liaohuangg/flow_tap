@@ -1845,6 +1845,10 @@ class FlowMatchingModel(nn.Module):
         else:
             return self._lossfn(prediction, target)
 
+    def wirelength_guidance_potential(self, placement, cond):
+        """Overridable wirelength objective used by Flow Matching guidance."""
+        return guidance.hpwl_guidance_potential(placement, cond)
+
     @torch.enable_grad()
     def reverse_guidance_force(self, x_current, cond, t, mask=None):
         """
@@ -1866,7 +1870,7 @@ class FlowMatchingModel(nn.Module):
                 mask=mask,
                 softmax_factor=legality_softmax_factor,
             )
-            h_hpwl = hpwl_weight * guidance.hpwl_guidance_potential(x_guided, cond)
+            h_hpwl = hpwl_weight * self.wirelength_guidance_potential(x_guided, cond)
             h_bbox = bbox_weight * guidance.bbox_area_guidance_potential(
                 x_guided,
                 cond,
@@ -1909,7 +1913,7 @@ class FlowMatchingModel(nn.Module):
             )
             legality_weight, hpwl_weight, bbox_weight, heat_repulsion_weight = self.get_scheduled_guidance_weights(t)
             h_legality = legality_weight * self.alpha.detach().item() * h_legality_raw
-            h_hpwl = hpwl_weight * guidance.hpwl_guidance_potential(x_guided, cond)
+            h_hpwl = hpwl_weight * self.wirelength_guidance_potential(x_guided, cond)
             h_bbox = bbox_weight * guidance.bbox_area_guidance_potential(
                 x_guided,
                 cond,
