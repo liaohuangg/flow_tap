@@ -68,6 +68,44 @@ def collect_system_ids(placement_dir: Path, limit: int) -> tuple[list[int], list
     return selected, source_names
 
 
+def _load_groups(placement_dir: Path) -> dict[int, int] | None:
+    """读 `groups.json` (行 -> case)。没有就返回 None, 走老的"一行一 case"路径。
+
+    当主语料一个 case 有多行时, 必须按 case 分组切分: 否则同一个 case 的不同布局会同时
+    落进 train 和 val, 验证集里出现与训练集几乎相同的布局, 指标虚高。
+    """
+    path = placement_dir / "groups.json"
+    if not path.exists():
+        return None
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return {int(row): int(case) for row, case in payload["row_to_case"].items()}
+
+
+def _grouped_split(
+    row_to_case: dict[int, int], seed: int, train_ratio: float, val_ratio: float
+) -> dict[str, list[int]]:
+    """按 case 洗牌分组, 再把行展开。行数比例与目标尽量接近, 但不切开任何 case。"""
+    rows_of: dict[int, list[int]] = {}
+    for row, case in row_to_case.items():
+        rows_of.setdefault(case, []).append(row)
+    cases = sorted(rows_of)
+    random.Random(seed).shuffle(cases)
+
+    total = len(row_to_case)
+    train_target = total * train_ratio
+    val_target = total * val_ratio
+    splits: dict[str, list[int]] = {"train": [], "val": [], "test": []}
+    for case in cases:
+        rows = rows_of[case]
+        if len(splits["train"]) < train_target:
+            splits["train"] += rows
+        elif len(splits["val"]) < val_target:
+            splits["val"] += rows
+        else:
+            splits["test"] += rows
+    return {name: sorted(ids) for name, ids in splits.items()}
+
+
 def _write_ids(path: Path, ids: list[int]) -> str:
     content = "".join(f"{system_id}\n" for system_id in ids)
     path.write_text(content, encoding="utf-8", newline="\n")
@@ -90,15 +128,24 @@ def create_split(
         raise ValueError("train_ratio + val_ratio must be less than 1")
 
     system_ids, source_names = collect_system_ids(placement_dir, limit)
-    shuffled = list(system_ids)
-    random.Random(seed).shuffle(shuffled)
-    train_count = int(limit * train_ratio)
-    val_count = int(limit * val_ratio)
-    splits = {
-        "train": sorted(shuffled[:train_count]),
-        "val": sorted(shuffled[train_count : train_count + val_count]),
-        "test": sorted(shuffled[train_count + val_count :]),
-    }
+    row_to_case = _load_groups(placement_dir)
+    if row_to_case is not None:
+        if sorted(row_to_case) != system_ids:
+            raise ValueError(
+                f"groups.json 的行集与放置目录里的 system_* 不一致: "
+                f"n_rows={len(row_to_case)}, n_systems={len(system_ids)}"
+            )
+        splits = _grouped_split(row_to_case, seed, train_ratio, val_ratio)
+    else:
+        shuffled = list(system_ids)
+        random.Random(seed).shuffle(shuffled)
+        train_count = int(limit * train_ratio)
+        val_count = int(limit * val_ratio)
+        splits = {
+            "train": sorted(shuffled[:train_count]),
+            "val": sorted(shuffled[train_count : train_count + val_count]),
+            "test": sorted(shuffled[train_count + val_count :]),
+        }
 
     output_dir.mkdir(parents=True, exist_ok=True)
     checksums = {
@@ -121,7 +168,12 @@ def create_split(
             "source_files": source_names,
         },
         "split": {
-            "method": "seeded random permutation by system id",
+            "method": ("seeded random permutation of cases, rows expanded afterwards"
+                       if row_to_case is not None
+                       else "seeded random permutation by system id"),
+            "grouped_by_case": row_to_case is not None,
+            "n_cases": (len(set(row_to_case.values())) if row_to_case is not None
+                        else len(system_ids)),
             "seed": seed,
             "train_ratio": train_ratio,
             "val_ratio": val_ratio,

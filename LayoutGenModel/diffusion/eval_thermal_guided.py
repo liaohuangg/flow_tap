@@ -37,6 +37,7 @@ from train_graph_thermal import (
     _denorm_temp_k,
 )
 from wirelength_surrogate import WirelengthSurrogate
+import thermal_refine
 
 CORE_METRIC_KEYS = (
     "idx",
@@ -56,6 +57,14 @@ CORE_METRIC_KEYS = (
     "legalization_extra_steps_used",
     "legalization_fallback_used",
     "bbox_area_ratio",
+    # 热精修阶段的诊断量: 起点/终点违规数应该都是 0(精修跑在合法化之后),
+    # accepted 是接受的移动次数, no_legal_candidate 是"候选全被合法性过滤掉"的轮数
+    # —— 后者如果接近总步数, 说明画布里几乎没有腾挪空间。
+    "thermal_refine_start_violations",
+    "thermal_refine_end_violations",
+    "thermal_refine_accepted",
+    "thermal_refine_rejected",
+    "thermal_refine_no_legal_candidate",
     "model_time",
     "generation_time",
     "eval_time",
@@ -608,8 +617,11 @@ def _plot_thermal_grid_overlay_from_placement_json(
     y0, y1 = min_y - pad_y, max_y + pad_y
 
     fig, ax = plt.subplots(1, figsize=(10, 8))
+    # nb: no np.flipud here.  _thermal_rect_field indexes rows by physical y
+    # (row 0 = smallest y), which is exactly what origin="lower" already draws,
+    # so flipping as well mirrored the field against the chiplet rectangles.
     im = ax.imshow(
-        np.flipud(grid),
+        grid,
         cmap=_hotspot_cmap(),
         extent=(x0, x1, y0, y1),
         origin="lower",
@@ -1062,6 +1074,8 @@ def save_outputs_with_thermal(
     postprocess_fn=None,
     legalization_fn=None,
     intermediate_export=None,
+    thermal_refine_cfg=None,
+    thermal_refiner=None,
 ):
     idx = cond.file_idx if "file_idx" in cond else output_number_offset
     placed_stem = utils.output_case_stem(cond, idx, "placed")
@@ -1202,6 +1216,46 @@ def save_outputs_with_thermal(
         )
     else:
         image_legalized = image
+
+    # ---- 采样后的热精修 --------------------------------------------------
+    # 放在 legalization **之后**是刻意的, 顺序不能反:
+    #   * 合法化先把采样输出修成合法布局, 精修因此从一个合法起点出发;
+    #   * 精修的候选过滤保证每一步都不引入重叠, 所以输出天然合法, 不需要再兜底;
+    #   * 反过来(先精修再合法化)会让那 1000 步合法化把精修的热收益大半抹掉。
+    # 细节和实测数据见 thermal_refine.py 的模块注释。
+    if thermal_refiner is not None:
+        refine_cfg = dict(thermal_refine_cfg or {})
+        # 合法性口径用 TAP 展开后的 footprint (body + hubump), 和
+        # legalization/eval 用的 `cond_once_expanded_preprocessed` 一致 —— 只按
+        # body 判不重叠会让 hubump 区域互相压上。
+        # 热代理的口径用 bare cond (body 尺寸), 和采样时 `_thermal_guided_step` 一致。
+        refine_footprint = cond_once_expanded_preprocessed.x
+        refine_stats = None
+        with torch.enable_grad():
+            # enable_grad 是给热代理 forward 用的(它内部默认 differentiable=True);
+            # 精修本身只做前向比较, 不算梯度。
+            sample, refine_stats = thermal_refiner.refine(
+                sample,
+                _thermal_cond(cond_preprocessed),
+                refine_footprint,
+                mask=cond_preprocessed.is_ports if "is_ports" in cond_preprocessed else None,
+                edge_index=cond_preprocessed.edge_index if "edge_index" in cond_preprocessed else None,
+                edge_weight=cond_preprocessed.edge_weight if "edge_weight" in cond_preprocessed else None,
+                chip_side=float(cond_preprocessed.chip_size[2]),
+            )
+        metrics["thermal_refine_start_violations"] = refine_stats.get("start_violations", 0)
+        metrics["thermal_refine_end_violations"] = refine_stats.get("end_violations", 0)
+        metrics["thermal_refine_accepted"] = refine_stats.get("accepted", 0)
+        metrics["thermal_refine_rejected"] = refine_stats.get("rejected", 0)
+        metrics["thermal_refine_no_legal_candidate"] = refine_stats.get("no_legal_candidate", 0)
+        if refine_stats.get("enabled"):
+            # 精修会移动 chiplet, 图要重画, 否则落盘的图和布局对不上
+            image_legalized = utils.visualize_placement(
+                sample[0], cond_output_preprocessed, plot_pins=True, plot_edges=False, img_size=(2048, 2048)
+            )
+        if refine_cfg.get("verbose", False):
+            print(f"    [thermal_refine] {thermal_refine.format_stats(refine_stats)}", flush=True)
+
     utils.debug_plot_img(image_legalized, os.path.join(save_folder, placed_stem))
 
     sample_unprocessed = sample.detach().clone()
@@ -1468,6 +1522,30 @@ def main(cfg):
     thermal_evaluator = ThermalEvaluator(thermal_cfg, device)
     report_guidance_enabled = _cfg_bool(thermal_cfg, "report_guidance_enabled", True)
 
+    # 采样后的热精修 (见 thermal_refine.py)。复用 thermal_evaluator 里那份冻结的热代理,
+    # 保证精修目标和最终 `thermal_max_c` 用的是同一套权重。
+    thermal_refine_cfg = dict(cfg.get("thermal_refine", {}) or {})
+    thermal_refiner = None
+    if _cfg_bool(thermal_refine_cfg, "enabled", False):
+        thermal_refiner = thermal_refine.ThermalRefiner(
+            thermal_evaluator,
+            steps=int(thermal_refine_cfg.get("steps", 400)),
+            candidates=int(thermal_refine_cfg.get("candidates", 32)),
+            radius=float(thermal_refine_cfg.get("radius", 0.30)),
+            radius_min=float(thermal_refine_cfg.get("radius_min", 0.005)),
+            radius_max=float(thermal_refine_cfg.get("radius_max", 0.30)),
+            thermal_weight=float(thermal_refine_cfg.get("thermal_weight", 1.0)),
+            wirelength_weight=float(
+                thermal_refine_cfg.get("wirelength_weight", thermal_refine.DEFAULT_WIRELENGTH_WEIGHT)
+            ),
+            seed=int(thermal_refine_cfg.get("seed", 0)),
+            verbose=_cfg_bool(thermal_refine_cfg, "verbose", False),
+        )
+        print(
+            f"Thermal refine: steps={thermal_refiner.steps} candidates={thermal_refiner.candidates} "
+            f"wirelength_weight={thermal_refiner.wirelength_weight} seed={thermal_refiner.seed}"
+        )
+
     def report_eval_function(samples, x_val, cond_val):
         sample_metrics = utils.eval_samples(samples, x_val, cond_val)
         for idx, sample_metric in enumerate(sample_metrics):
@@ -1576,6 +1654,8 @@ def main(cfg):
             postprocess_fn=postprocess_fn,
             legalization_fn=legalize_fn,
             intermediate_export=intermediate_export,
+            thermal_refine_cfg=thermal_refine_cfg,
+            thermal_refiner=thermal_refiner,
         )
         print(f"Finished sample {output_position+1} of {num_output_samples} \t {metrics}")
         t5 = time.time()

@@ -1,0 +1,10 @@
+train_samples: 146080
+val_samples: 18262
+test_samples: 18252
+scale: 1
+placement_manifest: Dataset/splits/placement_pareto_20k
+placement_dir: Dataset/dataset/placement_dataset/placement_dataset_opt_pareto
+split_seed: 42
+cache_chunks: 2
+samples_per_chunk: 256
+canvas_padding_mm: 1.0

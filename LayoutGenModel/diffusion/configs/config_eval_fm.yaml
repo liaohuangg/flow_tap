@@ -109,6 +109,25 @@ thermal:
     initial_weight: 0.0
     final_weight: 0.01
 
+# 采样后的热精修 (LayoutGenModel/diffusion/thermal_refine.py)。
+# 默认关; run_cases_hubump_5seeds_opt_wsl.sh 里显式开。
+# 跑在 legalization 之后, 在固定画布内做合法性保持的局部搜索, 目标 =
+# 峰值温度 + wirelength_weight * (wireCount 加权半周长和)。
+# wirelength_weight 默认 1e-4 是用真线长/热代理在 12 个 case 上实测选的:
+# 峰值温度平均 -4.81K, 真线长平均 -2.06%(中位 -3.35%)。
+# 设 3e-4 则线长稳定改善 12-13%, 但温度收益减半。
+thermal_refine:
+  enabled: False
+  steps: 400
+  candidates: 32
+  radius: 0.30
+  radius_min: 0.005
+  radius_max: 0.30
+  thermal_weight: 1.0
+  wirelength_weight: 1.0e-4
+  seed: 0
+  verbose: False
+
 # clustering params
 cluster:
   is_cluster: False

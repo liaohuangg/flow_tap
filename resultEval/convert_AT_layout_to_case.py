@@ -14,8 +14,10 @@
       "connections": [ { "node1": "A", "node2": "B", "wireCount": 512 }, ... ]
     }
 
-输入:  AT_result/result/<prefix>_bump/seed<N>/layout.json
+输入:  AT_result/result/<prefix>_bump/seed<N>/layout.json         (统一参数版)
+       AT_result/result/<prefix>_bump_op/seed<N>/layout.json      (各 case 原始参数版)
 输出:  AT_result/format_result/<prefix>_seed<N>.json
+       AT_result/format_result/<prefix>_op_seed<N>.json
 
 四处关键映射 (全部逐 chiplet 与 benchmark 交叉校验, 不一致直接抛错):
 
@@ -58,9 +60,24 @@ RESULT_DIR = os.path.join(AT_ROOT, "result")
 OUT_DIR = os.path.join(AT_ROOT, "format_result")
 BENCH_DIR = "/root/placement/flow_tap/benchmark/cases_hubump"
 
-BUMP_SUFFIX = "_bump"
+# 结果目录后缀 -> (benchmark 前缀, 输出 stem 的标记)。长的后缀要排在前面。
+#   <case>_bump      AT 统一参数版         -> <case>_seed<N>.json
+#   <case>_bump_op   AT 各 case 原始参数版 -> <case>_op_seed<N>.json
+# 标记必须留在输出 stem 里, 否则同一 case 的两种版本会写成同一个 <case>_seed<N>.json。
+BUMP_VARIANTS = (
+    ("_bump_op", "_op"),
+    ("_bump", ""),
+)
 UM_PER_MM = 1000.0
 TOL = 1e-6
+
+
+def split_result_dir(name: str) -> tuple[str, str] | None:
+    """结果目录名 -> (benchmark 前缀, 输出 stem 标记)。不是 *_bump* 目录则返回 None。"""
+    for suffix, tag in BUMP_VARIANTS:
+        if name.endswith(suffix):
+            return name[: -len(suffix)], tag
+    return None
 
 
 def placed_footprint_um(w_um: float, h_um: float, angle_rad: float) -> tuple[float, float]:
@@ -151,14 +168,19 @@ def convert_one(layout_path: str, benchmark_path: str, out_path: str) -> dict:
 def main() -> None:
     os.makedirs(OUT_DIR, exist_ok=True)
     n_ok = n_skip = 0
-    for bump_dir in sorted(glob.glob(os.path.join(RESULT_DIR, "*" + BUMP_SUFFIX))):
-        prefix = os.path.basename(bump_dir)[: -len(BUMP_SUFFIX)]
+    for result_dir in sorted(glob.glob(os.path.join(RESULT_DIR, "*"))):
+        if not os.path.isdir(result_dir):
+            continue
+        split = split_result_dir(os.path.basename(result_dir))
+        if split is None:
+            continue
+        prefix, tag = split
         benchmark_path = os.path.join(BENCH_DIR, f"{prefix}.json")
         if not os.path.exists(benchmark_path):
             print(f"[skip] {prefix}: 无对应 benchmark {benchmark_path}", file=sys.stderr)
             n_skip += 1
             continue
-        seed_dirs = sorted(glob.glob(os.path.join(bump_dir, "seed*")))
+        seed_dirs = sorted(glob.glob(os.path.join(result_dir, "seed*")))
         if not seed_dirs:
             print(f"[skip] {prefix}: 无 seed* 子目录", file=sys.stderr)
             n_skip += 1
@@ -170,7 +192,7 @@ def main() -> None:
                 n_skip += 1
                 continue
             seed_tag = os.path.basename(seed_dir)
-            out_path = os.path.join(OUT_DIR, f"{prefix}_{seed_tag}.json")
+            out_path = os.path.join(OUT_DIR, f"{prefix}{tag}_{seed_tag}.json")
             try:
                 out = convert_one(layout_path, benchmark_path, out_path)
             except Exception as e:  # noqa: BLE001

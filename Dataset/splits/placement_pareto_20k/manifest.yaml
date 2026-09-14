@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "dataset": "placement_dataset_tw",
+  "placement_dir": "Dataset/dataset/placement_dataset/placement_dataset_opt_pareto",
+  "selection": {
+    "rule": "numeric system id in the inclusive range [1, limit]",
+    "limit": 182594,
+    "first_system_id": 1,
+    "last_system_id": 182594,
+    "source_files": [
+      "chiplet_dataset_1.json",
+      "chiplet_dataset_2.json",
+      "chiplet_dataset_3.json",
+      "chiplet_dataset_4.json",
+      "chiplet_dataset_5.json",
+      "chiplet_dataset_6.json",
+      "chiplet_dataset_7.json",
+      "chiplet_dataset_8.json",
+      "chiplet_dataset_9.json",
+      "chiplet_dataset_10.json",
+      "chiplet_dataset_11.json",
+      "chiplet_dataset_12.json",
+      "chiplet_dataset_13.json",
+      "chiplet_dataset_14.json",
+      "chiplet_dataset_15.json",
+      "chiplet_dataset_16.json",
+      "chiplet_dataset_17.json",
+      "chiplet_dataset_18.json",
+      "chiplet_dataset_19.json",
+      "chiplet_dataset_20.json",
+      "chiplet_dataset_21.json",
+      "chiplet_dataset_22.json",
+      "chiplet_dataset_23.json",
+      "chiplet_dataset_24.json",
+      "chiplet_dataset_25.json",
+      "chiplet_dataset_26.json",
+      "chiplet_dataset_27.json",
+      "chiplet_dataset_28.json",
+      "chiplet_dataset_29.json",
+      "chiplet_dataset_30.json",
+      "chiplet_dataset_31.json",
+      "chiplet_dataset_32.json",
+      "chiplet_dataset_33.json",
+      "chiplet_dataset_34.json",
+      "chiplet_dataset_35.json",
+      "chiplet_dataset_36.json",
+      "chiplet_dataset_37.json"
+    ]
+  },
+  "split": {
+    "method": "seeded random permutation of cases, rows expanded afterwards",
+    "grouped_by_case": true,
+    "n_cases": 40000,
+    "seed": 42,
+    "train_ratio": 0.8,
+    "val_ratio": 0.1,
+    "test_ratio": 0.1,
+    "counts": {
+      "train": 146080,
+      "val": 18262,
+      "test": 18252
+    }
+  },
+  "files": {
+    "train": {
+      "path": "train.txt",
+      "sha256": "4e6c0dcf5a7a21f134ec1d8eae1b276cb52d14c95e00a0122a76b2c87153eb96"
+    },
+    "val": {
+      "path": "val.txt",
+      "sha256": "b9dcf46eb9e2f68ddf49cd7427f3330fae257d4748ae46d6116f91daf3a053f1"
+    },
+    "test": {
+      "path": "test.txt",
+      "sha256": "19a508096027d3f330b31b0677d9f93b1dfd2a24eddd0519c029c4c57e070c6f"
+    }
+  }
+}

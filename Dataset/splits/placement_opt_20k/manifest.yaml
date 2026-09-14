@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "dataset": "placement_dataset_tw",
+  "placement_dir": "Dataset/dataset/placement_dataset/placement_dataset_opt",
+  "selection": {
+    "rule": "numeric system id in the inclusive range [1, limit]",
+    "limit": 20000,
+    "first_system_id": 1,
+    "last_system_id": 20000,
+    "source_files": [
+      "chiplet_dataset_1.json",
+      "chiplet_dataset_2.json",
+      "chiplet_dataset_3.json",
+      "chiplet_dataset_4.json"
+    ]
+  },
+  "split": {
+    "method": "seeded random permutation by system id",
+    "seed": 42,
+    "train_ratio": 0.8,
+    "val_ratio": 0.1,
+    "test_ratio": 0.1,
+    "counts": {
+      "train": 16000,
+      "val": 2000,
+      "test": 2000
+    }
+  },
+  "files": {
+    "train": {
+      "path": "train.txt",
+      "sha256": "cc34ff12a919a4d2a22e020cb7ae6bc33ab90c6bbcee95d12bd840e9e3cd7e82"
+    },
+    "val": {
+      "path": "val.txt",
+      "sha256": "575b7468bafe34381e88380a06a4181e91d6fb48def3cc63b0d218934c885ddf"
+    },
+    "test": {
+      "path": "test.txt",
+      "sha256": "7ca93d02559d29a0af78dd5b384e8bea1698c0119c5e28fc3e2c8630e8deaa87"
+    }
+  }
+}

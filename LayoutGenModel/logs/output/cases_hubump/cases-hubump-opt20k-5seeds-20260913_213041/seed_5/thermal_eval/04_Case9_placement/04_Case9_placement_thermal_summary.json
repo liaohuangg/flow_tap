@@ -1,0 +1,18 @@
+{
+  "placement_json": "/root/placement/flow_tap/LayoutGenModel/logs/output/cases_hubump/cases-hubump-opt20k-5seeds-20260913_213041/seed_5/placement/04_Case9_placement.json",
+  "ckpt": "/root/placement/flow_tap/LayoutGenModel/thermalmodel/checkpoints/gnnhrnet_pwin/best.pth",
+  "source_json": "/root/placement/flow_tap/benchmark/cases_hubump/Case9.json",
+  "grid_size_input": 64,
+  "grid_size_output": [
+    64,
+    64
+  ],
+  "temperature_unit": "C",
+  "thermal_max_c": 124.43240356445312,
+  "thermal_mean_c": 100.7703857421875,
+  "thermal_min_c": 70.9127197265625,
+  "thermal_avg_head_c": null,
+  "heatmap_png": "/root/placement/flow_tap/LayoutGenModel/logs/output/cases_hubump/cases-hubump-opt20k-5seeds-20260913_213041/seed_5/thermal_eval/04_Case9_placement/04_Case9_placement_thermal_heatmap.png",
+  "temperature_npy": "/root/placement/flow_tap/LayoutGenModel/logs/output/cases_hubump/cases-hubump-opt20k-5seeds-20260913_213041/seed_5/thermal_eval/04_Case9_placement/04_Case9_placement_temperature_c.npy",
+  "overlay_flp": "/root/placement/flow_tap/LayoutGenModel/logs/output/cases_hubump/cases-hubump-opt20k-5seeds-20260913_213041/seed_5/thermal_eval/04_Case9_placement/04_Case9_placement.flp"
+}

@@ -1,0 +1,18 @@
+{
+  "placement_json": "/root/placement/flow_tap/LayoutGenModel/logs/output/cases_hubump/cases-hubump-opt20k-5seeds-20260913_213041/seed_3/placement/11_xerox8_m_placement.json",
+  "ckpt": "/root/placement/flow_tap/LayoutGenModel/thermalmodel/checkpoints/gnnhrnet_pwin/best.pth",
+  "source_json": "/root/placement/flow_tap/benchmark/cases_hubump/xerox8_m.json",
+  "grid_size_input": 64,
+  "grid_size_output": [
+    64,
+    64
+  ],
+  "temperature_unit": "C",
+  "thermal_max_c": 86.1710205078125,
+  "thermal_mean_c": 65.5650634765625,
+  "thermal_min_c": 54.094512939453125,
+  "thermal_avg_head_c": null,
+  "heatmap_png": "/root/placement/flow_tap/LayoutGenModel/logs/output/cases_hubump/cases-hubump-opt20k-5seeds-20260913_213041/seed_3/thermal_eval/11_xerox8_m_placement/11_xerox8_m_placement_thermal_heatmap.png",
+  "temperature_npy": "/root/placement/flow_tap/LayoutGenModel/logs/output/cases_hubump/cases-hubump-opt20k-5seeds-20260913_213041/seed_3/thermal_eval/11_xerox8_m_placement/11_xerox8_m_placement_temperature_c.npy",
+  "overlay_flp": "/root/placement/flow_tap/LayoutGenModel/logs/output/cases_hubump/cases-hubump-opt20k-5seeds-20260913_213041/seed_3/thermal_eval/11_xerox8_m_placement/11_xerox8_m_placement.flp"
+}

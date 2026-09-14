@@ -786,8 +786,17 @@ def _thermal_rect_field(left, bottom, right, top, grid_size, sharpness, differen
     ).to(dtype=dtype)
 
 
-def _thermal_gnn_hrnet_inputs(x_hat, cond, grid_size, rect_sharpness, differentiable=True):
-    """Build the exact GNN schema and a differentiable approximation of its raster schema."""
+def _thermal_gnn_hrnet_inputs(x_hat, cond, grid_size, rect_sharpness, differentiable=True,
+                              per_graph_power=None, per_graph_sizes=None, per_graph_hubump=None):
+    """Build the exact GNN schema and a differentiable approximation of its raster schema.
+
+    默认 (三个 per_graph_* 全为 None) 时, 尺寸/功耗/hubump 都取自 `cond` 并在 batch 上共享 ——
+    与历史行为逐位一致。给其中一个传入 **按图** 的张量后, 该通道改为逐图取值, 使得
+    "同一个 system 的多个候选 (共享画布, 但 body 尺寸 / 功耗 / hubump 各不相同)" 可以一次前向。
+
+    per_graph_* 的索引口径与 `cond` 里的同名通道一致, 即按 **全部节点** (长度 node_count),
+    而不是 active 之后的下标; 允许 (B, ...) 或 (..., ) 两种形状 (后者自动 broadcast)。
+    """
     if x_hat.dim() == 2:
         x_hat = x_hat.unsqueeze(0)
     batch_size, node_count, _ = x_hat.shape
@@ -796,41 +805,65 @@ def _thermal_gnn_hrnet_inputs(x_hat, cond, grid_size, rect_sharpness, differenti
     side = canvas.max().clamp_min(1e-12)
     active = _thermal_active_nodes(cond, device)
 
+    def _per_graph(value, trailing=0):
+        """-> (batch_size, node_count, *trailing) 或 (batch_size, node_count)。"""
+        tensor = torch.as_tensor(value, dtype=dtype, device=device)
+        while tensor.dim() < 2 + trailing:
+            tensor = tensor.unsqueeze(0)
+        if tensor.shape[0] not in (1, batch_size):
+            raise ValueError(
+                f"per_graph 通道的 batch 维应为 1 或 {batch_size}, 实际 {tensor.shape[0]}")
+        if tensor.shape[1] != node_count:
+            raise ValueError(
+                f"per_graph 通道的节点维应为 {node_count}, 实际 {tensor.shape[1]}")
+        return tensor.expand(batch_size, *tensor.shape[1:]) if tensor.shape[0] == 1 else tensor
+
     if "tap_source_chiplet_sizes" in cond and cond.tap_source_chiplet_sizes.shape[0] == node_count:
         all_sizes = cond.tap_source_chiplet_sizes.to(device=device, dtype=dtype)
     else:
         all_sizes = cond.x[:, :2].to(device=device, dtype=dtype) * canvas.view(1, 2) / 2.0
     sizes = all_sizes[active].clamp_min(1e-12)
-    centers = ((x_hat[..., :2] + 1.0) * canvas.view(1, 1, 2) / 2.0 + origin.view(1, 1, 2))[:, active]
-    lower = centers - sizes.view(1, -1, 2) / 2.0
+    n_active = sizes.shape[0]
+    sizes_bt = (_per_graph(per_graph_sizes, trailing=1)[:, active] if per_graph_sizes is not None
+                else sizes.view(1, -1, 2).expand(batch_size, -1, -1)).clamp_min(1e-12)
 
-    if "node_power" in cond:
-        powers = cond.node_power.to(device=device, dtype=dtype).view(-1)[active].abs()
+    centers = ((x_hat[..., :2] + 1.0) * canvas.view(1, 1, 2) / 2.0 + origin.view(1, 1, 2))[:, active]
+    lower = centers - sizes_bt / 2.0
+
+    if per_graph_power is not None:
+        powers_bt = _per_graph(per_graph_power)[:, active].abs()
+    elif "node_power" in cond:
+        powers_bt = cond.node_power.to(device=device, dtype=dtype).view(-1)[active].abs() \
+            .view(1, -1).expand(batch_size, -1)
     else:
-        powers = torch.ones(sizes.shape[0], dtype=dtype, device=device)
-    hubump = _thermal_hubump_widths(cond, sizes, active, device, dtype)
+        powers_bt = torch.ones((batch_size, n_active), dtype=dtype, device=device)
+
+    if per_graph_hubump is not None:
+        hubump_bt = _per_graph(per_graph_hubump)[:, active].clamp_min(0.0)
+    else:
+        hubump_bt = _thermal_hubump_widths(cond, sizes, active, device, dtype) \
+            .view(1, -1).expand(batch_size, -1)
 
     centers01 = (centers - origin.view(1, 1, 2)) / side
-    sizes01 = sizes / side
+    sizes01 = sizes_bt / side
     lower01 = (lower - origin.view(1, 1, 2)) / side
-    hubump01 = hubump / side
-    area = sizes[:, 0] * sizes[:, 1]
-    hubump_area = 2.0 * (sizes[:, 0] + sizes[:, 1]) * hubump
+    hubump01 = hubump_bt / side
+    area = sizes_bt[..., 0] * sizes_bt[..., 1]
+    hubump_area = 2.0 * (sizes_bt[..., 0] + sizes_bt[..., 1]) * hubump_bt
     nodes = torch.stack(
         (
-            powers.view(1, -1).expand(batch_size, -1) / 200.0,
-            sizes01[:, 0].view(1, -1).expand(batch_size, -1),
-            sizes01[:, 1].view(1, -1).expand(batch_size, -1),
-            (area / side.square()).view(1, -1).expand(batch_size, -1),
+            powers_bt / 200.0,
+            sizes01[..., 0],
+            sizes01[..., 1],
+            area / side.square(),
             centers01[..., 0],
             centers01[..., 1],
-            (hubump / 2.0).view(1, -1).expand(batch_size, -1),
-            (hubump_area / side.square()).view(1, -1).expand(batch_size, -1),
+            hubump_bt / 2.0,
+            hubump_area / side.square(),
         ),
         dim=-1,
     )
 
-    n_active = sizes.shape[0]
     local = torch.arange(n_active, dtype=torch.long, device=device)
     src = local.repeat_interleave(n_active)
     dst = local.repeat(n_active)
@@ -849,21 +882,21 @@ def _thermal_gnn_hrnet_inputs(x_hat, cond, grid_size, rect_sharpness, differenti
 
     left = lower01[..., 0]
     bottom = lower01[..., 1]
-    right = left + sizes01[:, 0].view(1, -1)
-    top = bottom + sizes01[:, 1].view(1, -1)
+    right = left + sizes01[..., 0]
+    top = bottom + sizes01[..., 1]
     body = _thermal_rect_field(left, bottom, right, top, grid_size, rect_sharpness, differentiable)
     layout = body.sum(dim=1, keepdim=True).clamp(0.0, 1.0)
-    density = powers / area / 10.0
-    power = (body * density.view(1, -1, 1, 1)).sum(dim=1, keepdim=True)
+    density = powers_bt / area / 10.0
+    power = (body * density.view(batch_size, n_active, 1, 1)).sum(dim=1, keepdim=True)
 
-    hb = hubump01.view(1, -1)
+    hb = hubump01
     strip_masks = (
         _thermal_rect_field(left - hb, bottom, left, top, grid_size, rect_sharpness, differentiable),
         _thermal_rect_field(left, top, right, top + hb, grid_size, rect_sharpness, differentiable),
         _thermal_rect_field(right, bottom, right + hb, top, grid_size, rect_sharpness, differentiable),
         _thermal_rect_field(left, bottom - hb, right, bottom, grid_size, rect_sharpness, differentiable),
     )
-    valid_hubump = (hubump > 0.0).to(dtype=dtype).view(1, -1, 1, 1)
+    valid_hubump = (hubump_bt > 0.0).to(dtype=dtype).view(batch_size, n_active, 1, 1)
     hubump_mask = torch.stack(strip_masks, dim=0).sum(dim=0).mul(valid_hubump)
     hubump_field = hubump_mask.sum(dim=1, keepdim=True).clamp(0.0, 1.0)
     field = torch.cat((power, layout, hubump_field), dim=1)
@@ -877,7 +910,8 @@ def _thermal_gnn_hrnet_inputs(x_hat, cond, grid_size, rect_sharpness, differenti
     }
 
 
-def _thermal_forward(model, x_hat, cond, grid_size, rect_sharpness, stats=None, differentiable=True):
+def _thermal_forward(model, x_hat, cond, grid_size, rect_sharpness, stats=None, differentiable=True,
+                     per_graph_power=None, per_graph_sizes=None, per_graph_hubump=None):
     if getattr(model, "_flow_tap_thermal_kind", None) == "gnn_hrnet":
         inputs = _thermal_gnn_hrnet_inputs(
             x_hat,
@@ -885,6 +919,9 @@ def _thermal_forward(model, x_hat, cond, grid_size, rect_sharpness, stats=None, 
             grid_size=grid_size,
             rect_sharpness=rect_sharpness,
             differentiable=differentiable,
+            per_graph_power=per_graph_power,
+            per_graph_sizes=per_graph_sizes,
+            per_graph_hubump=per_graph_hubump,
         )
         return model(
             inputs["x"],

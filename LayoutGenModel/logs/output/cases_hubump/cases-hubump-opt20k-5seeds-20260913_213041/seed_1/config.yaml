@@ -1,0 +1,222 @@
+model:
+  backbone: geometry_att_gnn
+  backbone_params:
+    edge_features: 8
+    cond_node_features: 2
+    hidden_size: 256
+    hidden_node_features:
+    - 256
+    - 256
+    - 256
+    attention_node_features:
+    - 256
+    - 256
+    - 256
+    layers_per_block: 2
+    input_encoding_dim: 32
+    dropout: 0.0
+    num_heads: 4
+    mlp_num_layers: 2
+    mlp_size_factor: 4
+    ff_num_layers: 2
+    ff_size_factor: 1
+    att_implementation: flash
+    dir_att_input: true
+    extra_node_feature_keys:
+    - node_power
+    extra_node_feature_normalize: graph_max
+    thermal_mp_enabled: true
+    thermal_mp_power_key: node_power
+    thermal_mp_sigma: 0.35
+    thermal_mp_topk: 0
+    thermal_mp_normalize_power: graph_max
+    geometry_attention_enabled: true
+    geometry_attention_layers: 0
+    geometry_attention_heads: 4
+    geometry_attention_pair_hidden_size: null
+    geometry_attention_pair_layers: 2
+    geometry_attention_ff_num_layers: 2
+    geometry_attention_ff_size_factor: 1
+    geometry_attention_power_key: node_power
+    geometry_attention_sigma: 0.35
+    geometry_attention_normalize_power: graph_max
+    auxiliary_legality_heads_enabled: true
+    auxiliary_legality_head_hidden_size: null
+    auxiliary_legality_head_layers: 2
+    conv_params:
+      layer_type: gat
+      heads: 4
+      concat: true
+    in_node_features: 2
+    out_node_features: 2
+    t_encoding_dim: 32
+    device: cuda
+    mask_key: is_ports
+  guidance_mode: sgd
+  legality_guidance_weight: 12.0
+  hpwl_guidance_weight: 0.0
+  bbox_guidance_weight: 0.0
+  bbox_softmax_beta: 30.0
+  guidance_step: 1000
+  forward_guidance_weight: 0.0
+  grad_descent_steps: 8
+  grad_descent_rate: 0.1
+  self_recursion_steps: 10
+  legality_softmax_factor_min: 10.0
+  legality_softmax_factor_max: 10.0
+  legality_softmax_critical_factor: 0.0
+  guidance_schedule:
+    enabled: true
+    legality_only_until: 0.5
+    joint_until: 0.9
+    legality_initial_weight: 12.0
+    legality_mid_weight: 12.0
+    legality_final_weight: 10.0
+    hpwl_initial_weight: 0.0
+    hpwl_final_weight: 0.0
+    bbox_initial_weight: 0.0
+    bbox_final_weight: 0.0
+    heat_repulsion_initial_weight: 0.0
+    heat_repulsion_final_weight: 0.0
+  mask_key: is_ports
+  use_mask_as_input: true
+  max_diffusion_steps: 100
+  t_encoding_type: sinusoid
+  t_encoding_dim: 32
+  fm_t_min: 0.0001
+  heat_repulsion_guidance_weight: 0.0
+  heat_repulsion_sigma: 0.35
+  heat_repulsion_power_key: node_power
+  heat_repulsion_normalize_power: graph_max
+  num_classes: 10
+  input_shape:
+  - 61
+  - 2
+  device: cuda
+legalization:
+  mode: standard
+  softmax_min: 5.0
+  softmax_max: 50.0
+  step_size: 0.2
+  grad_descent_steps: 1000
+  save_videos: false
+  legality_weight: 1.0
+  hpwl_weight: 0.0
+  bbox_weight: 0.0
+  bbox_start_factor: 0.5
+  bbox_end_factor: 1.0
+  bbox_increase_factor: 1.0
+  bbox_softmax_beta: 30.0
+  softmax_critical_factor: 1.0
+  guidance_critical_factor: 1.0
+  zero_hpwl_factor: 1.0
+  legality_increase_factor: 1.0
+  macros_only: false
+eval_policy:
+  sc_placement_algorithm: none
+  sc_placement_params:
+    lr: 0.02
+    grad_descent_steps: 128
+    legality_guidance_weight: 0.0
+    hpwl_guidance_weight: 1.0
+    softmax_min: 5.0
+    softmax_max: 50.0
+  num_iterations: 5
+  num_clusters: 512
+  verbose: false
+  save_plots: false
+  save_videos: false
+family: flow_matching
+task: cases_hubump
+num_classes: 10
+method: cases-hubump-opt20k-5seeds-20260913_213041
+seed: 1
+log_dir: logs/diffusion_debug
+from_checkpoint: /root/placement/flow_tap/LayoutGenModel/checkpoints/model_opt/placement_opt_20k/seed_61/best.ckpt
+param_sweep: false
+logger:
+  filter: .*
+  wandb: false
+  wandb_entity: ''
+  wandb_project: ''
+implementation: custom
+wirelength:
+  enabled: true
+  ckpt: ../wirelengthmodel/checkpoint/best_wlmodel_total_60k.pt
+  normalizer: ../wirelengthmodel/checkpoint/normalizer_compat_69_76.json
+  objective: log_total
+  preferred_side_temperature: 0.25
+  guidance_weight: 0.02
+  initial_weight: 0.0
+  start: 0.5
+  full: 0.8
+  auto_fit_normalizer: false
+  placement_dir: ../Dataset/dataset/placement_dataset/placement_dataset_tw
+  normalizer_files:
+  - 69
+  - 70
+  - 71
+  - 72
+  - 73
+  - 74
+  - 75
+  - 76
+  - 77
+  - 78
+  - 79
+  - 80
+  normalizer_seed: 42
+  normalizer_train_ratio: 0.8
+  allow_partial_normalizer: false
+  normalizer_cache: none
+thermal:
+  ckpt: thermalmodel/checkpoints/gnnhrnet_pwin/best.pth
+  grid_size: 64
+  rect_sharpness: 80.0
+  hidden: 128
+  heads: 4
+  num_layers: 3
+  base: 96
+  stages: 4
+  blocks_per_stage: 2
+  expand_ratio: 2
+  report_guidance_enabled: true
+  guidance_weight: 0.002
+  guidance_lr: 0.001
+  guidance_steps: 1
+  legality_weight: 0.0
+  grad_clip: 0.02
+  schedule:
+    enabled: true
+    start: 0.75
+    full: 0.9
+    initial_weight: 0.0
+    final_weight: 0.002
+cluster:
+  is_cluster: false
+  num_clusters: 512
+  verbose: false
+  cached_clusters: false
+val_batch_size: 8
+sc_halo: 1.0
+macros_only: false
+cached_macros: false
+eval_samples: 0
+eval_policy_algorithm: open_loop
+edge_dropout: 0
+scatter_plots:
+- - lambda_2
+  - legality_2
+- - lambda_2
+  - hpwl_ratio
+- - hpwl_ratio
+  - legality_2
+- - original_hpwl_normalized
+  - hpwl_normalized
+show_intermediate_every: 20
+num_output_samples: 12
+train_data_limit: none
+val_data_limit: none
+num_params: 5984276
+train_dataset: 0
+val_dataset: 12
