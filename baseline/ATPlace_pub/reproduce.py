@@ -342,6 +342,14 @@ def legalize_milp(layout: dict, system, params, time_limit: float = 100.0) -> di
     xmin, xmax, ymin, ymax = layout["interposer"]["fence"]
     spacing = float(getattr(params, "dis_bet_chips", 0.0))
     big_m = (xmax - xmin) + (ymax - ymin)
+    # Tighten the non-overlap constraints by one Gurobi feasibility tolerance
+    # worth of slack, so the returned solution lands strictly INSIDE the true
+    # feasible region. Without it the solver is free to satisfy "gap >= spacing"
+    # only up to tolerance, leaving a pair a few 1e-3 um short of `spacing`;
+    # is_legal()/count_overlaps() use a strict `> 0` test on overlap_rect(), so
+    # that hair of slack is reported as a genuine overlap. Scaling by big_m
+    # matches how the tolerance is amplified by the big-M coefficients below.
+    margin = 1e-6 * big_m
 
     m = gp.Model("post_legalize")
     m.setParam("OutputFlag", 0)
@@ -373,8 +381,8 @@ def legalize_milp(layout: dict, system, params, time_limit: float = 100.0) -> di
         for j in range(i + 1, n):
             wi, hi = eff[i]
             wj, hj = eff[j]
-            rx = (wi + wj) / 2 + spacing
-            ry = (hi + hj) / 2 + spacing
+            rx = (wi + wj) / 2 + spacing + margin
+            ry = (hi + hj) / 2 + spacing + margin
             d = m.addVars(4, vtype=gp.GRB.BINARY, name=f"d_{i}_{j}")
             m.addConstr(x[i] - x[j] <= -rx + big_m * d[0])
             m.addConstr(x[j] - x[i] <= -rx + big_m * d[1])

@@ -294,6 +294,14 @@ class GNNHRNetModel(nn.Module):
         num_graphs = int(batch.max().item()) + 1 if batch.numel() else 1
         node_emb = self.encoder(x, edge_index, edge_attr)
         global_cond = _global_pool(node_emb, batch, num_graphs)
+        if getattr(self, "checkpoint_field_head", False):
+            # The multi-scale HRNet field head is the memory bottleneck when many
+            # fields are batched (activations scale with B x grid^2).  It is a
+            # frozen surrogate: we only need the gradient w.r.t. its inputs, so
+            # recompute its activations during backward instead of storing them.
+            import torch.utils.checkpoint as cp
+            return cp.checkpoint(self.field_head, field_raster, global_cond,
+                                 use_reentrant=False)
         return self.field_head(field_raster, global_cond)
 
 

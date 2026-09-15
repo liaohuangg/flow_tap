@@ -55,6 +55,14 @@ fi
 train_steps=200000
 batch_size=8
 val_batch_size=8
+# Mega-batching: one training step collates `layouts_per_step` distinct layouts
+# into a single mega-graph and expands it across `noise_per_layout` independent
+# (t, noise) samples, so the model does one batched forward over
+# layouts_per_step x noise_per_layout samples instead of one layout repeated.
+# 16 x 8 = 128 effective batch, verified bit-equivalent (up to fp16 autocast
+# rounding) to running each layout alone.
+layouts_per_step=16
+noise_per_layout=8
 monitor_every=100
 print_every=500
 method="placement-pareto-20k-thermal-wirelength-legality"
@@ -93,6 +101,8 @@ while [[ $# -gt 0 ]]; do
     --train-steps) train_steps="$2"; shift 2 ;;
     --batch-size) batch_size="$2"; shift 2 ;;
     --val-batch-size) val_batch_size="$2"; shift 2 ;;
+    --layouts-per-step) layouts_per_step="$2"; shift 2 ;;
+    --noise-per-layout) noise_per_layout="$2"; shift 2 ;;
     --monitor-every) monitor_every="$2"; shift 2 ;;
     --print-every) print_every="$2"; shift 2 ;;
     --method) method="$2"; shift 2 ;;
@@ -158,7 +168,8 @@ echo "Dataset: Dataset/dataset/placement_dataset/placement_dataset_opt_pareto (1
 train_layouts=146080
 echo "Training steps: $train_steps"
 echo "  Draws $train_steps distinct layouts = $(awk -v s="$train_steps" -v n="$train_layouts" 'BEGIN{printf "%.1f", s/n}') epochs over the $train_layouts-layout train split."
-echo "  batch_size=$batch_size does not change that; the batch holds one layout repeated, with independent t and noise per element."
+echo "  Each step collates $layouts_per_step distinct layouts into one mega-graph and"
+echo "  expands it across $noise_per_layout noise samples => $((layouts_per_step * noise_per_layout)) forward samples/step."
 echo "Checkpoints: $final_dir"
 echo "Live monitor: $final_dir/training_monitor.png"
 echo "The PNG is replaced every $monitor_every training steps."
@@ -178,6 +189,8 @@ set +e
   "train_steps=$train_steps" \
   "batch_size=$batch_size" \
   "val_batch_size=$val_batch_size" \
+  "+layouts_per_step=$layouts_per_step" \
+  "+noise_per_layout=$noise_per_layout" \
   "monitor.every=$monitor_every" \
   "print_every=$print_every" \
   "thermal.train_weight=$thermal_weight" \
