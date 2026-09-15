@@ -1,0 +1,360 @@
+# legalizeLayout —— 布局合法化 + 热点冻结 + 线长优化
+
+把 `LayoutGenModel` 产出的 placement JSON 里的**重叠 chiplet 推开**，然后在不劣化热点的前提下
+把有互联关系的 chiplet **拉近以降低线长**。
+
+三个评估器全程参与：热代理 `gnnhrnet_pwin/best.pth`、神经线长 `best_wlmodel_total_60k.pt`、
+外接框面积。合法性只判 body（`width × height`，不做 hubump 膨胀）。
+
+---
+
+## 1. 三步流水线
+
+| 阶段 | 做什么 | 判据 |
+|---|---|---|
+| **A 合法化** | 只推动重叠的那几个 chiplet，其余位移恒为 0 | **硬要求**：重叠对归零、不出画布。温度 / 线长 / 面积允许**小范围**上升 |
+| **热点定位** | 在**合法化之后**的布局上，用温度图最热的 top-5% 格子圈出热点区域 | 落在热点格子上的 chiplet 就是热点件 |
+| **B 拉近优化** | 冻结（或只守卫）热点件，让其余 chiplet 沿"指向连线重心"的方向靠拢 | **不劣化**：热点区升 ≤0.5K；温度、线长、面积都不得出各自的容错带 |
+
+顺序不能换：热点必须在**合法化之后**定。Stage A 会把重叠推开、热点可能因此挪位，
+按输入布局定热点会冻住一个已经不在热点的 chiplet。
+
+---
+
+## 2. 快速开始
+
+```bash
+PY=/root/anaconda3/envs/chipdiffusion/bin/python
+L=/root/placement/flow_tap/LayoutGenModel/legalizeLayout
+
+# 单文件
+$PY $L/legalize_layout.py --input /path/to/05_acend910_placement.json
+
+# 整个目录（递归）
+$PY $L/legalize_layout.py --input /path/to/seed_61/placement
+
+# 覆盖参数
+$PY $L/legalize_layout.py --input <dir> --set refine.steps=400
+$PY $L/legalize_layout.py --input <dir> --set refine.hotspot.freeze=false
+$PY $L/legalize_layout.py --input <dir> --set repair.enabled=false   # 只做线长优化
+```
+
+常用开关：`--output-dir`（默认见下）、`--config`、`--device`、`--set key.sub=value`、`--verbose`。
+
+耗时（单张 GPU）：Stage A 无重叠时 0 次神经前向；Stage B 约 5 秒/case（200 步 × batch-4）。
+12 个 case 整批约 90 秒。
+
+### 输出
+
+**默认写到输入 JSON 自己所在的目录**，不传 `--output-dir` 就是同目录：
+
+```
+<输入目录>/
+├── 05_acend910_placement.json              # 原文件，不动
+├── 05_acend910_placement_legal.json        # 合法化后的布局，schema 与输入完全一致
+├── 05_acend910_placement_legal_compare.png # 输入 vs 合法化 两联对比图
+└── 05_acend910_placement_legal_report.json # 全部读数 + 守卫留痕 + 参数快照
+```
+
+产物名不以 `_placement.json` 结尾，所以对同一目录再跑一遍**不会**把输出当成输入。
+
+合法布局 JSON 逐字段对齐输入：只换 `x-position` / `y-position`，`connections`、`rotation`、
+`power`、`EMIB*` 原样透传，`wirelength` / `area` / `aspect_ratio` 按 `utils.py` 口径重算。
+
+### 对比图读法
+
+两侧**共享同一组坐标轴**（分开 autoscale 会让"位移很小"和"位移很大"看起来一样，对比就失去意义）。
+
+- 红色块 = 重叠，越深重叠越深；合法侧不涂红
+- 橙色粗框 + `HOTSPOT` = 热点 chiplet
+- 紫色虚线框 = 越出画布
+- 灰线 = 连线，线宽 ∝ `log1p(wireCount)`
+- 每侧副标题是该侧读数（重叠对数 / 峰值 / 神经线长 / 外接框），顶部是净变化
+
+> 图内文字**一律英文**：这套环境里 matplotlib 找不到任何中文字体（`fc-list` 和
+> `fontManager.ttflist` 里都没有），中文会渲染成一排豆腐块。控制台输出仍是中文，那是终端在渲染。
+
+---
+
+## 3. 算法
+
+### 3.1 Stage A —— 最小重叠修复
+
+坐标是 mm 左下角。核心是**多对同时推进的 MTV 松弛**：每轮扫描把所有重叠对一次性转成位移、
+累加后一起施加。逐对推进会卡在链式重叠上（acend910 / Case7 / hp11_m 实测）。
+
+**每对往哪个轴推，是穷举出来的。** 重叠对 P 个，每对有"沿 x 分开"还是"沿 y 分开"两个选择，
+`2^P` 全试（`enumerate_max_pairs=8`）。为什么必须穷举：可行的那组常常是**混合**的，三个启发式
+（natural / adaptive / flip）都命中不了 —— 实测 acend910 只有
+`(A-B→x, A-C→y, C-F→x, E-F→y)` 可行（A、B 在 y 上合计要占 47.4mm > 画布 44.93mm，
+所以 A-B 不能走 y），而 natural 解不开、adaptive/flip 恰好都把 A-B 推到 y 上。
+
+流程：先用小预算（80 轮）粗筛 `2^P` 个，合法的排最前，再给前几名跑满 500 轮。
+P 实测只有 0~4，每次扫描约 30ms，完全付得起。最后做一次**位置式收尾**
+（残差对"推开到刚好分离"，8 个候选，只收严格变好的）。
+
+**热守卫放在候选选择层，不在扫描循环里。** 两种循环内的做法都实测失败：折半线搜索把位移压到
+0.264mm（重叠深度却有 1.045mm，根本解不开），梯度下降目标把 Case7 从 3 对退化到 11 对。
+放在候选选择层，每个候选只花 1 次神经前向（合法候选只有个位数个），总共 <0.1s。
+
+候选之间用**字典序**不用权重：
+
+```
+合法 > 温度在带内 > 线长在带内 > 出带少 > 线长小 > 面积小 > 位移小
+```
+
+一个坑：polish（位置式收尾）必须排在"放弃"判定**之前**。反过来的话，`gave_up` 会提前返回，
+polish 根本没机会作用于最佳候选，hp11_m 就停在 3→3。
+
+### 3.2 热点定位
+
+```
+热点 = 温度图里最热的 top 5% 格子 (64x64 = 4096 格 -> 约 205 格)
+冻结 = footprint 落在这些格子上的所有 chiplet
+```
+
+为什么用一块区域而不是最热的那一格：单格 argmax 完全被 64×64 光栅化的**格子边界效应**支配 ——
+实测把某个 chiplet 挪 0.05mm，峰值读数就跳 +0.14K，那 0.14K 不是物理，是"最热的格子换了一个"。
+按单格定热点，冻结对象会在两个 chiplet 之间反复横跳。取 top 5% 得到一块区域，格子级噪声被平均掉。
+
+栅格口径**直接调** `train_graph_thermal._thermal_rect_field`，不重写 —— 那正是模型自己构造
+layout/power 通道时用的同一个函数（方格 `(i,j)` 覆盖归一化 `x∈[j/G,(j+1)/G)`、
+`y∈[i/G,(i+1)/G)`，展平索引 `= i*G + j`）。归属必须和模型逐位一致，否则热点会整体平移一格。
+
+自检：热点格子未必全被 chiplet 盖住（芯片之间有空隙）。返回值里的 `coverage` 是被任一 chiplet
+覆盖的热点格子占比，明显低于 1 说明栅格口径对不上，必须当场看见。
+
+### 3.3 Stage B —— 拉近优化
+
+**牵引候选（proposal.mode=pull）。** 每个节点算一次它所有连边对端的 `wireCount` 加权重心，
+候选就沿"指向这个重心"的方向取。方向和线长要的方向本来就是同一个，候选预算全部花在有效方向上。
+重心**每步重算**：对端自己也在动，一次算死会让两个互相靠拢的节点各自停在"对方出发的地方"。
+
+**可达距离是闭式解的（`_ray_reach`）。** 沿牵引方向做射线，与所有矩形求交、并受画布约束，
+一次算出"最远能走到哪"，候选按这个距离分档（`scales`），最大的那个正好是**几何允许的最近位置**。
+这一步是本工具收益最大的地方：实测 acend910 从 −16% 线长提升到 **−29%**。原因很直接 ——
+acend910 只有 6 个 chiplet、A 是 5 个小片**唯一**的对端，线长最优解就是"5 个小片全部贴到 A 的边上"，
+而那个位置靠 200 步随机采样几乎撞不到，闭式解一步就给出来了。
+
+**HPWL 排序必须给探索类留名额（`select`）。** 牵引候选的方向本来就是降线长的方向，按 HPWL 排序时
+它们几乎总排在前面，于是各向同性探索**永远进不了** `top_k`，神经前向只看得到牵引候选。
+后果很严重：守卫一旦饱和，唯一能通过的移动是"亚网格小步、ΔT 恰好为 0"那类，而那种**只有探索类里
+才有**，全被滤掉之后搜索一步都接受不了。所以改成两类轮流取。
+
+**守卫。** 三条，参照系都是**输入布局**（不是上一步）：
+
+```
+peak(cand)     <= max(peak(输入) + thermal_tol, 本阶段起点)       # 全局峰值
+wl(cand)       <= max(wl(输入) * (1 + wl_tol),   本阶段起点)       # 神经线长
+热点区(cand)   <= max(热点区(输入) + thermal_tol, 本阶段起点)      # 热点不劣化
+```
+
+- 参照输入而不是上一步：参照上一步等于允许一段**可累积**的正漂移（200 步每步放 0.1K，最坏漂出 20K）。
+- `max(..., 本阶段起点)` 这一项必须有：去重叠有时会**被迫**把线长推出去（acend910 的 Stage A 出来就是
+  +11.7%），若天花板只有容带，起点在带外时每个候选都不合格，Stage B 一步都接受不了 —— 线长会永远
+  停在 Stage A 的值。兜住起点后，搜索至少能"不劣化"，并能一路把线长拉回带内。
+- **热点区守卫不是冗余**：被冻的 chiplet 自己不动物理上仍会因邻居靠近而升温，全局峰值守卫管不到这一条。
+
+**目标函数**（越小越好），三项按各自基准归一化故无量纲，温度与线长**等权**，外接框排后面：
+
+```
+obj = w_thermal * peak/peak_base + w_wl * WL/WL_base + w_bbox * bbox/bbox_base
+```
+
+只放线长会让搜索一路拿温度换线长（实测 hp11_m 就是这么从 −2.11K 爬到 +0.54K）。
+
+**为什么不做真正的双模型联合搜索**：守卫叠加已经把可行域压得很窄，任何更复杂的搜索
+（模拟退火 / 多节点联合移动）都无法把"能同时降低 T 和 WL 的移动"变多，只会增加常数开销。
+收益在候选质量，不在搜索策略。
+
+### 3.4 容错带是怎么定的
+
+两条带的宽度都是**模型自己的实测精度**，不是拍的数：
+
+| 量 | 带宽 | 依据 |
+|---|---|---|
+| 温度 | **0.50 K** | 热代理组内 MAE |
+| 线长 | **1.20 %** | 线长 GNN 测试集 MAPE（`mae_log 0.0120`） |
+
+低于带宽的升降，模型根本分辨不出来，卡 0.0 只是在拟合噪声 —— 实测单芯片挪 0.05mm 读数就跳
++0.14K，挪 0.2mm 跳 +0.66K。
+
+---
+
+## 4. 参数（`configs/default.yaml`，CLI 用 `--set key.sub=value` 覆盖）
+
+### 关键参数
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `canvas.scale` / `pad_mm` | 1.0 / 0.0 | 画布 = 输入 bbox，正方形 `side = max(bbox_w,bbox_h)*scale + 2*pad` |
+| `repair.enumerate_max_pairs` | 8 | P 超过它就退回 natural/adaptive/flip 三个启发式 |
+| `repair.guard.thermal_tol_k` / `wl_tol` | 0.5 / 0.012 | Stage A 的两条带 |
+| `refine.steps` / `candidates` / `top_k` | 200 / 16 / 4 | 单步耗时与 `top_k` 成正比 |
+| `refine.radius_max` | 0.30 mm | 搜索半径（**mm**，与坐标同量纲） |
+| `refine.hotspot.top_frac` | 0.05 | 热点 = 最热的 5% 格子 |
+| `refine.hotspot.freeze` | **true** | 是否把热点件**钉死**（见下） |
+| `refine.hotspot.guard` | true | 热点区升温守卫 |
+| `refine.proposal.mode` | pull | `pull` 牵引 / `uniform` 各向同性（旧行为） |
+| `refine.proposal.pull_share` | 0.75 | 候选里给牵引方向的比例，其余做探索 |
+| `refine.proposal.scales` | `[0.3,1.0,2.5,6.0]` | 牵引步长档位（× 可达距离的分数）；最小档是给守卫饱和场景留的 |
+| `refine.guard.thermal_tol_k` / `wl_tol` | 0.5 / 0.012 | Stage B 的两条带 |
+
+### `hotspot.freeze`：钉死 vs 只守卫
+
+两者对"**不劣化热点**"是**等价**的 —— 热点区守卫直接卡住热点区温度，钉死只是另一条实现路径。
+但对**线长**不等价：热点件若同时是网表的**连接中心**，钉死它等于钉死整张网表。
+
+实测 acend910 的 A：14.5×31.4mm、**256W**（其余都是 14~20W）、5 条连线而其余每个只有 1 条 ——
+它既是热点又是唯一 hub。钉死后 5 个小片只能单向朝 A 靠，而靠过去就加热 A、被热点守卫挡回，
+线长只收回到 **+2.5%**；不钉能到 **−29%**。
+
+**如果热点件不是连接中心，两者差别很小**（其余 11 个 case 都如此）。
+
+> **⚠️ 默认值 `true` 是照原始需求定的，不是因为它实测更好。**
+>
+> 这是一个**已知的、未解决的取舍**，不是遗漏：原始口径是"固定该位置的 chiplet"，所以默认钉死；
+> 但按用户自己给的全部判据，`false` 在两个种子上都不输 —— seed_63 上线长 12/12 优于、外接框
+> 12/12 优于、热点 0 劣化、两条指标全在容错带内（见 §5）。代价是温度收益少一点（4 个 case 更优
+> vs 6 个），因为热点区守卫挡住了那些会向热点集中热量的降温移动。
+>
+> 而且两者差多少**依赖初始布局**：同一个 acend910，seed_63 上 `false` 把外接框从 +10.09% 翻成
+> −15.90%，seed_61 上 `true` 的线长反而是好的（+0.92%）而外接框更差（+18.86%）。换句话说，
+> 钉死热点件之后的可行域很窄，结果对初始布局敏感 —— 这正是 `false` 值得作为备选的场景。
+>
+> 改一行即可，或当场试：`--set refine.hotspot.freeze=false`。
+
+---
+
+## 5. 实测结果
+
+数据：`cases-hubump-neural-pairdist-200k-best-3seeds/seed_63/placement`，12 个 case。
+"优于/持平/劣于"按各自容错带判定，读数全部来自神经模型。
+
+### `freeze=true`（默认，热点件钉死）
+
+```
+合法化:      12/12 个 case 完全合法
+峰值温度:    6 / 6 / 0
+神经线长:    10 / 0 / 2
+外接框  :    11 / 0 / 1
+热点区升温超 0.50K 的 case: 0 个
+Stage B:     accepted=1038, thermal_rejected=288, wl_rejected=15
+仍超出容错带: 05_acend910（ΔWL +2.50%）、07_hp11_m（ΔWL +1.40%）
+```
+
+### `freeze=false`（只守卫不钉）
+
+```
+合法化:      12/12 个 case 完全合法
+峰值温度:    4 / 8 / 0
+神经线长:    12 / 0 / 0
+外接框  :    12 / 0 / 0
+热点区升温超 0.50K 的 case: 0 个
+Stage B:     accepted=1151, thermal_rejected=753, wl_rejected=8
+两条指标全部落在模型容错带内
+```
+
+**净变化为零劣化的是 `freeze=false`。** 代价是温度收益少一点（4 个 case 更优 vs 6 个），
+因为热点区守卫挡住了那些会向热点集中热量的降温移动。
+
+### 逐 case（`freeze=true`）
+
+| case | 重叠 | ΔT | ΔWL | Δbbox | 最大位移 |
+|---|---|---|---|---|---|
+| Case10 | 0→0 | −2.45K | −16.81% | −10.04% | 41.6mm |
+| Case6 | 0→0 | −0.32K | −21.25% | −14.77% | 10.2mm |
+| Case7 | 3→0 | +0.41K | −6.78% | −6.01% | 19.9mm |
+| Case8 | 0→0 | −1.86K | −14.64% | −11.95% | 2.4mm |
+| Case9 | 0→0 | −2.68K | −28.24% | −3.18% | 56.7mm |
+| **acend910** | 4→0 | +0.46K | **+2.50%** | +10.09% | 25.0mm |
+| cpu-dram | 0→0 | −0.71K | −8.30% | −7.68% | 3.9mm |
+| **hp11_m** | 3→0 | −0.17K | **+1.40%** | −9.41% | 8.0mm |
+| multigpu | 0→0 | −0.48K | −13.70% | −2.31% | 3.0mm |
+| syn1 | 4→0 | −1.66K | −3.24% | −17.44% | 12.0mm |
+| syn4 | 0→0 | −0.34K | −16.48% | −19.18% | 4.5mm |
+| xerox8_m | 0→0 | −0.37K | −12.51% | −7.18% | 4.5mm |
+
+Case10 无重叠却位移 41.6mm，是 Stage B 的线长优化在动它（它有 61 个 chiplet、稀疏网表），
+不是 Stage A。
+
+### 第二个种子：`seed_61/placement`（同 12 个 case，`freeze=true`）
+
+```
+合法化:      12/12 个 case 完全合法
+峰值温度:    8 / 4 / 0
+神经线长:    11 / 1 / 0
+外接框  :    11 / 0 / 1
+热点定位:    12/12 定出热点件; 热点区升温超 0.50K 的: 0 个
+Stage B:     accepted=1114, thermal_rejected=151, wl_rejected=3
+两条指标全部落在模型容错带内
+```
+
+两个种子合起来 24 个 case：**24/24 完全合法、0 个热点劣化、0 个温度劣化**。
+温度是唯一全程没输过的一项。
+
+值得注意的是 seed_61 的 acend910 是个**反例**：ΔWL +0.92%（比 seed_63 的 +2.50% 好），
+但 Δbbox **+18.86%**（比 seed_63 的 +10.09% 更差）。同一个 case 的两个种子结论不同，
+说明 A 被钉死之后的可行域很窄，搜索结果对初始布局敏感 —— `hotspot.freeze=false`
+在 seed_63 上把这一项从 +10.09% 翻成 −15.90%，就是为了解开这个约束。
+
+---
+
+## 6. 踩过的坑（都是实测，改代码前请先读）
+
+1. **`evaluators.temperature_c` 返回的是开尔文，不是摄氏度。** 名字和（曾经的）docstring 都写着 ℃，
+   但 `_denorm_temp_k` 把模型 0/1 输出映回 stats 的 `[temp_min, temp_max]`（那份 stats 的 unit 是
+   celsius，所以它加了 273.15）。直接当 ℃ 用会差 273.15 —— 实测就是这么把热点阈值报成 346°C 的。
+   要摄氏度用 `peak_celsius` / `mean_celsius` / `peak_and_region_celsius`。
+
+2. **`_thermal_rect_field` 的入参必须是二维 `(B, V)`。** 它按 `left.unsqueeze(-1).unsqueeze(-1)`
+   广播，传一维 `(V,)` 会多出一个前导 batch 维，得到 `(1, V, G, G)` 而不是 `(V, G, G)`，
+   reshape 之后长度变成 `V*G*G`。
+
+3. **`refine_wl._legal_mask` 的归约必须把 `(V,V)` 两根轴都消掉**，写成 `.any(-1).any(-1)`。
+   少消一根会得到逐节点掩码，拿它索引 `(C,V,2)` 会把批次维展平 —— 第 81 个 True 撞上 `(1,V,2)` 才炸，
+   而 True 的个数恰好是 V 的整数倍时**静默**把不合格的候选放进来。
+
+4. **HPWL 排序会把探索类候选饿死**，见 §3.3 的 `select`。这不是风格问题，会让线长从 −16% 退化到 +6%。
+
+5. **天花板必须兜住阶段起点**，见 §3.3。否则起点在带外时 Stage B 一步都接受不了，表现为
+   "Stage B 的输出与 Stage A 完全相同"。
+
+6. **Stage A 的 polish 必须在 `gave_up` 之前**，否则 polish 没机会作用于最佳候选。
+
+7. **梯度下降 / 折半线搜索在 Stage A 都不work**，见 §3.1。现在用的是穷举 + 位置式收尾。
+
+8. **matplotlib 渲染不了中文**，图内文字一律英文（控制台仍是中文）。
+
+9. **重跑 `resultEval/eval_layout.py` 时注意缓存**：同名 case 会静默复用旧温度，
+   必须同时清 `cache.json` 和 `eval_out/`。
+
+---
+
+## 7. 文件清单
+
+```
+legalizeLayout/
+├── legalize_layout.py     # CLI 入口 + 三步编排 + 报告/出图
+├── layout_io.py           # placement JSON 读写、画布推导、度量计算
+├── cond_builder.py        # placement JSON -> PyG cond（两个神经评估器共用）
+├── evaluators.py          # 热代理 / 神经线长 / 外接框 三个评估器的统一封装
+├── repair_overlap.py      # Stage A：分轴穷举 + 位置式收尾
+├── hotspot.py             # 热点定位：温度图 top-5% 格子 -> 要冻结的 chiplet
+├── refine_wl.py           # Stage B：牵引候选 + 可达距离闭式解 + 三重守卫
+├── plot_layout.py         # 输入 vs 合法化 两联对比图
+├── verify.py              # 独立实现的精确重叠/越界校验（不与优化器共用代码）
+└── configs/default.yaml   # 全部参数
+```
+
+`verify.py` 刻意**独立实现**、不共用优化器代码 —— 否则是自证。
+
+### 目录位置
+
+工具必须放在 `LayoutGenModel/` **内部或与它同级**。`_bootstrap.py` 不再按"脚本上一级就是仓库根"
+推导路径，而是**逐级向上找含 `diffusion/utils.py` 的那一层**来认 `LayoutGenModel/`。
+
+原因：本工具被移动过一次（`flow_tap/legalizeLayout` → `LayoutGenModel/legalizeLayout`）。按相对层数
+推导的话，移动后 `_REPO_ROOT` 会变成 `LayoutGenModel/` 自身，`_LAYOUTGEN_DIR` 被拼成
+`LayoutGenModel/LayoutGenModel` —— `sys.path` 挂上一串不存在的路径**不报任何错**，checkpoint 的相对
+路径也全部解析失败，最后报出来是"文件找不到"，看不出根因是目录位置。按内容认目录后两种情况都能工作。

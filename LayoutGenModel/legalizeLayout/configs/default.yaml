@@ -1,0 +1,128 @@
+# legalizeLayout 默认参数。CLI 以 --key.subkey=value 覆盖。
+#
+# 口径约定 (与 LayoutGenModel/diffusion 全库一致):
+#   * 合法性只判 body (width x height), 不做 hubump 膨胀
+#   * 画布 = 输入布局自身 bbox, 取正方形 side = max(bbox_w, bbox_h) * scale + 2*pad
+#   * x/y 单位 mm, 左下角
+
+paths:
+  # 相对 /root/placement/flow_tap, 也可给绝对路径
+  thermal_ckpt: thermalmodel/checkpoints/gnnhrnet_pwin/best.pth
+  wirelength_ckpt: wirelengthmodel/checkpoint/best_wlmodel_total_60k.pt
+  wirelength_normalizer: wirelengthmodel/checkpoint/normalizer_compat_69_76.json
+
+canvas:
+  scale: 1.0        # 画布相对输入 bbox 的放大系数
+  pad_mm: 0.0       # 每边额外留白 (mm)
+
+hubump:
+  # 热/线长模型需要 hubump 作为输入特征, 但 placement JSON 里没有这个字段。
+  #   derived : 不写 tap_hubump, 让模型从连线需求自行推导 (默认)
+  #   zero    : 显式置 0
+  # 两种选择在同一个 case 的前后对比中是自洽的, 不影响 ΔT/ΔWL 判据。
+  source: derived
+
+repair:
+  # 多对同时推进的 MTV 松弛。每轮扫描把所有重叠对一次性转成位移, 累加后一起施加。
+  # 逐对推进会卡在链式重叠上 (acend910 / Case7 / hp11_m 实测), 详见 repair_overlap.py 顶部。
+  enabled: true
+  clearance_mm: 0.0        # 分离时额外推开的余量, 吸收浮点贴边噪声
+  max_sweeps: 500
+  damping: 1.0             # 每轮施加的位移比例
+  switch_axis_after: 8     # 一对连续多少轮推不开就永久改用另一个轴 (见模块 docstring 第 2 点)
+  geom_tol_mm: 1.0e-6      # 判交容差, 小于此值视为贴边不算重叠
+  exact_polish: true       # 残差对的"推开到刚好分离"位置式收尾 (8 个候选, 只收严格变好的)
+
+  # 分轴分配穷举。重叠对 P 个, 每对有"沿 x 还是沿 y 分开"两个选择, 2^P 全试。
+  # 为什么需要穷举: 可行的那组常常是**混合**的, 三个启发式都命中不了 —— 实测
+  # acend910 只有 (A-B→x, A-C→y, C-F→x, E-F→y) 可行 (A、B 在 y 上要占 47.4mm >
+  # 画布 44.93mm, 所以 A-B 不能走 y), 而 natural 解不开、adaptive/flip 恰好都把
+  # A-B 推到 y 上。P 实测只有 0~4, 每次扫描约 30ms, 完全付得起。
+  enumerate_max_pairs: 8     # P 超过这个数就退回 adaptive/natural/flip 三个启发式
+  enumerate_screen_sweeps: 80  # 先用小预算粗筛 2^P 个, 免得每个都跑满 500 轮
+  enumerate_refine_top: 16   # 粗筛后给前几名跑满预算 (合法的排最前); P<=4 时全覆盖
+
+  # 候选之间的选择次序是**字典序**, 不用权重 (见 repair_overlap.rank):
+  #     合法 > 温度在带内 > 线长在带内 > 出带少 > 线长小 > 面积小 > 位移小
+  # 两条带的宽度都是**模型自己的容错**, 不是拍的数 (见下)。
+  guard:
+    # 守卫放在**候选选择**层, 不在扫描循环里 —— 每个候选只花 1 次神经前向
+    # (合法候选个位数个), 总共 <0.1s。详见 repair_overlap.py 顶部"热守卫"。
+    # 关掉它 = 只按几何选, 完全不看 T/WL。
+    enabled: true
+    # 需求: 温度与线长的上升都必须在**模型容错范围内**。带宽取自两个模型各自的
+    # 实测精度 —— 低于带宽的升降, 模型根本分辨不出来, 卡 0.0 只是在拟合噪声。
+    #   温度 0.50 K : 热代理组内 MAE。实测单芯片挪 0.05mm 读数就跳 +0.14K,
+    #                 挪 0.2mm 跳 +0.66K —— 那是 64x64 光栅化换格, 不是物理。
+    #   线长 1.20 % : 线长 GNN 测试集 MAPE (mae_log 0.0120)。
+    thermal_tol_k: 0.5
+    wl_tol: 0.012
+
+refine:
+  enabled: true
+  steps: 200               # 单步成本 ~25ms (batch-4 热 + batch-4 线长), 200 步约 5 秒/case
+  candidates: 16           # 只跑几何过滤和解析 HPWL, 不碰 GPU, 可以多采样
+  top_k: 4                 # 真正送进神经模型的候选数 —— 单步耗时与它成正比
+  radius: 0.30             # 搜索半径, 单位 **mm** (与 cur 同量纲)
+  radius_min: 0.005
+  radius_max: 0.30
+  patience: 80             # 连续无接受多少步后早停, 避免收敛后空转
+  geom_tol_mm: 1.0e-6
+  seed: 0
+  # 目标 = w_thermal*(peak/base_peak) + w_wl*(WL/WL_init) + w_bbox*(bbox/bbox_init),
+  # 三项都按各自基准归一化故无量纲, 温度与线长等权(并列), 外接框排后面。
+  thermal_weight: 1.0
+  wl_weight: 1.0
+  bbox_weight: 0.3
+
+  # 热点定位 + 冻结。时机在 **Stage A 之后**: 先合法化, 再定热点, 再冻。
+  hotspot:
+    enabled: true
+    top_frac: 0.05         # 热点 = 温度图里最热的 5% 格子 (64x64 -> 约 205 格)
+    min_cells: 1           # 盖住几个热点格子才算热点件。默认 1 = 落在热点格子上就冻
+    min_movable: 2         # 兜底: 至少留这么多件可动, 否则 Stage B 无事可做
+    # 是否真的把热点件**钉死**。false = 只守卫不钉 (见下)。两者对"不劣化热点"是
+    # 等价的 (守卫直接卡住热点区温度), 但对线长不等价: 热点件若同时是网表的连接
+    # 中心, 钉死它等于钉死整张网表 —— 实测 acend910 的 A 是 5 个小片唯一的对端,
+    # 钉死后线长只能收回到 +2.5%, 不钉能到 -29%。
+    freeze: true
+    # 额外守卫: 热点区最高温 <= 输入布局在同组格子上的最高温 + thermal_tol_k。
+    # 被冻的件自己不动物理上仍会因邻居靠近而升温, 所以全局峰值守卫管不到这一条。
+    guard: true
+
+  # 候选怎么撒。pull = 沿"指向连线重心"的方向多档采样, uniform = 原来的各向同性方盒。
+  proposal:
+    mode: pull
+    # 候选里有多大比例给牵引方向, 其余做各向同性探索。探索那部分**不会被 HPWL 排序
+    # 挤掉** (见 refine_wl.select): 守卫饱和时唯一能过的就是亚网格小步, 而那种只有
+    # 探索类里才有。
+    pull_share: 0.75
+    # 牵引步长档位, 单位是 radius (mm)。最小的 0.3 档是给"守卫饱和"场景留的 ——
+    # 方向对但步子必须小到 ΔT 恰好为 0 才过得去。
+    scales: [0.3, 1.0, 2.5, 6.0]
+    jitter: 0.35           # 垂直于牵引方向的抖动, 单位是 radius
+    max_jump_mm: 8.0       # 单个牵引候选的步长上限 (mm)
+
+  guard:
+    # 与 Stage A 同样的两条带, 同样的取值理由 (模型容错 = 热代理 MAE / 线长 MAPE)。
+    # 但**参照系不同**: 这里一律拿**本 case 的起点**比, 不是拿上一步比。
+    #   peak(cand) <= peak(起点) + thermal_tol_k
+    #   wl(cand)   <= wl(起点)   * (1 + wl_tol)
+    # 参照起点, 净变化就**由构造保证**在带内; 参照上一步则是一段可以累积的正漂移
+    # (200 步每步放 0.1K, 最坏漂 20K)。中间步允许在带内回落再爬, 反而更容易跳出
+    # 局部极小。若 thermal_rejected+wl_rejected 远超 accepted, 说明筛选把可行域
+    # 压死了; 该调的是这里或 refine.steps, 而不是继续调 refine.wl_weight。
+    thermal_tol_k: 0.5
+    wl_tol: 0.012
+  bbox_tol: 0.0            # 外接框软偏好容差, 相对初始面积
+  verbose: false
+
+output:
+  # 默认写到输入 JSON 所在的目录, 文件名 = <原文件名>_legal.json, 格式与输入完全一致
+  # (chiplets 的坐标换掉, connections / rotation / power 等原样透传, wirelength /
+  #  area / aspect_ratio 按 utils.py 口径重算)。
+  # 对比图 <原文件名>_legal_compare.png 也放同一目录。
+  # 前缀不是 _placement 结尾, 所以再跑一遍目录批跑不会把输出当成输入。
+  suffix: _legal
+  report: true
+  save_fig: true           # 输入 vs 合法化后 的两联对比图

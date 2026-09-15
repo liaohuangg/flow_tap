@@ -977,7 +977,123 @@ class DataLoader:
 
     def get_val_size(self):
         return len(self.val_set)
-    
+
+
+def collate_flow_graphs(graphs):
+    """Concatenate a list of ``(x, cond)`` flow graphs into one mega-graph.
+
+    ``x`` is concatenated along the node axis to ``(sumV, 2)`` and ``cond``
+    becomes a single PyG ``Data`` whose node/edge tensors are concatenated
+    across graphs (edges offset by the running node count).  The mega-cond
+    additionally carries ``batch`` (sumV,), ``ptr`` (num_graphs+1,),
+    ``num_graphs`` and a per-graph ``chip_size`` (num_graphs, 4).  This is the
+    input format consumed by the mega-batched training loop: the B dimension of
+    the model is the independent noise samples, while the graph is the whole
+    concatenation of ``num_graphs`` distinct layouts.
+    """
+    node_x, node_power = [], []
+    is_ports, is_macros, tap_hubump, tap_sizes = [], [], [], []
+    edge_index, edge_attr, edge_weight = [], [], []
+    chip_sizes, batch, placements = [], [], []
+    node_offset = 0
+    edge_offset = 0
+    ptr = [0]
+    edge_ptr = [0]
+    for graph_id, (x, cond) in enumerate(graphs):
+        num_nodes = cond.x.shape[0]
+        placements.append(x)
+        node_x.append(cond.x)
+        node_power.append(cond.node_power.view(-1))
+        is_ports.append(cond.is_ports.view(-1).bool())
+        is_macros.append(cond.is_macros.view(-1).bool())
+        tap_hubump.append(cond.tap_hubump.view(-1))
+        tap_sizes.append(cond.tap_source_chiplet_sizes)
+        edge_index.append(cond.edge_index + node_offset)
+        edge_attr.append(cond.edge_attr)
+        edge_weight.append(cond.edge_weight.view(-1))
+        chip_sizes.append(cond.chip_size.view(-1))
+        batch.append(torch.full((num_nodes,), graph_id, dtype=torch.long))
+        node_offset += num_nodes
+        edge_offset += cond.edge_index.shape[1]
+        ptr.append(node_offset)
+        edge_ptr.append(edge_offset)
+
+    cond_mega = Data(
+        x=torch.cat(node_x, dim=0),
+        node_power=torch.cat(node_power, dim=0),
+        is_ports=torch.cat(is_ports, dim=0),
+        is_macros=torch.cat(is_macros, dim=0),
+        tap_hubump=torch.cat(tap_hubump, dim=0),
+        tap_source_chiplet_sizes=torch.cat(tap_sizes, dim=0),
+        edge_index=torch.cat(edge_index, dim=1) if edge_index else torch.empty((2, 0), dtype=torch.long),
+        edge_attr=torch.cat(edge_attr, dim=0) if edge_attr else torch.empty((0, 8), dtype=torch.float32),
+        edge_weight=torch.cat(edge_weight, dim=0) if edge_weight else torch.empty((0,), dtype=torch.float32),
+        chip_size=torch.stack(chip_sizes, dim=0),
+        batch=torch.cat(batch, dim=0),
+        ptr=torch.tensor(ptr, dtype=torch.long),
+        edge_ptr=torch.tensor(edge_ptr, dtype=torch.long),
+    )
+    cond_mega.num_graphs = len(graphs)
+    return torch.cat(placements, dim=0), cond_mega
+
+
+def split_mega_graph(cond_mega, k):
+    """Return the single-graph PyG ``Data`` for layout ``k`` of a mega-graph.
+
+    Edge indices are re-offset to local node ids and ``chip_size`` is collapsed
+    back to the single-graph ``(4,)`` form, so the result is indistinguishable
+    from the dataset's own per-layout cond.
+    """
+    ptr = cond_mega.ptr
+    edge_ptr = cond_mega.edge_ptr
+    s, e = int(ptr[k]), int(ptr[k + 1])
+    es, ee = int(edge_ptr[k]), int(edge_ptr[k + 1])
+    return Data(
+        x=cond_mega.x[s:e],
+        edge_index=cond_mega.edge_index[:, es:ee] - s,
+        edge_attr=cond_mega.edge_attr[es:ee],
+        edge_weight=cond_mega.edge_weight[es:ee],
+        is_ports=cond_mega.is_ports[s:e],
+        is_macros=cond_mega.is_macros[s:e],
+        node_power=cond_mega.node_power[s:e],
+        chip_size=cond_mega.chip_size[k],
+        tap_hubump=cond_mega.tap_hubump[s:e],
+        tap_source_chiplet_sizes=cond_mega.tap_source_chiplet_sizes[s:e],
+    )
+
+
+def sub_mega_graph(cond_mega, start, end):
+    """Return a mega-graph ``Data`` holding only layouts ``[start, end)``.
+
+    Node/edge tensors are sliced to the running offsets and re-offset to local
+    ids (``edge_index -= ptr[start]``, ``batch -= start``), and ``ptr`` /
+    ``edge_ptr`` are rebuilt for the sub-range.  This is a cheap view-based
+    sub-mega-cond, used to chunk memory-heavy auxiliary surrogates without
+    re-collating the whole batch.
+    """
+    ptr = cond_mega.ptr
+    edge_ptr = cond_mega.edge_ptr
+    s, e = int(ptr[start]), int(ptr[end])
+    es, ee = int(edge_ptr[start]), int(edge_ptr[end])
+    sub = Data(
+        x=cond_mega.x[s:e],
+        node_power=cond_mega.node_power[s:e],
+        is_ports=cond_mega.is_ports[s:e],
+        is_macros=cond_mega.is_macros[s:e],
+        tap_hubump=cond_mega.tap_hubump[s:e],
+        tap_source_chiplet_sizes=cond_mega.tap_source_chiplet_sizes[s:e],
+        edge_index=cond_mega.edge_index[:, es:ee] - s,
+        edge_attr=cond_mega.edge_attr[es:ee],
+        edge_weight=cond_mega.edge_weight[es:ee],
+        chip_size=cond_mega.chip_size[start:end],
+        batch=cond_mega.batch[s:e] - start,
+        ptr=cond_mega.ptr[start:end + 1] - s,
+        edge_ptr=cond_mega.edge_ptr[start:end + 1] - es,
+    )
+    sub.num_graphs = end - start
+    return sub
+
+
 class GraphDataLoader:
     def __init__(
             self, 
@@ -1021,6 +1137,67 @@ class GraphDataLoader:
         x, y = dataset[idx]
         output = self.prepare_output(x.to(self.device).view(1, *x.shape).expand(batch_size, *x.shape), y.to(self.device))
         return output
+
+    def get_batches(self, split, k):
+        """Sample k distinct layouts as individual ``(x, cond)`` pairs.
+
+        ``get_batch`` expands ONE layout across the batch dimension (B copies
+        with independent t/noise).  That wastes B-1 of B surrogate evaluations on
+        redundant noise samples of the same graph.  This instead returns k
+        distinct graphs so one training step covers k different layouts; each x
+        has shape ``(1, V, 2)`` and each cond is its own PyG Data.
+        """
+        assert split in ("train", "val"), "split argument has to be one of 'train' or 'val'"
+        dataset = self.train_set if split == "train" else self.val_set
+        out = []
+        seen = set()
+        guard = 0
+        while len(out) < k and guard < 1000 * k:
+            guard += 1
+            if self.is_shuffle[split]:
+                if hasattr(dataset, "sample_index"):
+                    idx = int(dataset.sample_index())
+                else:
+                    idx = int(torch.randint(0, len(dataset), [1]))
+            else:
+                idx = self.current_idx[split]
+                self.current_idx[split] = (self.current_idx[split] + 1) % len(dataset)
+            if idx in seen:
+                continue
+            seen.add(idx)
+            x, y = dataset[idx]
+            out.append(self.prepare_output(x.to(self.device).view(1, *x.shape), y.to(self.device)))
+        return out
+
+    def get_batch_mega(self, split, k):
+        """Sample k distinct layouts and concatenate them into one mega-graph.
+
+        Returns ``(x_mega, cond_mega)`` via :func:`collate_flow_graphs`.  The
+        caller expands ``x_mega`` to ``(M, sumV, 2)`` for M independent noise
+        samples, so one training step covers k layouts x M noise samples in a
+        single batched forward.
+        """
+        assert split in ("train", "val"), "split argument has to be one of 'train' or 'val'"
+        dataset = self.train_set if split == "train" else self.val_set
+        graphs = []
+        seen = set()
+        guard = 0
+        while len(graphs) < k and guard < 1000 * k:
+            guard += 1
+            if self.is_shuffle[split]:
+                if hasattr(dataset, "sample_index"):
+                    idx = int(dataset.sample_index())
+                else:
+                    idx = int(torch.randint(0, len(dataset), [1]))
+            else:
+                idx = self.current_idx[split]
+                self.current_idx[split] = (self.current_idx[split] + 1) % len(dataset)
+            if idx in seen:
+                continue
+            seen.add(idx)
+            x, y = dataset[idx]
+            graphs.append(self.prepare_output(x.to(self.device), y.to(self.device)))
+        return collate_flow_graphs(graphs)
 
     def get_display_batch(self, display_batch_size, split="val"):
         batch_size = self.val_batch_size if split == "val" else self.train_batch_size

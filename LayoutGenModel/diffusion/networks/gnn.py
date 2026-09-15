@@ -10,6 +10,90 @@ from .mlp import FiLM, MLP
 from .vit import AttentionBlock
 import networks.layers as layers
 
+
+def _graph_max_scale(values, cond):
+    """Per-graph node-max scale for normalising ``values`` (V, F).
+
+    A single-graph ``cond`` (no ``batch``) reproduces the historical behaviour:
+    every node divides by the global max over the node axis.  A mega-graph
+    ``cond`` (with ``batch`` and ``num_graphs``) divides each graph's nodes by
+    that graph's own max, so batching distinct layouts does not leak scale
+    across them.  Returns a ``(V, F)`` tensor broadcastable against ``values``.
+    """
+    batch = getattr(cond, "batch", None)
+    abs_values = values.abs()
+    if batch is None:
+        return abs_values.amax(dim=0, keepdim=True).clamp_min(1e-6)
+    batch = batch.to(device=values.device, dtype=torch.long)
+    num_graphs = int(getattr(cond, "num_graphs", int(batch.max()) + 1))
+    feat = abs_values.shape[-1]
+    reduced = torch.zeros(num_graphs, feat, device=values.device, dtype=values.dtype)
+    reduced = reduced.scatter_reduce(
+        0,
+        batch.unsqueeze(-1).expand(-1, feat),
+        abs_values,
+        reduce="amax",
+        include_self=False,
+    )
+    return reduced[batch].clamp_min(1e-6)
+
+
+def _same_graph_mask(cond, num_nodes, dtype, device):
+    """(V, V) block-diagonal bool/float mask marking same-graph node pairs."""
+    batch = getattr(cond, "batch", None)
+    if batch is None:
+        return None
+    batch = batch.to(device=device, dtype=torch.long)
+    return (batch.view(num_nodes, 1) == batch.view(1, num_nodes))
+
+
+class _GraphGroupNorm(nn.Module):
+    """``GroupNorm(1, C)`` applied *per graph* over the node axis.
+
+    The stock ``nn.GroupNorm(1, C)`` normalizes every sample over all ``C``
+    channels and all spatial positions.  When the conditioning carries a
+    ``batch`` vector (a mega-graph of several distinct layouts) those spatial
+    positions are the pooled nodes of every layout, so the mean/var leak across
+    layouts and the mega-graph forward no longer reproduces the single-layout
+    forward.  This module computes the mean/var per graph (per sample) instead,
+    so batching distinct layouts is bit-equivalent to running them one at a time.
+    When ``cond`` has no ``batch`` it falls back to the exact ``GroupNorm(1, C)``
+    statistics (mean/var over ``(C, V)`` per sample).
+    """
+
+    def __init__(self, num_channels, eps=1e-5):
+        super().__init__()
+        self.weight = nn.Parameter(torch.ones(num_channels))
+        self.bias = nn.Parameter(torch.zeros(num_channels))
+        self.eps = eps
+
+    def forward(self, x, cond):
+        # x: (B, C, V)
+        B, C, V = x.shape
+        batch = getattr(cond, "batch", None)
+        if batch is None:
+            mean = x.mean(dim=(1, 2), keepdim=True)
+            var = x.var(dim=(1, 2), unbiased=False, keepdim=True)
+        else:
+            batch = batch.to(device=x.device, dtype=torch.long)
+            num_graphs = int(getattr(cond, "num_graphs", int(batch.max()) + 1))
+            idx = batch.unsqueeze(0).expand(B, V)  # (B, V): same mapping per sample
+            x_sum_c = x.sum(dim=1)  # (B, V), summed over channels
+            out_sum = torch.zeros(B, num_graphs, device=x.device, dtype=x.dtype)
+            out_sum.scatter_add_(1, idx, x_sum_c)
+            x_sq_sum_c = (x * x).sum(dim=1)
+            out_sq = torch.zeros(B, num_graphs, device=x.device, dtype=x.dtype)
+            out_sq.scatter_add_(1, idx, x_sq_sum_c)
+            counts = torch.bincount(batch, minlength=num_graphs).to(x.dtype) * C
+            counts = counts.clamp_min(1.0)
+            mean_k = out_sum / counts  # (B, num_graphs)
+            var_k = (out_sq / counts - mean_k * mean_k).clamp_min(0.0)
+            mean = mean_k[:, batch].view(B, 1, V)
+            var = var_k[:, batch].view(B, 1, V)
+        x = (x - mean) / torch.sqrt(var + self.eps)
+        return x * self.weight.view(1, C, 1) + self.bias.view(1, C, 1)
+
+
 def get_conv_layer(layer_type, in_channels, out_channels, edge_features, **layer_kwargs):
     layer_fns = {
         "gcn": tgn.GCNConv,
@@ -180,7 +264,7 @@ class ThermalMessagePassing(nn.Module):
             power = power.view(power.shape[0], -1).mean(dim=-1)
         power = power.abs()
         if self.normalize_power == "graph_max":
-            power = power / power.max().clamp_min(1e-6)
+            power = power / _graph_max_scale(power.view(-1, 1), cond).view(-1)
         elif self.normalize_power in [None, "none", "None", ""]:
             pass
         else:
@@ -193,6 +277,10 @@ class ThermalMessagePassing(nn.Module):
         dist2 = torch.cdist(pos[..., :2], pos[..., :2], p=2).square()
         sigma2 = max(self.sigma * self.sigma, 1e-8)
         weights = power_j * torch.exp(-dist2 / sigma2)
+
+        same = _same_graph_mask(cond, V, h.dtype, h.device)
+        if same is not None:
+            weights = weights * same.view(1, V, V).to(dtype=h.dtype)
 
         eye = torch.eye(V, dtype=torch.bool, device=h.device).view(1, V, V)
         weights = weights.masked_fill(eye, 0.0)
@@ -288,7 +376,7 @@ class GeometryAttentionBlock(nn.Module):
             power = power.view(power.shape[0], -1).mean(dim=-1)
         power = power.abs()
         if self.normalize_power == "graph_max":
-            power = power / power.max().clamp_min(1e-6)
+            power = power / _graph_max_scale(power.view(-1, 1), cond).view(-1)
         elif self.normalize_power in [None, "none", "None", ""]:
             pass
         else:
@@ -398,6 +486,10 @@ class GeometryAttentionBlock(nn.Module):
         ).permute(0, 3, 1, 2)
         scores = scores + pair_bias
 
+        same = _same_graph_mask(cond, V, scores.dtype, scores.device)
+        if same is not None:
+            scores = scores.masked_fill(~same.view(1, 1, V, V), torch.finfo(scores.dtype).min)
+
         if active is not None:
             scores = scores.masked_fill(~active.view(B, 1, 1, V), torch.finfo(scores.dtype).min)
 
@@ -460,7 +552,7 @@ class ResGNNBlock(nn.Module):
         self.use_edge_attr = accepts_edge_attr(self._gconv_layers[0])
         # self.linear = nn.Linear(self.hidden_node_features, self.out_node_features)
         if norm:
-            self._norm = nn.GroupNorm(1, hidden_node_features)
+            self._norm = _GraphGroupNorm(hidden_node_features)
         else:
             self._norm = None
         self._nonlinear = nn.ReLU()
@@ -475,7 +567,7 @@ class ResGNNBlock(nn.Module):
         for i, (lnorm, linear, conv) in enumerate(zip(self._lnorm_layers[:-1], self._linear_layers[:-1], self._gconv_layers[:-1])):
             if self._norm is not None and x.shape[-1] == self.hidden_node_features:
                 x = torch.movedim(x, -1, 1)
-                x = self._norm(x)
+                x = self._norm(x, data)
                 x = torch.movedim(x, 1, -1)
             x = conv(x, edge_index, edge_attr=edge_attr) if self.use_edge_attr else conv(x, edge_index)
             x = self._nonlinear(x)
@@ -557,7 +649,7 @@ class AttGNNBlock(nn.Module):
         self._linear_layers = nn.ModuleList(self._linear_layers)
         # self.linear = nn.Linear(self.hidden_node_features, self.out_node_features)
         if norm:
-            self._norm = nn.GroupNorm(1, hidden_node_features)
+            self._norm = _GraphGroupNorm(hidden_node_features)
         else:
             self._norm = None
         self._nonlinear = nn.ReLU()
@@ -574,7 +666,7 @@ class AttGNNBlock(nn.Module):
         for i, (lnorm, linear, conv, attention, att_input_embed_layer) in enumerate(zip(self._lnorm_layers[:-1], self._linear_layers[:-1], self._gconv_layers[:-1], self._attention_layers[:-1], self._att_extra_input_embed_layers[:-1])):
             if self._norm is not None and x.shape[-1] == self.hidden_node_features:
                 x = torch.movedim(x, -1, 1)
-                x = self._norm(x)
+                x = self._norm(x, data)
                 x = torch.movedim(x, 1, -1)
             x = conv(x, edge_index, edge_attr=edge_attr) if self.use_edge_attr else conv(x, edge_index)
             x = self._nonlinear(x)
@@ -898,8 +990,7 @@ class AttGNN(nn.Module):
 
         x = torch.cat(features, dim=-1)
         if self.extra_node_feature_normalize == "graph_max":
-            scale = x.abs().amax(dim=0, keepdim=True).clamp_min(1e-6)
-            x = x / scale
+            x = x / _graph_max_scale(x, cond)
         elif self.extra_node_feature_normalize in [None, "none", "None", ""]:
             pass
         else:

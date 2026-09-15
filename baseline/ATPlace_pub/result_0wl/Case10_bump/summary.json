@@ -1,9 +1,39 @@
 {
-  "case": "Case10_bump",
+  "case": "Case10_bump_op",
   "mode": "thermal",
-  "status": "error",
-  "error": "[Errno 2] No such file or directory: '/root/placement/flow_tap/baseline/ATPlace_pub/cases_0_wl/Case10_bump/Case10_bump.blocks'",
-  "attempts": 0,
-  "attempt_log": [],
-  "runtime_s": 0.0005948543548583984
+  "base_seed": 1,
+  "status": "completed",
+  "error": null,
+  "legal_found": true,
+  "num_legal": 1,
+  "num_illegal": 0,
+  "attempts": 1,
+  "best_hpwl": 74395985.75993729,
+  "twl_m": 74.39598575993729,
+  "best_seed": 1,
+  "best_legal": true,
+  "best_overlaps": 0,
+  "best_legalize_method": "milp",
+  "best_legalize_s": 0.13644075393676758,
+  "total_legalize_s": 0.13644075393676758,
+  "runtime_s": 3563.564783811569,
+  "attempt_log": [
+    {
+      "seed": 1,
+      "iterations": 65,
+      "overlaps": 0,
+      "overlaps_raw": 0,
+      "hpwl": 74395985.75993729,
+      "hpwl_raw": 74395856.0,
+      "run_s": 3562.6749970912933,
+      "legal": true,
+      "legalize_method": "milp",
+      "legalize_s": 0.13644075393676758,
+      "layout_dir": "/root/placement/ATPlace_pub/result/Case10_bump_op/seed1"
+    }
+  ],
+  "layout_json": "/root/placement/ATPlace_pub/result/Case10_bump_op/layout.json",
+  "layout_png": "/root/placement/ATPlace_pub/result/Case10_bump_op/layout.png",
+  "layout_chiplets": 61,
+  "visualized": true
 }

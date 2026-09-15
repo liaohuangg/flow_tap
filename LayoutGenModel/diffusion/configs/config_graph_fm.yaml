@@ -92,6 +92,14 @@ thermal:
   max_weight: 1.0
   mean_weight: 0.1
   target_max_k: 0.0
+  # Gradient-checkpoint the frozen field head so its 128-field activations are
+  # recomputed in backward instead of stored (65GB -> ~11GB peak).  Keep ON.
+  checkpoint_field_head: true
+  # Layouts per single HRNet forward.  With checkpointing ON, chunk=2 is the
+  # measured sweet spot (1.27s/11.4GB); chunk=1 is 1.47s/7.2GB, chunk=4 is
+  # 1.27s/19.5GB, chunk=16 spills.  Without checkpointing, chunking does NOT
+  # reduce peak memory (all chunks' activations stay alive until backward).
+  chunk: 2
 
 # Frozen neural wirelength surrogate used as an auxiliary training objective.
 # Both proxy losses ramp up from the first step so they do not overwhelm the

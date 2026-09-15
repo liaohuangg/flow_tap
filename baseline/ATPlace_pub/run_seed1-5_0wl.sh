@@ -20,8 +20,16 @@ RESULT_DIR="$REPO_ROOT/result_0wl"
 MODE=thermal
 PARAM_NAME="Thermal-aware.json"
 ATP_TIMEOUT=30        # 内部 deadline=30s → 只跑第一个(唯一) seed 一次(100 iter 跑满后自然退出)
-OUTER_TIMEOUT=3600    # 单次求解 wall-clock 上限 1 小时
+OUTER_TIMEOUT=3600    # 单次求解 wall-clock 上限 1 小时(默认)
 SEEDS=(1 2 3 4 5)
+
+# 个别 case 的 wall-clock 上限覆盖 (秒): Case10 单次求解需要约 1.5 小时。
+timeout_for() {
+  case "$1" in
+    Case10_bump) echo "${CASE10_TIMEOUT:-5400}" ;;
+    *)           echo "$OUTER_TIMEOUT" ;;
+  esac
+}
 
 CASES=(acend910_bump cpu-dram_bump hp11_m_bump multigpu_bump syn1_bump syn4_bump xerox8_m_bump \
        Case6_bump Case7_bump Case8_bump Case9_bump Case10_bump)
@@ -61,7 +69,7 @@ json.dump(d, open(dst, "w"), indent=2, ensure_ascii=False)
 
     t0=$(date +%s)
     log "START case=$case seed=$seed"
-    ATPLACE_TIMEOUT="$ATP_TIMEOUT" timeout -k 30 "$OUTER_TIMEOUT" \
+    ATPLACE_TIMEOUT="$ATP_TIMEOUT" timeout -k 30 "$(timeout_for "$case")" \
       "$PYTHON" "$REPO_ROOT/reproduce.py" --case "$case" --mode "$MODE" \
       --case-dir "$case_dir" --param-file "$out_dir/param.json" --out-dir "$out_dir" \
       > "$out_dir/run_seed${seed}.log" 2>&1
