@@ -287,6 +287,9 @@ class ThermalFlowMatchingModel(models.FlowMatchingModel):
         self.wirelength_train_weight = float(self.wirelength_cfg.get("train_weight", 0.0) or 0.0)
         self.wirelength_start_step = int(self.wirelength_cfg.get("start_step", 0) or 0)
         self.wirelength_warmup_steps = int(self.wirelength_cfg.get("warmup_steps", 0) or 0)
+        self.wirelength_pair_feature_enabled = bool(
+            self.wirelength_cfg.get("pair_feature_enabled", False)
+        )
         self.bbox_cfg = dict(bbox_cfg or {})
         self.bbox_train_weight = float(self.bbox_cfg.get("train_weight", 0.0) or 0.0)
         self.bbox_softmax_beta = float(self.bbox_cfg.get("softmax_beta", 30.0))
@@ -311,6 +314,12 @@ class ThermalFlowMatchingModel(models.FlowMatchingModel):
         self.__dict__["_thermal_stats"] = None
         self.__dict__["_wirelength_surrogate"] = None
         self.__dict__["_thermal_current_step"] = None
+        if self.wirelength_pair_feature_enabled:
+            # Store the callback outside nn.Module registration.  The frozen
+            # external surrogate remains absent from the flow checkpoint.
+            self._reverse_model.__dict__["_pair_distance_provider"] = (
+                self._wirelength_pair_distance_feature
+            )
 
     def set_thermal_step(self, step):
         self.__dict__["_thermal_current_step"] = None if step is None else int(step)
@@ -600,11 +609,19 @@ class ThermalFlowMatchingModel(models.FlowMatchingModel):
             return torch.relu(max_k - self.thermal_target_max_k).square()
         return self.thermal_max_weight * smooth_max + self.thermal_mean_weight * mean_temp
 
-    def _wirelength_potential(self, x_hat, cond):
+    def _load_wirelength_surrogate(self, device):
         surrogate = self.__dict__.get("_wirelength_surrogate")
         if surrogate is None:
-            surrogate = WirelengthSurrogate(self.wirelength_cfg, x_hat.device)
+            surrogate = WirelengthSurrogate(self.wirelength_cfg, device)
             self.__dict__["_wirelength_surrogate"] = surrogate
+        return surrogate
+
+    def _wirelength_pair_distance_feature(self, placement, cond):
+        surrogate = self._load_wirelength_surrogate(placement.device)
+        return surrogate.pair_distance_matrix(placement, cond, smooth_preferred=True)
+
+    def _wirelength_potential(self, x_hat, cond):
+        surrogate = self._load_wirelength_surrogate(x_hat.device)
         return surrogate.potential(x_hat, cond)
 
     def _load_thermal_model(self, device):

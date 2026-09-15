@@ -115,38 +115,49 @@ def export_wirelength_bbox_results(seed_dir, index_map_path=INDEX_MAP_PATH):
     if not rows:
         print(f"[WARN] No rows found in: {csv_path}")
         return None
-    required_columns = {"idx", "tap_avg_wirelength", "generation_time"}
+    required_columns = {"idx", "generation_time"}
     if not required_columns.issubset(rows[0].keys()):
         missing = sorted(required_columns - set(rows[0].keys()))
         print(f"[WARN] Missing required columns in {csv_path}: {', '.join(missing)}")
+        return None
+    has_total_wirelength = "tap_total_wirelength" in rows[0]
+    has_legacy_avg_wirelength = "tap_avg_wirelength" in rows[0]
+    if not has_total_wirelength and not has_legacy_avg_wirelength:
+        print(
+            f"[WARN] Missing TAP wirelength column in {csv_path}: "
+            "expected tap_total_wirelength (or legacy tap_avg_wirelength)"
+        )
         return None
 
     # Read placement files sorted by name
     placement_files = sorted([f for f in os.listdir(placement_dir) if f.endswith(".json")])
 
     results = []
-    total_hpwl = 0.0
+    total_wirelength_all = 0.0
     total_bbox_area = 0.0
 
-    print(f"{'idx':>4}  {'case':<8}  {'tap_avg_wl':>10}  {'wireCount':>10}  {'total_HPWL':>12}  {'bbox_area':>12}  {'gen_time':>10}")
-    print("-" * 88)
+    print(f"{'idx':>4}  {'case':<12}  {'tap_total_wl':>14}  {'wireCount':>10}  {'bbox_area':>12}  {'gen_time':>10}")
+    print("-" * 82)
 
     for i, row in enumerate(rows):
         idx = int(row["idx"])
-        twl = float(row["tap_avg_wirelength"])
         gen_time = float(row["generation_time"])
 
         entry = index_map[idx]
         case_name = entry["benchmark_name"]
         input_file = resolve_input_file(entry)
         if input_file is None:
-            print(f"[WARN] benchmark input not found for idx {idx} ({case_name}), skipping wireCount/HPWL export")
+            print(f"[WARN] benchmark input not found for idx {idx} ({case_name}), wireCount set to zero")
             wirecount_sum = 0
-            case_total = 0.0
         else:
             wirecount_sum = load_wirecount_sum(input_file)
-            case_total = twl * wirecount_sum
-        total_hpwl += case_total
+        if has_total_wirelength:
+            case_total = float(row["tap_total_wirelength"])
+        else:
+            # Backward compatibility for results produced before the evaluator
+            # started exporting the CPLEX objective directly.
+            case_total = float(row["tap_avg_wirelength"]) * wirecount_sum
+        total_wirelength_all += case_total
 
         # Bbox area from corresponding placement file
         if i < len(placement_files):
@@ -157,25 +168,25 @@ def export_wirelength_bbox_results(seed_dir, index_map_path=INDEX_MAP_PATH):
             bbox_area = 0.0
             print(f"[WARN] No placement file for idx {idx}")
 
-        results.append((idx, case_name, twl, wirecount_sum, case_total, bbox_area, gen_time))
+        results.append((idx, case_name, case_total, wirecount_sum, bbox_area, gen_time))
 
         print(
-            f"{idx:>4}  {case_name:<8}  {twl:10.4f}  {wirecount_sum:10d}  {case_total:12.2f}  {bbox_area:12.2f}  {gen_time:10.2f}"
+            f"{idx:>4}  {case_name:<12}  {case_total:14.2f}  {wirecount_sum:10d}  {bbox_area:12.2f}  {gen_time:10.2f}"
         )
 
-    print("-" * 88)
+    print("-" * 82)
     avg_bbox = total_bbox_area / len(rows) if rows else 0
-    print(f"      {'ALL':<8}                         {total_hpwl:12.2f}  {total_bbox_area:12.2f}  {'---':>10}")
-    print(f"      {'AVG':<8}                         {'---':>12}  {avg_bbox:12.2f}  {'---':>10}")
+    print(f"      {'ALL':<12}  {total_wirelength_all:14.2f}              {total_bbox_area:12.2f}  {'---':>10}")
+    print(f"      {'AVG':<12}  {'---':>14}              {avg_bbox:12.2f}  {'---':>10}")
 
     # Export results to file
     out_path = seed_dir / "wirelength_bbox_results.csv"
     with out_path.open("w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["idx", "case_name", "tap_avg_wirelength", "wireCount_sum",
-                         "total_HPWL", "bbox_area", "generation_time"])
+        writer.writerow(["idx", "case_name", "tap_total_wirelength", "wireCount_sum",
+                         "bbox_area", "generation_time"])
         writer.writerows(results)
-        writer.writerow(["ALL", "", "", "", total_hpwl, total_bbox_area, ""])
+        writer.writerow(["ALL", "", total_wirelength_all, "", total_bbox_area, ""])
 
     print(f"\nResults saved to: {out_path}")
     return str(out_path)

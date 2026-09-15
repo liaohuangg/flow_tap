@@ -69,6 +69,8 @@ model:
 # below. Replace that file with the original 60k normalizer when available.
 wirelength:
   enabled: true
+  # Must be enabled when evaluating a checkpoint trained with this feature.
+  pair_feature_enabled: false
   ckpt: ../wirelengthmodel/checkpoint/best_wlmodel_total_60k.pt
   normalizer: ../wirelengthmodel/checkpoint/normalizer_compat_69_76.json
   objective: log_total

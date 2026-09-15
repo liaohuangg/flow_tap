@@ -320,7 +320,7 @@ class GeometryAttentionBlock(nn.Module):
             raise ValueError("geometry attention mask must be 1D, 2D, or 3D")
         return active
 
-    def _pair_features(self, pos, cond):
+    def _pair_features(self, pos, cond, pair_distance=None):
         B, V, _ = pos.shape
         dtype = pos.dtype
         device = pos.device
@@ -335,7 +335,16 @@ class GeometryAttentionBlock(nn.Module):
         delta = pos_j - pos_i
         abs_delta = delta.abs()
         dist2 = delta.square().sum(dim=-1, keepdim=True)
-        dist = torch.sqrt(dist2 + 1e-8)
+        euclidean_dist = torch.sqrt(dist2 + 1e-8)
+        if pair_distance is None:
+            dist = euclidean_dist
+        else:
+            if pair_distance.shape != (B, V, V):
+                raise ValueError(
+                    "pair-distance provider must return [batch, nodes, nodes], "
+                    f"got {tuple(pair_distance.shape)}"
+                )
+            dist = pair_distance.to(device=device, dtype=dtype).unsqueeze(-1)
 
         size_i = sizes.view(1, V, 1, 2).expand(B, -1, V, -1)
         size_j = sizes.view(1, 1, V, 2).expand(B, V, -1, -1)
@@ -369,7 +378,7 @@ class GeometryAttentionBlock(nn.Module):
             dim=-1,
         )
 
-    def forward(self, h, pos, cond, t_embed=None, mask=None):
+    def forward(self, h, pos, cond, t_embed=None, mask=None, pair_distance=None):
         B, V, C = h.shape
         if C != self.hidden_size:
             return h
@@ -384,7 +393,9 @@ class GeometryAttentionBlock(nn.Module):
         v = self.v_proj(h_norm).view(B, V, self.num_heads, self.head_dim).transpose(1, 2)
 
         scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.head_dim)
-        pair_bias = self.pair_bias(self._pair_features(pos, cond)).permute(0, 3, 1, 2)
+        pair_bias = self.pair_bias(
+            self._pair_features(pos, cond, pair_distance=pair_distance)
+        ).permute(0, 3, 1, 2)
         scores = scores + pair_bias
 
         if active is not None:
@@ -910,6 +921,16 @@ class AttGNN(nn.Module):
             self.last_aux_outputs = None
             thermal_mask = self._mask(cond)
             extra_node_features = self._extra_node_features(cond, x.shape[0], x.dtype)
+            pair_distance_provider = self.__dict__.get("_pair_distance_provider")
+            if pair_distance_provider is not None:
+                # WirelengthGNN's hand-written scatter kernels require a single
+                # dtype.  Keep the frozen proxy in FP32 even when the flow
+                # backbone is under CUDA autocast; gradients still propagate to
+                # the FP32 view of the placement.
+                with torch.autocast(device_type=x_skip.device.type, enabled=False):
+                    pair_distance = pair_distance_provider(x_skip.float(), cond)
+            else:
+                pair_distance = None
             for block in self._gnn_blocks:
                 add_extra_node_features = False
                 if isinstance(block, LinearDecoderLayer):
@@ -919,7 +940,14 @@ class AttGNN(nn.Module):
                     att_input = x_skip if self.dir_att_input else x
                     x = block(x, cond, t_embed, att_extra_input=att_input)
                 elif isinstance(block, GeometryAttentionBlock):
-                    x = block(x, x_skip, cond, t_embed=t_embed, mask=thermal_mask)
+                    x = block(
+                        x,
+                        x_skip,
+                        cond,
+                        t_embed=t_embed,
+                        mask=thermal_mask,
+                        pair_distance=pair_distance,
+                    )
                 elif isinstance(block, MLP):
                     x = block(x)
                 else:

@@ -98,6 +98,9 @@ thermal:
 # primary flow-matching target at initialization.
 wirelength:
   train_weight: 0.02
+  # Replace the fifth GeometryAttention pair feature on connected pairs with
+  # WirelengthGNN's differentiable edge-distance prediction.
+  pair_feature_enabled: false
   start_step: 0
   warmup_steps: 10000
   ckpt: ../wirelengthmodel/checkpoint/best_wlmodel_total_60k.pt

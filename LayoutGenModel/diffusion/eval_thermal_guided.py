@@ -45,7 +45,7 @@ CORE_METRIC_KEYS = (
     "thermal_mean_c",
     "thermal_avg_head_c",
     "tap_intp_size",
-    "tap_avg_wirelength",
+    "tap_total_wirelength",
     "neural_total_wirelength",
     "neural_avg_wirelength",
     "hpwl_ratio",
@@ -366,7 +366,7 @@ def _solve_tap_avg_wirelength(x_sample, cond):
         os.chdir(cwd)
 
 
-def _solve_tap_avg_wirelength_from_placement_json(placement_json_path):
+def _solve_tap_total_wirelength_from_placement_json(placement_json_path):
     with open(placement_json_path, "r", encoding="utf-8") as f:
         placement = json.load(f)
     if not placement.get("chiplets") or not placement.get("connections"):
@@ -381,14 +381,18 @@ def _solve_tap_avg_wirelength_from_placement_json(placement_json_path):
         return None
 
     try:
-        # This is the original TAP-2.5D routing objective: CPLEX assigns
-        # microbump-side flows and minimizes total routed wirelength.  The
-        # reported value is total routed length divided by directed wire count.
+        # TAP expands each physical connection into two directed nets.  The
+        # displayed physical total counts every input connection once:
+        # average routed length * sum(input wireCount).
         system = TapSystem(placement, hubump_mode="die")
-        avg_wirelength, total_wirelength, _edge_lengths, _side_flows = solve_cplex_avg(system)
-        if total_wirelength is None or not np.isfinite(avg_wirelength):
+        _avg_wirelength, total_wirelength, _edge_lengths, _side_flows = solve_cplex_avg(system)
+        if total_wirelength is None or not np.isfinite(_avg_wirelength):
             raise RuntimeError("CPLEX returned no feasible TAP-2.5D routing solution")
-        return float(avg_wirelength)
+        physical_wire_count = sum(
+            float(connection.get("wireCount", 0.0))
+            for connection in placement.get("connections", [])
+        )
+        return float(_avg_wirelength) * physical_wire_count
     except Exception as exc:
         print(f"WARNING: bundled TAP-2.5D wirelength evaluation failed: {exc}")
         return None
@@ -864,6 +868,13 @@ class ThermalGuidedFlowMatchingModel(models.FlowMatchingModel):
         self.__dict__["_thermal_guidance_model"] = None
         self.__dict__["_thermal_guidance_stats"] = None
         self.__dict__["_wirelength_surrogate"] = None
+        self.wirelength_pair_feature_enabled = bool(
+            self.wirelength_cfg.get("pair_feature_enabled", False)
+        )
+        if self.wirelength_pair_feature_enabled:
+            self._reverse_model.__dict__["_pair_distance_provider"] = (
+                self._wirelength_pair_distance_feature
+            )
 
     def _load_wirelength_surrogate(self, device):
         surrogate = self.__dict__.get("_wirelength_surrogate")
@@ -876,6 +887,13 @@ class ThermalGuidedFlowMatchingModel(models.FlowMatchingModel):
         if not self.wirelength_enabled:
             return super().wirelength_guidance_potential(placement, cond)
         return self._load_wirelength_surrogate(placement.device).potential(placement, _thermal_cond(cond))
+
+    def _wirelength_pair_distance_feature(self, placement, cond):
+        return self._load_wirelength_surrogate(placement.device).pair_distance_matrix(
+            placement,
+            _thermal_cond(cond),
+            smooth_preferred=True,
+        )
 
     def get_scheduled_guidance_weights(self, t):
         legality, wirelength, bbox, heat = super().get_scheduled_guidance_weights(t)
@@ -1269,7 +1287,7 @@ def save_outputs_with_thermal(
     with open(save_file, "wb") as f:
         pickle.dump(sample, f)
     placement_json_path = utils.save_placement_json(sample, cond_output_postprocessed, save_folder, idx)
-    tap_avg_wirelength = _solve_tap_avg_wirelength_from_placement_json(placement_json_path)
+    tap_total_wirelength = _solve_tap_total_wirelength_from_placement_json(placement_json_path)
     thermal_eval_summary = None
     if thermal_eval_root:
         thermal_eval_summary = _save_thermal_eval_artifacts(
@@ -1340,7 +1358,9 @@ def save_outputs_with_thermal(
     if tap_context is not None:
         if tap_intp_size is not None:
             all_metrics["tap_intp_size"] = float(tap_intp_size)
-        all_metrics["tap_avg_wirelength"] = float("nan") if tap_avg_wirelength is None else tap_avg_wirelength
+        all_metrics["tap_total_wirelength"] = (
+            float("nan") if tap_total_wirelength is None else tap_total_wirelength
+        )
         all_metrics["tap_hubump_mean"] = float(tap_context["hubump"].detach().cpu().mean().item())
         all_metrics["tap_hubump_max"] = float(tap_context["hubump"].detach().cpu().max().item())
     if thermal_eval_summary is not None:

@@ -339,6 +339,47 @@ class WirelengthSurrogate:
         average = total / (2.0 * inputs["wcount"].clamp_min(1e-6))
         return {"total": total, "average": average, "edge_distance": edge_distance, "side_flow": side_flow}
 
+    def pair_distance_matrix(self, placement, cond, smooth_preferred=True):
+        """Return a differentiable dense pair-distance feature for GeometryAttention.
+
+        Connected pairs receive WirelengthGNN's edge-level routed-distance
+        prediction (microbump-side Manhattan lower bound plus learned congestion
+        correction).  The wirelength model has no supervised meaning for absent
+        netlist edges, so those entries retain center Euclidean distance rather
+        than being represented as misleading zero-distance pairs.
+
+        WirelengthGNN operates in millimetres while the flow model uses roughly
+        [-1, 1] canvas coordinates.  Dividing by half the mean canvas side puts
+        the prediction on the same dimensionless scale as the original fifth
+        GeometryAttention feature.
+        """
+        if placement.dim() == 2:
+            placement = placement.unsqueeze(0)
+        batch_size, num_nodes, _ = placement.shape
+        inputs = self._build_batch(placement, cond, smooth_preferred=smooth_preferred)
+        _, edge_distance, _ = self.model(
+            inputs["x"], inputs["edge_index"], inputs["edge_attr"], inputs["edge_weight"],
+            inputs["node_geom"], inputs["batch"], inputs["global_attr"], inputs["cong"],
+        )
+
+        # Dense geometry attention also covers non-netlist pairs.  Preserve the
+        # original geometric meaning for them and replace connected entries only.
+        delta = placement[:, :, None, :2] - placement[:, None, :, :2]
+        pair_distance = torch.linalg.vector_norm(delta, dim=-1)
+
+        directed_edges_per_graph = edge_distance.numel() // batch_size
+        predicted = edge_distance.view(batch_size, directed_edges_per_graph)
+        local_edges = inputs["edge_index"][:, :directed_edges_per_graph]
+        src = local_edges[0]
+        dst = local_edges[1]
+        canvas, _ = self._canvas(cond, placement.device, placement.dtype)
+        coordinate_scale = (0.5 * canvas.mean()).clamp_min(1e-6)
+        predicted = predicted / coordinate_scale
+
+        pair_distance = pair_distance.clone()
+        pair_distance[:, src, dst] = predicted
+        return pair_distance
+
     def potential(self, placement, cond):
         prediction = self.predict(placement, cond, smooth_preferred=True)
         if self.objective == "log_total":

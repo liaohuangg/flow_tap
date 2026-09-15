@@ -15,6 +15,7 @@ method="${METHOD:-cases-hubump-util50-candidates-${num_seeds}seeds-${run_tag}}"
 wirelength_weight="${WIRELENGTH_WEIGHT:-0.02}"
 thermal_weight="${THERMAL_WEIGHT:-0.002}"
 thermal_lr="${THERMAL_LR:-0.001}"
+pair_feature_enabled="${PAIR_FEATURE_ENABLED:-False}"
 
 [[ -e "$checkpoint" ]] || { echo "Checkpoint not found: $checkpoint" >&2; exit 1; }
 [[ "$seed_start" =~ ^[0-9]+$ ]] || { echo "SEED_START must be an integer" >&2; exit 2; }
@@ -50,6 +51,7 @@ export FLOW_TAP_CHIPLET_AREA_RATIO="$chiplet_area_ratio"
   echo "Seeds: $seed_start..$((seed_start + num_seeds - 1))"
   echo "Chiplet body-area ratio: $chiplet_area_ratio"
   echo "Wirelength guidance weight: $wirelength_weight"
+  echo "Neural pair-distance feature: $pair_feature_enabled"
   echo "Thermal guidance: weak (weight=$thermal_weight, lr=$thermal_lr, one late step)"
   echo "Legality filtering: disabled (every generated candidate is retained)"
   echo "Output: $method_dir"
@@ -81,6 +83,7 @@ for ((offset=0; offset<num_seeds; offset++)); do
       model.guidance_schedule.legality_final_weight=10.0 \
       model.backbone_params.auxiliary_legality_heads_enabled=True \
       wirelength.enabled=True \
+      wirelength.pair_feature_enabled="$pair_feature_enabled" \
       wirelength.guidance_weight="$wirelength_weight" \
       wirelength.initial_weight=0.0 \
       wirelength.start=0.5 \
