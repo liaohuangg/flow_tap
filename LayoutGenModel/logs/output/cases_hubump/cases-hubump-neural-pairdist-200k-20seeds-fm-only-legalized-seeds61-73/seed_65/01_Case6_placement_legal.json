@@ -1,0 +1,369 @@
+{
+  "chiplets": [
+    {
+      "name": "CPU2_0",
+      "x-position": 29.22187286644569,
+      "y-position": 35.1191926081642,
+      "width": 5.0,
+      "height": 5.0,
+      "rotation": 0,
+      "power": 34.0
+    },
+    {
+      "name": "CPU2_1",
+      "x-position": 28.519912862559433,
+      "y-position": 6.838458606591067,
+      "width": 5.0,
+      "height": 5.0,
+      "rotation": 0,
+      "power": 34.0
+    },
+    {
+      "name": "CPU2_2",
+      "x-position": 16.103351593017578,
+      "y-position": 36.05783462524414,
+      "width": 5.0,
+      "height": 5.0,
+      "rotation": 0,
+      "power": 34.0
+    },
+    {
+      "name": "CPU2_3",
+      "x-position": 2.036965044270191,
+      "y-position": 39.801641752182825,
+      "width": 5.0,
+      "height": 5.0,
+      "rotation": 0,
+      "power": 34.0
+    },
+    {
+      "name": "CPU2_4",
+      "x-position": 33.58542530263957,
+      "y-position": 6.394745664736287,
+      "width": 5.0,
+      "height": 5.0,
+      "rotation": 0,
+      "power": 34.0
+    },
+    {
+      "name": "CPU2_5",
+      "x-position": 4.5725051280272,
+      "y-position": 19.552447672058186,
+      "width": 5.0,
+      "height": 5.0,
+      "rotation": 0,
+      "power": 34.0
+    },
+    {
+      "name": "CPU2_6",
+      "x-position": 7.371164941407752,
+      "y-position": 34.62949393482746,
+      "width": 5.0,
+      "height": 5.0,
+      "rotation": 0,
+      "power": 34.0
+    },
+    {
+      "name": "CPU2_7",
+      "x-position": 2.1769721508026123,
+      "y-position": 34.76873016357422,
+      "width": 5.0,
+      "height": 5.0,
+      "rotation": 0,
+      "power": 34.0
+    },
+    {
+      "name": "GPU_0",
+      "x-position": 11.267346382141113,
+      "y-position": 24.572174072265625,
+      "width": 9.0,
+      "height": 9.0,
+      "rotation": 0,
+      "power": 100.0
+    },
+    {
+      "name": "GPU_1",
+      "x-position": 24.233607388113395,
+      "y-position": 23.657660193181638,
+      "width": 9.0,
+      "height": 9.0,
+      "rotation": 0,
+      "power": 100.0
+    },
+    {
+      "name": "GPU_2",
+      "x-position": 1.8463495969772339,
+      "y-position": 24.567073822021484,
+      "width": 9.0,
+      "height": 9.0,
+      "rotation": 0,
+      "power": 100.0
+    },
+    {
+      "name": "GPU_3",
+      "x-position": 7.040026183702834,
+      "y-position": 39.98870170179994,
+      "width": 9.0,
+      "height": 9.0,
+      "rotation": 0,
+      "power": 100.0
+    },
+    {
+      "name": "HBM_0",
+      "x-position": 2.400071108793451,
+      "y-position": 7.430835859862833,
+      "width": 8.0,
+      "height": 12.0,
+      "rotation": 0,
+      "power": 25.0
+    },
+    {
+      "name": "HBM_1",
+      "x-position": 35.662440628403814,
+      "y-position": 11.470178590497436,
+      "width": 8.0,
+      "height": 12.0,
+      "rotation": 0,
+      "power": 25.0
+    },
+    {
+      "name": "HBM_2",
+      "x-position": 20.418404373751912,
+      "y-position": 1.1826923479488893,
+      "width": 8.0,
+      "height": 12.0,
+      "rotation": 0,
+      "power": 25.0
+    },
+    {
+      "name": "HBM_3",
+      "x-position": 21.21700057641263,
+      "y-position": 35.27889051656525,
+      "width": 8.0,
+      "height": 12.0,
+      "rotation": 0,
+      "power": 25.0
+    },
+    {
+      "name": "DRAM_0",
+      "x-position": 26.66090813128958,
+      "y-position": 13.193541602775964,
+      "width": 9.0,
+      "height": 9.0,
+      "rotation": 0,
+      "power": 20.0
+    },
+    {
+      "name": "DRAM_1",
+      "x-position": 10.434181792183162,
+      "y-position": 5.281623187804639,
+      "width": 9.0,
+      "height": 9.0,
+      "rotation": 0,
+      "power": 20.0
+    },
+    {
+      "name": "DRAM_2",
+      "x-position": 33.26009560316119,
+      "y-position": 23.54538730889497,
+      "width": 9.0,
+      "height": 9.0,
+      "rotation": 0,
+      "power": 20.0
+    },
+    {
+      "name": "DRAM_3",
+      "x-position": 11.18742636363571,
+      "y-position": 15.529650318741405,
+      "width": 9.0,
+      "height": 9.0,
+      "rotation": 0,
+      "power": 20.0
+    }
+  ],
+  "connections": [
+    {
+      "node1": "CPU2_0",
+      "node2": "CPU2_1",
+      "wireCount": 176,
+      "EMIBType": "interfaceB",
+      "EMIB_length": 0.586667,
+      "EMIB_max_width": 3.0,
+      "EMIB_bump_width": 1.0
+    },
+    {
+      "node1": "CPU2_0",
+      "node2": "CPU2_7",
+      "wireCount": 176,
+      "EMIBType": "interfaceB",
+      "EMIB_length": 0.586667,
+      "EMIB_max_width": 3.0,
+      "EMIB_bump_width": 1.0
+    },
+    {
+      "node1": "CPU2_0",
+      "node2": "GPU_0",
+      "wireCount": 352,
+      "EMIBType": "interfaceB",
+      "EMIB_length": 1.173333,
+      "EMIB_max_width": 3.0,
+      "EMIB_bump_width": 1.0
+    },
+    {
+      "node1": "CPU2_1",
+      "node2": "CPU2_2",
+      "wireCount": 176,
+      "EMIBType": "interfaceB",
+      "EMIB_length": 0.586667,
+      "EMIB_max_width": 3.0,
+      "EMIB_bump_width": 1.0
+    },
+    {
+      "node1": "CPU2_1",
+      "node2": "DRAM_0",
+      "wireCount": 352,
+      "EMIBType": "interfaceB",
+      "EMIB_length": 1.173333,
+      "EMIB_max_width": 3.0,
+      "EMIB_bump_width": 1.0
+    },
+    {
+      "node1": "CPU2_2",
+      "node2": "CPU2_3",
+      "wireCount": 176,
+      "EMIBType": "interfaceB",
+      "EMIB_length": 0.586667,
+      "EMIB_max_width": 3.0,
+      "EMIB_bump_width": 1.0
+    },
+    {
+      "node1": "CPU2_2",
+      "node2": "GPU_1",
+      "wireCount": 352,
+      "EMIBType": "interfaceB",
+      "EMIB_length": 1.173333,
+      "EMIB_max_width": 3.0,
+      "EMIB_bump_width": 1.0
+    },
+    {
+      "node1": "CPU2_3",
+      "node2": "CPU2_4",
+      "wireCount": 176,
+      "EMIBType": "interfaceB",
+      "EMIB_length": 0.586667,
+      "EMIB_max_width": 3.0,
+      "EMIB_bump_width": 1.0
+    },
+    {
+      "node1": "CPU2_3",
+      "node2": "DRAM_1",
+      "wireCount": 352,
+      "EMIBType": "interfaceB",
+      "EMIB_length": 1.173333,
+      "EMIB_max_width": 3.0,
+      "EMIB_bump_width": 1.0
+    },
+    {
+      "node1": "CPU2_4",
+      "node2": "CPU2_5",
+      "wireCount": 176,
+      "EMIBType": "interfaceB",
+      "EMIB_length": 0.586667,
+      "EMIB_max_width": 3.0,
+      "EMIB_bump_width": 1.0
+    },
+    {
+      "node1": "CPU2_4",
+      "node2": "GPU_2",
+      "wireCount": 352,
+      "EMIBType": "interfaceB",
+      "EMIB_length": 1.173333,
+      "EMIB_max_width": 3.0,
+      "EMIB_bump_width": 1.0
+    },
+    {
+      "node1": "CPU2_5",
+      "node2": "CPU2_6",
+      "wireCount": 176,
+      "EMIBType": "interfaceB",
+      "EMIB_length": 0.586667,
+      "EMIB_max_width": 3.0,
+      "EMIB_bump_width": 1.0
+    },
+    {
+      "node1": "CPU2_5",
+      "node2": "DRAM_2",
+      "wireCount": 352,
+      "EMIBType": "interfaceB",
+      "EMIB_length": 1.173333,
+      "EMIB_max_width": 3.0,
+      "EMIB_bump_width": 1.0
+    },
+    {
+      "node1": "CPU2_6",
+      "node2": "CPU2_7",
+      "wireCount": 176,
+      "EMIBType": "interfaceB",
+      "EMIB_length": 0.586667,
+      "EMIB_max_width": 3.0,
+      "EMIB_bump_width": 1.0
+    },
+    {
+      "node1": "CPU2_6",
+      "node2": "GPU_3",
+      "wireCount": 352,
+      "EMIBType": "interfaceB",
+      "EMIB_length": 1.173333,
+      "EMIB_max_width": 3.0,
+      "EMIB_bump_width": 1.0
+    },
+    {
+      "node1": "CPU2_7",
+      "node2": "DRAM_3",
+      "wireCount": 352,
+      "EMIBType": "interfaceB",
+      "EMIB_length": 1.173333,
+      "EMIB_max_width": 3.0,
+      "EMIB_bump_width": 1.0
+    },
+    {
+      "node1": "GPU_0",
+      "node2": "HBM_0",
+      "wireCount": 352,
+      "EMIBType": "interfaceB",
+      "EMIB_length": 1.173333,
+      "EMIB_max_width": 3.0,
+      "EMIB_bump_width": 1.0
+    },
+    {
+      "node1": "GPU_1",
+      "node2": "HBM_1",
+      "wireCount": 352,
+      "EMIBType": "interfaceB",
+      "EMIB_length": 1.173333,
+      "EMIB_max_width": 3.0,
+      "EMIB_bump_width": 1.0
+    },
+    {
+      "node1": "GPU_2",
+      "node2": "HBM_2",
+      "wireCount": 352,
+      "EMIBType": "interfaceB",
+      "EMIB_length": 1.173333,
+      "EMIB_max_width": 3.0,
+      "EMIB_bump_width": 1.0
+    },
+    {
+      "node1": "GPU_3",
+      "node2": "HBM_3",
+      "wireCount": 352,
+      "EMIBType": "interfaceB",
+      "EMIB_length": 1.173333,
+      "EMIB_max_width": 3.0,
+      "EMIB_bump_width": 1.0
+    }
+  ],
+  "wirelength": 157295.64466892282,
+  "area": 1999.0604389898663,
+  "aspect_ratio": 0.8747036532983076
+}
