@@ -1,0 +1,8 @@
+# 本目录的评测结果 csv 以纯文本入库, 不走 LFS。
+# 与根 .gitattributes 里那条例外同口径:
+#   resultEval/FM_result/pareto_weight_sweep_seed121_legal_only_results/*.csv -filter -diff -merge text
+# 目的是让 result.csv / manifest.csv 能在 GitHub 上直接查看、直接 diff,
+# 而不是存成 LFS 指针。放在本目录内是为了让这次改动只落在本目录里。
+#
+# 注意: 根 .gitignore 有 `*.csv`, 所以这两个 csv 是用 `git add -f` 加进来的。
+*.csv -filter -diff -merge text
