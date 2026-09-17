@@ -1,0 +1,39 @@
+{
+  "case": "hp11_m_bump",
+  "mode": "thermal",
+  "base_seed": 2,
+  "status": "completed",
+  "error": null,
+  "legal_found": true,
+  "num_legal": 1,
+  "num_illegal": 0,
+  "attempts": 1,
+  "best_hpwl": 106134181.99525273,
+  "twl_m": 106.13418199525273,
+  "best_seed": 2,
+  "best_legal": true,
+  "best_overlaps": 0,
+  "best_legalize_method": "milp",
+  "best_legalize_s": 0.03219103813171387,
+  "total_legalize_s": 0.03219103813171387,
+  "runtime_s": 392.5069966316223,
+  "attempt_log": [
+    {
+      "seed": 2,
+      "iterations": 100,
+      "overlaps": 0,
+      "overlaps_raw": 0,
+      "hpwl": 106134181.99525273,
+      "hpwl_raw": 106133904.0,
+      "run_s": 391.6378524303436,
+      "legal": true,
+      "legalize_method": "milp",
+      "legalize_s": 0.03219103813171387,
+      "layout_dir": "/root/placement/ATPlace_pub/result/hp11_m_bump/seed2"
+    }
+  ],
+  "layout_json": "/root/placement/ATPlace_pub/result/hp11_m_bump/layout.json",
+  "layout_png": "/root/placement/ATPlace_pub/result/hp11_m_bump/layout.png",
+  "layout_chiplets": 11,
+  "visualized": true
+}

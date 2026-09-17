@@ -1,0 +1,39 @@
+{
+  "case": "acend910_bump",
+  "mode": "thermal",
+  "base_seed": 3,
+  "status": "completed",
+  "error": null,
+  "legal_found": true,
+  "num_legal": 1,
+  "num_illegal": 0,
+  "attempts": 1,
+  "best_hpwl": 35227929.39592934,
+  "twl_m": 35.22792939592934,
+  "best_seed": 3,
+  "best_legal": true,
+  "best_overlaps": 0,
+  "best_legalize_method": "milp",
+  "best_legalize_s": 0.004471778869628906,
+  "total_legalize_s": 0.004471778869628906,
+  "runtime_s": 287.739089012146,
+  "attempt_log": [
+    {
+      "seed": 3,
+      "iterations": 100,
+      "overlaps": 0,
+      "overlaps_raw": 0,
+      "hpwl": 35227929.39592934,
+      "hpwl_raw": 35227928.0,
+      "run_s": 287.34305787086487,
+      "legal": true,
+      "legalize_method": "milp",
+      "legalize_s": 0.004471778869628906,
+      "layout_dir": "/root/placement/ATPlace_pub/result/acend910_bump/seed3"
+    }
+  ],
+  "layout_json": "/root/placement/ATPlace_pub/result/acend910_bump/layout.json",
+  "layout_png": "/root/placement/ATPlace_pub/result/acend910_bump/layout.png",
+  "layout_chiplets": 6,
+  "visualized": true
+}

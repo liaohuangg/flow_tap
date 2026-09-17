@@ -1,0 +1,91 @@
+[23:35:51] ======================================================================================================================
+[23:35:51] RL chiplet placement - all cases x seeds, time-boxed PPO training
+[23:35:51]   cases     : syn1,syn4,xerox8_m   seeds: [1, 2, 3, 4, 5]
+[23:35:51]   per run   : 3600s TOTAL budget (thermal tables inside the run, regenerated per run)
+[23:35:51]   canvas    : footprint area / canvas area = 50.00%  side = sqrt(footprint_area / ratio)
+[23:35:51]   runs dir  : /root/placement/flow_tap/baseline/RL/runs/shard4
+[23:35:51]   driver log: /root/placement/flow_tap/baseline/RL/runs/shard4/driver_20260911_233551.log
+[23:35:51] ======================================================================================================================
+[23:35:51] 
+[23:35:51] case        chiplets   footprint       body  side(mm) body/canvas fastTM cfg
+[23:35:51] syn1              10       840.0      802.0     40.99       0.477      False
+[23:35:51] syn4              13       700.1      639.0     37.42       0.456      False
+[23:35:51] xerox8_m           8      1326.3     1274.2     51.50       0.480      False
+[23:35:52] interpreter : /root/anaconda3/envs/chipdiffusion/bin/python (python 3.10.20)
+[23:35:52]   numpy   : 2.2.5
+[23:35:52]   torch   : 2.11.0+cu130
+[23:35:52]   scipy   : 1.15.3
+[23:35:52]   cplex   : 22.1.0.0
+[23:35:52]   pandas  : MISSING (optional)
+[23:35:52]   cuda     : True NVIDIA GeForce RTX 5090
+[23:35:52]   note: pandas is absent, which is fine - compute_temp.py never calls it and
+[23:35:52]         env.py/generate_thermal_tables.py already install a stub module.
+[23:35:52] 
+[23:35:52] ### syn1: side=40.9888mm chiplets=10 footprint=840.0mm2
+[23:35:52]   seeds: [1, 2, 3, 4, 5]
+[23:35:52]   seed 1: /root/anaconda3/envs/chipdiffusion/bin/python /root/placement/flow_tap/baseline/RL/train.py --json /root/placement/flow_tap/baseline/RL/examples/syn1.json --name syn1_seed1 ... budget 3600s
+[00:35:25]     -> rc=0 wall=3573.4s termination=time_limit rl=3335.092517158977
+[00:35:25]     thermal stage 235.8s (forced=True), RL 3335.092517158977
+[00:35:25]   seed 2: /root/anaconda3/envs/chipdiffusion/bin/python /root/placement/flow_tap/baseline/RL/train.py --json /root/placement/flow_tap/baseline/RL/examples/syn1.json --name syn1_seed2 ... budget 3600s
+[01:35:03]     -> rc=0 wall=3573.0s termination=time_limit rl=3335.4657997500035
+[01:35:03]     thermal stage 235.0s (forced=True), RL 3335.4657997500035
+[01:35:03]   seed 3: /root/anaconda3/envs/chipdiffusion/bin/python /root/placement/flow_tap/baseline/RL/train.py --json /root/placement/flow_tap/baseline/RL/examples/syn1.json --name syn1_seed3 ... budget 3600s
+[02:35:37]     -> rc=0 wall=3573.6s termination=time_limit rl=3340.1399400980445
+[02:35:37]     thermal stage 231.1s (forced=True), RL 3340.1399400980445
+[02:35:37]   seed 4: /root/anaconda3/envs/chipdiffusion/bin/python /root/placement/flow_tap/baseline/RL/train.py --json /root/placement/flow_tap/baseline/RL/examples/syn1.json --name syn1_seed4 ... budget 3600s
+[03:36:21]     -> rc=0 wall=3572.8s termination=time_limit rl=3338.334445209999
+[03:36:21]     thermal stage 232.1s (forced=True), RL 3338.334445209999
+[03:36:21]   seed 5: /root/anaconda3/envs/chipdiffusion/bin/python /root/placement/flow_tap/baseline/RL/train.py --json /root/placement/flow_tap/baseline/RL/examples/syn1.json --name syn1_seed5 ... budget 3600s
+[04:37:18]     -> rc=0 wall=3572.9s termination=time_limit rl=3338.406176919001
+[04:37:18]     thermal stage 232.1s (forced=True), RL 3338.406176919001
+[04:37:18]   best seed 3: cost=21.5029 T=84.67888224044535 avg_wl=14.137913972947919 canvas_util=0.5
+[04:37:18] 
+[04:37:18] ### syn4: side=37.4195mm chiplets=13 footprint=700.1mm2
+[04:37:18]   seeds: [1, 2, 3, 4, 5]
+[04:37:18]   seed 1: /root/anaconda3/envs/chipdiffusion/bin/python /root/placement/flow_tap/baseline/RL/train.py --json /root/placement/flow_tap/baseline/RL/examples/syn4.json --name syn4_seed1 ... budget 3600s
+[05:38:22]     -> rc=0 wall=3573.7s termination=time_limit rl=3331.3126128349686
+[05:38:22]     thermal stage 240.1s (forced=True), RL 3331.3126128349686
+[05:38:22]   seed 2: /root/anaconda3/envs/chipdiffusion/bin/python /root/placement/flow_tap/baseline/RL/train.py --json /root/placement/flow_tap/baseline/RL/examples/syn4.json --name syn4_seed2 ... budget 3600s
+[06:39:27]     -> rc=0 wall=3573.2s termination=time_limit rl=3331.3123261750443
+[06:39:27]     thermal stage 239.6s (forced=True), RL 3331.3123261750443
+[06:39:27]   seed 3: /root/anaconda3/envs/chipdiffusion/bin/python /root/placement/flow_tap/baseline/RL/train.py --json /root/placement/flow_tap/baseline/RL/examples/syn4.json --name syn4_seed3 ... budget 3600s
+[07:40:49]     -> rc=0 wall=3573.4s termination=time_limit rl=3333.9197391959606
+[07:40:49]     thermal stage 237.0s (forced=True), RL 3333.9197391959606
+[07:40:49]   seed 4: /root/anaconda3/envs/chipdiffusion/bin/python /root/placement/flow_tap/baseline/RL/train.py --json /root/placement/flow_tap/baseline/RL/examples/syn4.json --name syn4_seed4 ... budget 3600s
+[08:42:32]     -> rc=0 wall=3573.5s termination=time_limit rl=3333.9673817830044
+[08:42:32]     thermal stage 237.0s (forced=True), RL 3333.9673817830044
+[08:42:32]   seed 5: /root/anaconda3/envs/chipdiffusion/bin/python /root/placement/flow_tap/baseline/RL/train.py --json /root/placement/flow_tap/baseline/RL/examples/syn4.json --name syn4_seed5 ... budget 3600s
+[09:44:22]     -> rc=0 wall=3572.9s termination=time_limit rl=3332.4948369259946
+[09:44:22]     thermal stage 238.1s (forced=True), RL 3332.4948369259946
+[09:44:22]   best seed 4: cost=19.6709 T=82.89006409232788 avg_wl=15.906519387910535 canvas_util=0.5
+[09:44:22] 
+[09:44:22] ### xerox8_m: side=51.5034mm chiplets=8 footprint=1326.3mm2
+[09:44:22]   seeds: [1, 2, 3, 4, 5]
+[09:44:22]   seed 1: /root/anaconda3/envs/chipdiffusion/bin/python /root/placement/flow_tap/baseline/RL/train.py --json /root/placement/flow_tap/baseline/RL/examples/xerox8_m.json --name xerox8_m_seed1 ... budget 3600s
+[10:46:21]     -> rc=0 wall=3572.6s termination=time_limit rl=3387.430757665017
+[10:46:21]     thermal stage 183.0s (forced=True), RL 3387.430757665017
+[10:46:21]   seed 2: /root/anaconda3/envs/chipdiffusion/bin/python /root/placement/flow_tap/baseline/RL/train.py --json /root/placement/flow_tap/baseline/RL/examples/xerox8_m.json --name xerox8_m_seed2 ... budget 3600s
+[11:48:27]     -> rc=0 wall=3572.9s termination=time_limit rl=3387.3437779629603
+[11:48:27]     thermal stage 183.4s (forced=True), RL 3387.3437779629603
+[11:48:27]   seed 3: /root/anaconda3/envs/chipdiffusion/bin/python /root/placement/flow_tap/baseline/RL/train.py --json /root/placement/flow_tap/baseline/RL/examples/xerox8_m.json --name xerox8_m_seed3 ... budget 3600s
+[12:50:43]     -> rc=0 wall=3572.7s termination=time_limit rl=3387.93504906405
+[12:50:43]     thermal stage 182.6s (forced=True), RL 3387.93504906405
+[12:50:43]   seed 4: /root/anaconda3/envs/chipdiffusion/bin/python /root/placement/flow_tap/baseline/RL/train.py --json /root/placement/flow_tap/baseline/RL/examples/xerox8_m.json --name xerox8_m_seed4 ... budget 3600s
+[13:53:05]     -> rc=0 wall=3572.7s termination=time_limit rl=3385.565258095041
+[13:53:05]     thermal stage 184.9s (forced=True), RL 3385.565258095041
+[13:53:05]   seed 5: /root/anaconda3/envs/chipdiffusion/bin/python /root/placement/flow_tap/baseline/RL/train.py --json /root/placement/flow_tap/baseline/RL/examples/xerox8_m.json --name xerox8_m_seed5 ... budget 3600s
+[14:55:27]     -> rc=0 wall=3572.6s termination=time_limit rl=3386.575621050026
+[14:55:27]     thermal stage 183.9s (forced=True), RL 3386.575621050026
+[14:55:27]   best seed 3: cost=12.9870 T=79.97278958199895 avg_wl=12.986999205781249 canvas_util=0.5
+[14:55:27] 
+[14:55:27] ======================================================================================================================
+[14:55:27] case           side seed        cost     avg_wl     T(C)  canvas_u  success          stop
+[14:55:27] ----------------------------------------------------------------------------------------------------------------------
+[14:55:27] syn1          40.99    3     21.5029      14.14    84.68    0.5000    0.942    time_limit
+[14:55:27] syn4          37.42    4     19.6709      15.91    82.89    0.5000    0.782    time_limit
+[14:55:27] xerox8_m      51.50    3     12.9870      12.99    79.97    0.5000    0.996    time_limit
+[14:55:27] ======================================================================================================================
+[14:55:27] summary.json: /root/placement/flow_tap/baseline/RL/runs/shard4/summary.json
+[14:55:27] summary.csv : /root/placement/flow_tap/baseline/RL/runs/shard4/summary.csv
+[14:55:27] 
+[14:55:27] done: 3/3 case(s) produced a cost-ranked best solution, 53597s total
