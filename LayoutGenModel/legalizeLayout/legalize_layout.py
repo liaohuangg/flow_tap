@@ -125,30 +125,14 @@ def process_one(path, config, evaluators, out_dir, device, verbose=False):
     names, sizes, power = layout.names, layout.sizes, layout.power
     V = layout.V
 
-    origin, side = compute_canvas(
-        layout,
-        scale=float(_get(config, "canvas.scale", 1.0)),
-        pad_mm=float(_get(config, "canvas.pad_mm", 0.0)),
-    )
-    cond = build_cond(record, layout, origin, side, hubump_source=_get(config, "hubump.source", "derived"))
-
-    lower = layout.lower.copy()
-    report = {
-        "input": str(path),
-        "num_chiplets": V,
-        "num_connections": len(record.get("connections", []) or []),
-        "canvas": {"origin": [float(origin[0]), float(origin[1])], "side_mm": float(side)},
-        "before": _geometric_metrics(lower, sizes, origin, side, record, layout),
-    }
-    if evaluators is not None:
-        _fill_neural_metrics(report["before"], lower, sizes, origin, side, cond, evaluators)
-
     repair_cfg = config.get("repair", {}) or {}
     refine_cfg = config.get("refine", {}) or {}
     repair_on = bool(repair_cfg.get("enabled", True))
     refine_on = bool(refine_cfg.get("enabled", True))
+    base_scale = float(_get(config, "canvas.scale", 1.0))
+    pad_mm = float(_get(config, "canvas.pad_mm", 0.0))
 
-    def guard_for(section):
+    def guard_for(section, origin, side, cond):
         guard = _get(config, f"{section}.guard", {}) or {}
         thermal_tol = float(guard.get("thermal_tol_k", 0.0))
         wl_tol = float(guard.get("wl_tol", 0.0))
@@ -170,29 +154,123 @@ def process_one(path, config, evaluators, out_dir, device, verbose=False):
 
         return evaluate, thermal_tol, wl_tol
 
-    # ---- Stage A ----
-    stage_a_time = 0.0
-    if repair_on:
-        started_a = time.perf_counter()
-        evaluate = None
-        guard_on = bool(_get(config, "repair.guard.enabled", True))
-        if evaluators is not None and guard_on:
-            evaluate, _, _ = guard_for("repair")
-        lower, repair_stats = repair_overlap(
-            lower,
-            sizes,
-            origin,
-            side,
-            repair_cfg,
-            evaluate=evaluate,
-            cond=cond,
-            device=device,
-            verbose=verbose,
+    def prepare(scale):
+        """给定画布放大系数, 重建 ``(origin, side, cond)`` 并跑一遍 Stage A。
+
+        换画布**必须连 cond 一起重建**: 神经模型吃的是画布归一化坐标
+        (``to_norm_centers`` / ``cond_builder``), 画布一变, 同一份物理布局在模型眼里
+        就是另一组输入 —— 尺寸归一化 ``2*size_mm/side`` 也跟着变。复用旧 cond 会得到
+        一组口径不一致的读数, 所以每次重试都整个重建。
+        """
+        origin, side = compute_canvas(layout, scale=scale, pad_mm=pad_mm)
+        cond = build_cond(
+            record, layout, origin, side, hubump_source=_get(config, "hubump.source", "derived")
         )
-        stage_a_time = time.perf_counter() - started_a
-        report["repair"] = repair_stats
-    else:
-        report["repair"] = {"enabled": False}
+        cur = layout.lower.copy()
+        stats = {"enabled": False}
+        if repair_on:
+            evaluate = None
+            if evaluators is not None and bool(_get(config, "repair.guard.enabled", True)):
+                evaluate, _, _ = guard_for("repair", origin, side, cond)
+            cur, stats = repair_overlap(
+                cur,
+                sizes,
+                origin,
+                side,
+                repair_cfg,
+                evaluate=evaluate,
+                cond=cond,
+                device=device,
+                verbose=verbose,
+            )
+        return origin, side, cond, cur, stats
+
+    # ---- Stage A ----
+    started_a = time.perf_counter()
+    origin, side, cond, lower, repair_stats = prepare(base_scale)
+
+    # ---- 画布升级 ----
+    # 第一轮在自己的 bbox 里解不开时, 唯一的出路往往是**给画布多点地方**。实测
+    # Case6_candidate35: 20 对重叠, 换遍 7 种策略、阻尼 0.4/0.6/0.8 全都停在 1 对
+    # (那个局部区域把某一块推出去只能换来一个**更大**的重叠, 或者直接出画布); 画布
+    # 放大 12% 之后 269 轮就收敛到 0 对, 而且 ΔWL 反而 -7.84%。所以卡点不是温度/线长
+    # 守卫, 是画布这个硬约束。
+    #
+    # 触发条件限死在"**整份布局都要重排**" (所有 chiplet 都在重叠分量里): 这才是
+    # "输入本身就是一份非法摆放"的特征。少数几块互相压住时仍严格待在输入 bbox 内,
+    # 保住"最小干预"的承诺 —— 为一个小局部重叠把整张图撑大是不划算的。
+    escalation = _get(config, "repair.canvas_escalation", {}) or {}
+    if (
+        repair_on
+        and bool(escalation.get("enabled", True))
+        and repair_stats.get("enabled")
+        and repair_stats.get("overlap_pairs_end", 0) > 0
+        and int(repair_stats.get("movable_nodes", 0)) == V
+    ):
+        lo_scale = base_scale                      # 已知不合法 (刚跑过)
+        hi_scale = float(escalation.get("max_scale", 1.25))
+        rel_tol = float(escalation.get("rel_tol", 0.03))
+        max_evals = int(escalation.get("max_evals", 5))
+        evals = 0
+        origin_hi, side_hi, cond_hi, lower_hi, stats_hi = prepare(hi_scale)
+        evals += 1
+        best = None
+        if stats_hi.get("overlap_pairs_end", 0) == 0:
+            best = (hi_scale, origin_hi, side_hi, cond_hi, lower_hi, stats_hi)
+            hi = hi_scale
+            # 二分找**最小**够用的系数。维持不变式: lo 不合法 / hi 合法。
+            # 同一档的两次运行结果会因 GPU 浮点不确定而略有出入 (见 README), 所以
+            # 只把**实测跑出过 0 对**的那些档记下来, 最后返回的一定是亲眼看它合法的那档。
+            while best is not None and evals < max_evals and (hi - lo_scale) / lo_scale > rel_tol:
+                mid = 0.5 * (lo_scale + hi)
+                o_m, s_m, c_m, l_m, st_m = prepare(mid)
+                evals += 1
+                if st_m.get("overlap_pairs_end", 0) == 0:
+                    hi = mid
+                    best = (mid, o_m, s_m, c_m, l_m, st_m)
+                else:
+                    lo_scale = mid
+        if best is not None:
+            used_scale, origin, side, cond, lower, repair_stats = best
+            repair_stats["canvas_escalation"] = {
+                "trigger": "整份布局都在重叠分量内 (movable_nodes == V)",
+                "base_scale": base_scale,
+                "used_scale": used_scale,
+                "max_scale": hi_scale,
+                "evals": evals,
+            }
+            if verbose:
+                print(
+                    f"        画布升级: scale {base_scale:.3f} -> {used_scale:.3f} "
+                    f"({evals} 次重试, 重叠 {repair_stats['overlap_pairs_end']} 对)",
+                    flush=True,
+                )
+        else:
+            repair_stats["canvas_escalation"] = {
+                "trigger": "整份布局都在重叠分量内 (movable_nodes == V)",
+                "base_scale": base_scale,
+                "used_scale": None,
+                "max_scale": hi_scale,
+                "evals": evals,
+                "exhausted": True,     # 放到 max_scale 仍解不开
+            }
+            if verbose:
+                print(f"        画布升级: 放到 {hi_scale:.2f} 倍仍解不开", flush=True)
+
+    report = {
+        "input": str(path),
+        "num_chiplets": V,
+        "num_connections": len(record.get("connections", []) or []),
+        "canvas": {"origin": [float(origin[0]), float(origin[1])], "side_mm": float(side)},
+        # before 一律按**最终画布**算, 不能用最初那档 —— 神经模型吃归一化坐标, 两联
+        # 用不同画布算出来的 ΔT/ΔWL 是两个口径的差, 没有意义。
+        "before": _geometric_metrics(layout.lower, sizes, origin, side, record, layout),
+    }
+    if evaluators is not None:
+        _fill_neural_metrics(report["before"], layout.lower, sizes, origin, side, cond, evaluators)
+
+    stage_a_time = time.perf_counter() - started_a
+    report["repair"] = repair_stats
 
     # ---- 热点定位 (在**合法化之后**的布局上做, 见 hotspot.py) ----
     hotspot_info, frozen = None, None

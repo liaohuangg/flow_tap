@@ -478,34 +478,44 @@ def repair_overlap(
     def rank(entry):
         """选择次序 (用户口径, 逐条都短):
 
-            1. 合法                            硬要求
-            2. 温度落在容忍带内                出带 = 劣化
-            3. 线长落在容忍带内                出带 = 劣化
-            4. 都出带时, 超出各自的**带宽**最少 (按带宽归一, 无量纲可比)
-            5. 线长                            带内比小
-            6. 外接框                          更软: 尽量小
-            7. 位移                            最小干预
+            1. 残留重叠对数                    硬要求: 合法性 > 守卫
+            2. 残留重叠面积                    同上, 差多少也要看
+            3. 温度落在容忍带内                出带 = 劣化
+            4. 线长落在容忍带内                出带 = 劣化
+            5. 都出带时, 超出各自的**带宽**最少 (按带宽归一, 无量纲可比)
+            6. 线长                            带内比小
+            7. 外接框                          更软: 尽量小
+            8. 位移                            最小干预
+
+        第 1、2 项**必须在守卫之前**: 候选全不合法时 (几何上就没这条路), 排序不能退化成
+        "在一堆坏布局里挑线长最小的那个"。实测 Case6_candidate35: `natural` 那组自己已经
+        跑到只剩 4 对重叠, 但线长比 `adaptive_fast` 多涨 0.34 个百分点, 于是守卫把**还剩
+        12 对**的 `adaptive_fast` 选中了, 只能靠解析收尾硬拖到 1 对 —— 合法性是硬要求,
+        不能因为"两个都出带、它出得少一点"就把它排到后面。原先的写法只有 ``illegal`` 一个
+        0/1 旗标, 不区分"差多少", 所以七组全非法时第一关键字全部并列, 直接比到第 6 项。
 
         两条带都是**模型自己的容错**, 不是拍的数:
             温度 0.50 K  —— 热代理的组内 MAE (实测单芯片挪 0.05mm 读数就跳 +0.14K,
                             挪 0.2mm 跳 +0.66K, 那是 64x64 光栅化换格, 不是物理)
             线长 1.20 %  —— 线长 GNN 的测试集 MAPE (mae_log 0.0120)
         低于带宽的升降, 模型分辨不出来, 卡 0.0 只是在拟合噪声。带内一律视为"没变",
-        由第 5 项 (线长) 接手做区分 —— 于是 "两条指标不劣化, 且线长尽量小" 就是这个
+        由第 6 项 (线长) 接手做区分 —— 于是 "两条指标不劣化, 且线长尽量小" 就是这个
         元组的自然读法。
 
-        第 4 项用**各自的带宽**做单位, 所以"温度超 2 倍带宽"和"线长超 2 倍带宽"同权,
+        第 5 项用**各自的带宽**做单位, 所以"温度超 2 倍带宽"和"线长超 2 倍带宽"同权,
         不会因为 K 和 % 量纲不同而让某一项吃掉另一项。
 
-        若一个候选都没进带 (几何上就没这条路), 第 4 项给出最不坏的那个, 由
+        若一个候选都没进带, 第 5 项给出最不坏的那个, 由
         ``legality_overrode_thermal_guard`` / ``legality_overrode_wl_guard`` 留痕
         —— 绝不静默违反。
+
+        注意 ``rank`` 只排序**不筛除**: 出带的候选照样能赢, 只要没有比它更合法的。
         """
-        illegal = 0 if entry["geo"][0] == 0 else 1
         if "peak" not in entry:
-            return (illegal, 0, 0, 0.0, 0.0, 0.0, entry["geo"][2])
+            return (entry["geo"][0], entry["geo"][1], 0, 0, 0.0, 0.0, 0.0, entry["geo"][2])
         return (
-            illegal,
+            entry["geo"][0],
+            entry["geo"][1],
             0 if entry["thermal_delta"] <= thermal_tol else 1,
             0 if entry["wl_delta_rel"] <= wl_tol else 1,
             _excess_of(entry["peak"], entry["wl"], base_peak, base_wl, thermal_tol, wl_tol),
@@ -558,21 +568,27 @@ def repair_overlap(
             cur, sizes, movable, origin, side, float(cfg.get("clearance_mm", 0.0)), geom_tol
         )
         if _geometric_score(polished, lower, sizes, geom_tol) < cur_score:
-            if evaluate is None:
+            # 收尾**不看守卫**。它只做"把某一对推开到刚好分离"的解析解位移, 且只在
+            # (残留对数, 残留面积) 严格下降、不新增重叠、不出画布时才走 —— 每一步都在
+            # 朝合法走。拿 T/WL 去否决它, 等于为了保线长而**保留一个不合法的布局**,
+            # 与第一条优先级 (合法性 > 守卫) 直接冲突。
+            #
+            # 实测 Case6_candidate35: 选中 natural (还剩 4 对) 之后收尾被守卫拦下, 最终
+            # 交出 4 对重叠的布局。之所以拦得住, 恰恰是因为那个局面线长**本来就出带**
+            # (+2.16% > 1.20%) —— 归一化超出量已经在带外, 再涨一点点就被判成"变坏"。
+            #
+            # 代价不隐藏: 收尾前后各测一次, 差值记进 polish_guard_cost, 与
+            # legality_overrode_thermal_guard / _wl_guard 一同留痕 —— 放宽不等于不记账。
+            if evaluate is not None and base_wl:
+                before_peak, before_wl = _read_of(cur, evaluate)
                 cur = polished
+                after_peak, after_wl = _read_of(cur, evaluate)
+                stats["polish_guard_cost"] = {
+                    "thermal_delta_k": float(after_peak - before_peak),
+                    "wl_delta_rel": float(after_wl / before_wl - 1.0) if before_wl else 0.0,
+                }
             else:
-                # 收尾买的是**几何** (合法性是第一优先级), 代价只能出在 T/WL 上。
-                # 判据与 rank 的第 4 项同源: 超出各自带宽的归一化幅度不得变大。
-                # 用这种"相对上一个候选"的写法而不是"相对输入", 是为了不把已经在
-                # 带外的局面 (hp11_m 就是: 任何能解开重叠的布局线长都涨 20%+) 卡死。
-                cand_peak, cand_wl = _read_of(polished, evaluate)
-                cur_peak, cur_wl = _read_of(cur, evaluate)
-                if _excess_of(cand_peak, cand_wl, base_peak, base_wl, thermal_tol, wl_tol) <= _excess_of(
-                    cur_peak, cur_wl, base_peak, base_wl, thermal_tol, wl_tol
-                ):
-                    cur = polished
-                else:
-                    stats["polish_rejected_by_guard"] = True
+                cur = polished
 
     if _geometric_score(cur, lower, sizes, geom_tol) >= input_score:
         stats["gave_up"] = True
