@@ -1,0 +1,7 @@
+# 本目录的耗时表 csv 以纯文本入库, 不走 LFS。
+# 与根 .gitattributes 里那条例外、以及 ../../pareto_table_profiles_5seed/.gitattributes 同口径:
+#   *.csv -filter -diff -merge text
+# 目的是让 runtime.csv 能在 GitHub 上直接查看、直接 diff, 而不是存成 LFS 指针。
+#
+# 注意: 根 .gitignore 有 `*.csv`, 所以 runtime.csv 是用 `git add -f` 加进来的。
+*.csv -filter -diff -merge text
