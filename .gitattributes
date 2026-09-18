@@ -12,3 +12,9 @@
 *.ckpt filter=lfs diff=lfs merge=lfs -text
 *.pkl filter=lfs diff=lfs merge=lfs -text
 resultEval/FM_result/pareto_weight_sweep_seed121_legal_only_results/*.csv -filter -diff -merge text
+
+# 下面这些是几十 KB 的结果 csv, 走 LFS 只会占额度; 而 LFS 额度一超, GitHub 会拒绝
+# 整个仓库的 LFS 上传 (batch response: This repository exceeded its LFS budget),
+# 连 57KB 的文件也推不上去。改回普通 blob 入库。
+resultEval/runtime/*.csv -filter -diff -merge text
+resultEval/AT_result/50set.csv -filter -diff -merge text
