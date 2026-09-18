@@ -55,7 +55,7 @@ import traceback
 from multiprocessing import Pool
 from pathlib import Path
 
-PROJECT = Path("/root/placement/flow_tap")
+PROJECT = Path(__file__).resolve().parents[1]
 RESULT_EVAL = PROJECT / "resultEval"
 GEN_DATASET = PROJECT / "gen_dataset"
 
@@ -336,11 +336,23 @@ def _fmt(v, unit="", nd=4) -> str:
 # main
 # --------------------------------------------------------------------------- #
 def run_method(method: str, args) -> None:
-    mdir = METHOD_DIR[method]
-    layout_dir = mdir / args.layout_subdir
-    eval_dir = mdir / EVAL_SUBDIR
-    cache_path = mdir / CACHE_NAME
-    csv_path = mdir / args.csv_name
+    # --layout-dir / --result-dir: 直接评测任意一个 placement_dataset 格式目录,
+    # 不依赖 <METHOD>_result/ 的目录约定 (例如 newsweep_20260918/format_result)。
+    # 不传时行为与以前完全一致 (走 --layout-subdir / --csv-name)。
+    if args.layout_dir:
+        layout_dir = Path(args.layout_dir).resolve()
+        result_dir = (Path(args.result_dir).resolve() if args.result_dir
+                      else layout_dir.parent / "eval_result")
+        eval_dir = result_dir / EVAL_SUBDIR
+        cache_path = result_dir / CACHE_NAME
+        csv_path = result_dir / args.csv_name
+        result_dir.mkdir(parents=True, exist_ok=True)
+    else:
+        mdir = METHOD_DIR[method]
+        layout_dir = mdir / args.layout_subdir
+        eval_dir = mdir / EVAL_SUBDIR
+        cache_path = mdir / CACHE_NAME
+        csv_path = mdir / args.csv_name
 
     all_stems = sorted(p.stem for p in layout_dir.glob("*.json"))
     if not all_stems:
@@ -420,6 +432,11 @@ def main() -> None:
                          f"wlsweep 50 点批用 format_result_50set")
     ap.add_argument("--csv-name", default=CSV_NAME,
                     help=f"输出 CSV 文件名 (写进 <METHOD>_result/), 默认 {CSV_NAME}")
+    ap.add_argument("--layout-dir", default=None,
+                    help="直接评测指定 placement_dataset 格式目录 (覆盖 --layout-subdir); "
+                         "配合 --result-dir 可评测任意一批结果")
+    ap.add_argument("--result-dir", default=None,
+                    help="与 --layout-dir 配合: 指定 cache/result.csv/eval_out 的输出目录")
     args = ap.parse_args()
 
     methods = ["AT", "RL"] if args.method == "both" else [args.method]
