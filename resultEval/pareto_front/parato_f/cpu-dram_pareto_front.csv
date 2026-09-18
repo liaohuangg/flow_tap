@@ -5,6 +5,7 @@ ATPlace2.5D,cpu-dram_wl08,1,AT/50set.csv,120322.955238,1199.061191,102.920000
 ATPlace2.5D,cpu-dram_wl10,1,AT/50set.csv,111492.815868,1054.548938,106.190000
 ATPlace2.5D,cpu-dram_wl12,1,AT/50set.csv,92826.402872,1024.477736,113.020000
 ATPlace2.5D,cpu-dram_wl13,1,AT/50set.csv,109204.167256,1032.412506,107.190000
+ATPlace2.5D,cpu-dram_wl15,1,AT/50set.csv,100294.422556,993.005784,111.820000
 ATPlace2.5D,cpu-dram_wl16,1,AT/50set.csv,79250.022686,826.542853,119.490000
 ATPlace2.5D,cpu-dram_wl24,1,AT/50set.csv,90096.147174,1039.210676,115.870000
 ATPlace2.5D,cpu-dram_wl27,1,AT/50set.csv,89494.908128,992.844798,116.510000
@@ -17,32 +18,30 @@ RLPlanner,cpu-dram,1,RL/result.csv,132058.271792,1124.233766,100.930000
 RLPlanner,cpu-dram,3,RL/result.csv,136566.912018,1235.006922,99.930000
 RLPlanner,cpu-dram,4,RL/result.csv,127487.870228,1137.000044,102.540000
 MILP,cpu-dram,1,ILP/result.csv,64984.760000,951.667400,121.280000
-TW-FM,cpu-dram_thermal0_wirelength2,121,result_seed121_7case.csv,87719.082960,872.221876,118.210000
-TW-FM,cpu-dram_thermal0p01_wirelength0p2,121,result_seed121_7case.csv,130241.637022,813.966173,113.050000
-TW-FM,cpu-dram_thermal0p01_wirelength2,121,result_seed121_7case.csv,91919.796204,904.263433,115.470000
-TW-FM,cpu-dram_thermal0p03_wirelength0p2,121,result_seed121_7case.csv,130715.370608,809.604531,113.020000
-TW-FM,cpu-dram_thermal0p1_wirelength0p2,121,result_seed121_7case.csv,130811.440230,810.692062,113.000000
-TW-FM,cpu-dram_thermal0p1_wirelength2,121,result_seed121_7case.csv,92738.149010,730.658560,117.190000
-TW-FM,cpu-dram_thermal0p3_wirelength0p2,121,result_seed121_7case.csv,130352.095796,812.170920,112.930000
-TW-FM,cpu-dram_thermal0p3_wirelength2,121,result_seed121_7case.csv,79390.326060,908.669037,118.160000
-TW-FM,cpu-dram_thermal100_wirelength0,121,result_seed121_7case.csv,188186.716154,1149.237577,99.850000
-TW-FM,cpu-dram_thermal100_wirelength0p02,121,result_seed121_7case.csv,131335.639700,1019.129777,101.240000
-TW-FM,cpu-dram_thermal100_wirelength0p2,121,result_seed121_7case.csv,123269.699980,973.409205,105.080000
-TW-FM,cpu-dram_thermal10_wirelength0,121,result_seed121_7case.csv,157646.112136,1152.283178,100.350000
-TW-FM,cpu-dram_thermal10_wirelength0p02,121,result_seed121_7case.csv,137611.264656,1231.083087,99.800000
-TW-FM,cpu-dram_thermal10_wirelength0p2,121,result_seed121_7case.csv,117957.594396,1026.655581,106.790000
-TW-FM,cpu-dram_thermal1_wirelength0p2,121,result_seed121_7case.csv,123321.218368,852.942127,111.050000
-TW-FM,cpu-dram_thermal1_wirelength2,121,result_seed121_7case.csv,84450.810924,745.507644,122.820000
-TW-FM,cpu-dram_thermal30_wirelength0p02,121,result_seed121_7case.csv,134120.435370,1088.576966,101.200000
-TW-FM,cpu-dram_thermal30_wirelength0p2,121,result_seed121_7case.csv,119150.762064,1070.815538,106.070000
-TW-FM,cpu-dram_thermal30_wirelength2,121,result_seed121_7case.csv,82243.628008,966.138994,116.840000
-TW-FM,cpu-dram_thermal3_wirelength0,121,result_seed121_7case.csv,127921.390728,1140.815481,101.020000
-TW-FM,cpu-dram_thermal3_wirelength0p2,121,result_seed121_7case.csv,130474.163534,818.304838,112.570000
-TW-FM,cpu-dram_t0p01-w2,1056634028,result_seed121_7case.csv,83413.350746,828.544955,118.350000
-TW-FM,cpu-dram_t0p03-w50,1056634028,result_seed121_7case.csv,153971.069650,707.278520,121.580000
-TW-FM,cpu-dram_t0p3-w50,946615675,result_seed121_7case.csv,183729.114600,916.116762,110.290000
-TW-FM,cpu-dram_t1-w2,946615675,result_seed121_7case.csv,76657.440836,968.862921,120.120000
-TW-FM,cpu-dram_t100-w0p2,1486441653,result_seed121_7case.csv,130092.152208,951.571260,109.530000
-TW-FM,cpu-dram_t3-w2,946615675,result_seed121_7case.csv,93015.550008,763.486412,115.140000
-TW-FM,cpu-dram_t3-w2,1486441653,result_seed121_7case.csv,93000.861396,877.351891,111.100000
-TW-FM,cpu-dram_t30-w2,946615675,result_seed121_7case.csv,83702.177338,771.659282,118.660000
+TW-FM,cpu-dram_thermal0_wirelength2,121,result_seed121_7case.csv seed 121,87719.082960,872.221876,118.210000
+TW-FM,cpu-dram_thermal0p01_wirelength0p2,121,result_seed121_7case.csv seed 121,130241.637022,813.966173,113.050000
+TW-FM,cpu-dram_thermal0p01_wirelength2,121,result_seed121_7case.csv seed 121,91919.796204,904.263433,115.470000
+TW-FM,cpu-dram_thermal0p03_wirelength0p2,121,result_seed121_7case.csv seed 121,130715.370608,809.604531,113.020000
+TW-FM,cpu-dram_thermal0p1_wirelength0p2,121,result_seed121_7case.csv seed 121,130811.440230,810.692062,113.000000
+TW-FM,cpu-dram_thermal0p1_wirelength2,121,result_seed121_7case.csv seed 121,92738.149010,730.658560,117.190000
+TW-FM,cpu-dram_thermal0p3_wirelength0p2,121,result_seed121_7case.csv seed 121,130352.095796,812.170920,112.930000
+TW-FM,cpu-dram_thermal0p3_wirelength2,121,result_seed121_7case.csv seed 121,79390.326060,908.669037,118.160000
+TW-FM,cpu-dram_thermal100_wirelength0,121,result_seed121_7case.csv seed 121,188186.716154,1149.237577,99.850000
+TW-FM,cpu-dram_thermal100_wirelength0p02,121,result_seed121_7case.csv seed 121,131335.639700,1019.129777,101.240000
+TW-FM,cpu-dram_thermal100_wirelength0p2,121,result_seed121_7case.csv seed 121,123269.699980,973.409205,105.080000
+TW-FM,cpu-dram_thermal10_wirelength0,121,result_seed121_7case.csv seed 121,157646.112136,1152.283178,100.350000
+TW-FM,cpu-dram_thermal10_wirelength0p02,121,result_seed121_7case.csv seed 121,137611.264656,1231.083087,99.800000
+TW-FM,cpu-dram_thermal10_wirelength0p2,121,result_seed121_7case.csv seed 121,117957.594396,1026.655581,106.790000
+TW-FM,cpu-dram_thermal1_wirelength0p2,121,result_seed121_7case.csv seed 121,123321.218368,852.942127,111.050000
+TW-FM,cpu-dram_thermal1_wirelength2,121,result_seed121_7case.csv seed 121,84450.810924,745.507644,122.820000
+TW-FM,cpu-dram_thermal30_wirelength0p02,121,result_seed121_7case.csv seed 121,134120.435370,1088.576966,101.200000
+TW-FM,cpu-dram_thermal30_wirelength0p2,121,result_seed121_7case.csv seed 121,119150.762064,1070.815538,106.070000
+TW-FM,cpu-dram_thermal30_wirelength2,121,result_seed121_7case.csv seed 121,82243.628008,966.138994,116.840000
+TW-FM,cpu-dram_thermal3_wirelength0,121,result_seed121_7case.csv seed 121,127921.390728,1140.815481,101.020000
+TW-FM,cpu-dram_thermal3_wirelength0p2,121,result_seed121_7case.csv seed 121,130474.163534,818.304838,112.570000
+TW-FM,cpu-dram_thermal3_wirelength2,121,result_seed121_7case.csv seed 121,101346.195216,865.175436,116.380000
+TW-FM,cpu-dram_t0p01-w2,946615675,result_seed121_7case.csv seed 121,88816.583622,922.668488,117.280000
+TW-FM,cpu-dram_t0p01-w2,1056634028,result_seed121_7case.csv seed 121,83413.350746,828.544955,118.350000
+TW-FM,cpu-dram_t0p01-w2,1486441653,result_seed121_7case.csv seed 121,91253.839530,893.795924,116.270000
+TW-FM,cpu-dram_t0p03-w50,1056634028,result_seed121_7case.csv seed 121,153971.069650,707.278520,121.580000
+TW-FM,cpu-dram_t0p3-w50,946615675,result_seed121_7case.csv seed 121,183729.114600,916.116762,110.290000

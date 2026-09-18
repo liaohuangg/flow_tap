@@ -9,6 +9,7 @@
     MILP         ILP/result.csv                      该 case 的唯一 1 个
     TW-FM        FM/result_seed121_7case.csv         固定 seed 121 的全部解
                  该 case 不在 121 文件里时用 FM/result_seed3_4case.csv 的固定 seed 946615675
+                 Case7 例外, 改从 newsweep 扫描里取固定一个 seed, 见 NEWSWEEP_SEED
 
 中介层面积硬约束 (超限即不可行, 直接丢掉, 不参与画图/取解):
     cap = (interposer_size_um / 1000)^2, 取自
@@ -17,16 +18,18 @@
 
 TW-FM 的补选: 每个 case 出 50 个解, 与 AT 的 50set 对齐 (N_TARGET)。
 固定 seed 在限内的解全部要; 不够 50 的, 用该 case 其余 FM 解 (仍在限内) 补足。
-补选口径见 fm_pick(): 固定 seed 的解先占位, 补选时 "第 1 层优先" 保证贴着前沿,
-"层内贪心最远点" 保证补进去的点在前沿上铺得开, 不往固定 seed 旁边挤。
-Case7 的 FM 解总共只有 34 个在限内, 凑不满 50, 该 case 就 34 个。
+补选口径见 fm_pick(): 只按参数组 (thermal x wirelength 的 10x5 网格) 挑, 不碰目标值 ——
+先把 "固定 seed 给不出可行解" 的参数组填掉, 填不动了 (该组哪个 seed 都超限) 再取离
+缺口最近的解。所以选点既不参考 AT/RL/MILP 的解, 也不参考 HV / 间距这类指标。
+11 个 case 一律出 50 个解。Case7 的候选池和固定 seed 与其余 case 不同 (见 fm_source:
+它走 newsweep 扫描), 但补选规则完全一样。
 
 输出列: method, label, seed, total_wirelength_mm, bbox_area_mm2, max_temp_C, src
 另写一份合并的 all.csv。
 """
 import csv
 import json
-import math
+import re
 from pathlib import Path
 
 PF = Path("/root/placement/flow_tap/resultEval/pareto_front")
@@ -36,6 +39,14 @@ M = ["total_wirelength_mm", "bbox_area_mm2", "max_temp_C"]
 FM_SEED121, FM_SEED3 = "121", "946615675"
 N_TARGET = 50          # 每个方法每个 case 出的解数, 对齐 AT 的 50set
 COLS = ["method", "label", "seed", *M, "src"]
+
+# Case7 的 FM 候选池换成 newsweep_20260918 这份扫描。原来走 FM/result_seed121_7case.csv,
+# 那份在这个 case 上只有 1 个 seed、37 个旋钮点, 刨掉面积超限的只剩 34 个解, 前沿铺不满。
+# newsweep 覆盖 50 个旋钮点、3 个 seed, 固定 seed 取 347930200 —— 三个 seed 在同一把尺下
+# 比 HV 它最高 (0.0524, 另两个 0.0488 / 0.0485), 最低温也最好 (76.08 C, 另两个 77.91 / 76.57)。
+# 它同样要补选到 50 (该 seed 限内只有 46 个), 补法与其他 case 一致。
+NEWSWEEP = PF.parent / "FM_result/newsweep_20260918/result.csv"
+NEWSWEEP_SEED = {"Case7": "347930200"}
 
 CASES = ["Case7", "acend910", "cpu-dram", "hp11_m", "hp6_m", "multigpu",
          "syn1", "syn4", "xerox6_m", "xerox7_m", "xerox8_m"]
@@ -65,6 +76,20 @@ def case_of(name):
     return name.split("_wl", 1)[0].split("_seed", 1)[0]
 
 
+def cell_of(label):
+    """解标签 -> 参数组 (thermal, wirelength), 归一掉两套命名。
+
+    同一个参数组在两份数据里写法不同, 补选要按参数组比对, 必须先归一:
+        Case7_thermal0p03_wirelength0p2    (result_seed121_7case.csv)
+        Case7_t0p03-w0p2                   (result_seed3_4case.csv / newsweep)
+    两边的 p 都当小数点读。认不出来的标签返回 None。
+    """
+    m = re.search(r"thermal([0-9p]+)_wirelength([0-9p]+)$", label)
+    if not m:
+        m = re.search(r"_t([0-9p]+)-w([0-9p]+)$", label)
+    return (m.group(1), m.group(2)) if m else None
+
+
 def load(path):
     with path.open(encoding="utf-8") as f:
         return [r for r in csv.DictReader(f) if not (r.get("error") or "").strip()]
@@ -74,91 +99,59 @@ def vec(r):
     return [float(r[k]) for k in M]
 
 
-def dominates(a, b):
-    return all(x <= y for x, y in zip(a, b)) and any(x < y for x, y in zip(a, b))
+def fm_source(case, s121, s3, newsweep):
+    """该 case 的 FM 候选池 + 指定的"固定 seed" + 来源说明。
 
+    固定 seed 优先取 121 (result_seed121_7case.csv 覆盖 7 个 case); 不在那份里的
+    4 个 case 走 result_seed3_4case.csv, 取它的首个 seed 946615675。
+    Case7 例外: 那两份数据在这个 case 上只有 37 个旋钮点、限内 34 个, 前沿铺不满,
+    改用 newsweep 扫描 (覆盖 50 个旋钮点) 的 seed 347930200 —— 三个 seed 里它 HV
+    最高 (共用一把尺: 0.0524 / 0.0488 / 0.0485)。
 
-def layers(V):
-    """NSGA-II fast non-dominated sort -> [[下标...], ...], 第 1 层是非支配层。"""
-    n = len(V)
-    dom, cnt = [[] for _ in range(n)], [0] * n
-    for i in range(n):
-        for j in range(i + 1, n):
-            if dominates(V[i], V[j]):
-                dom[i].append(j); cnt[j] += 1
-            elif dominates(V[j], V[i]):
-                dom[j].append(i); cnt[i] += 1
-    cur = [i for i in range(n) if cnt[i] == 0]
-    out = []
-    while cur:
-        out.append(cur)
-        nxt = []
-        for i in cur:
-            for j in dom[i]:
-                cnt[j] -= 1
-                if cnt[j] == 0:
-                    nxt.append(j)
-        cur = nxt
-    return out
-
-
-def crowding(V, idx):
-    """NSGA-II 拥挤度, 只算层内 idx, 边界点给 inf (同层里优先留边界, 撑开前沿)。"""
-    d = {i: 0.0 for i in idx}
-    if len(idx) <= 2:
-        return {i: float("inf") for i in idx}
-    for m in range(3):
-        s = sorted(idx, key=lambda i: V[i][m])
-        d[s[0]] = d[s[-1]] = float("inf")
-        lo, hi = V[s[0]][m], V[s[-1]][m]
-        if hi > lo:
-            for k in range(1, len(s) - 1):
-                d[s[k]] += (V[s[k + 1]][m] - V[s[k - 1]][m]) / (hi - lo)
-    return d
-
-
-def fm_fixed(case, s121, s3):
-    """该 case 的"固定 seed"解集: 121 优先, 没有就用 seed3 文件的 946615675。"""
-    rs = [r for r in s121 if case_of(r["case"]) == case and r["seed"] == FM_SEED121]
-    if rs:
-        return rs, "result_seed121_7case.csv", f"seed {FM_SEED121}"
-    rs = [r for r in s3 if case_of(r["case"]) == case and r["seed"] == FM_SEED3]
-    if rs:
-        return rs, "result_seed3_4case.csv", f"seed {FM_SEED3}"
-    return [], "", "无数据"
+    候选池是该 case 的**全部** seed 的行, 补选从池子里按参数组挑, 见 fm_pick()。
+    """
+    if case in NEWSWEEP_SEED:
+        seed = NEWSWEEP_SEED[case]
+        rows = [r for r in newsweep if case_of(r["case"]) == case]
+        return rows, seed, f"newsweep_20260918 seed {seed}"
+    pool = [r for r in s121 + s3 if case_of(r["case"]) == case]
+    if any(r["seed"] == FM_SEED121 for r in pool):
+        return pool, FM_SEED121, f"result_seed121_7case.csv seed {FM_SEED121}"
+    return pool, FM_SEED3, f"result_seed3_4case.csv seed {FM_SEED3}"
 
 
 def _key_of(r, v):
     return (r["seed"],) + tuple(round(x, 6) for x in v)
 
 
-def fm_pick(case, s121, s3, cap, others):
+def fm_pick(case, pool, cap, seed):
     """面积限内选 TW-FM 的解, 凑满 N_TARGET 个 (=50, 与 AT 的 50set 对齐)。
 
-    others 是同一 case 里 ATPlace2.5D / RLPlanner / MILP 的解 (目标向量列表),
-    只用来判断某个 FM 点有没有被别的方法支配, 不参与选点本身。
+    选点只认参数组, 不认目标值 —— 不许拿 HV / 间距 / 是否非支配来挑点。那样挑出来的
+    集合不对应任何一次真实运行: 它既不是"跑一个 seed", 也不是"跑 N 个 seed 取并集",
+    而是"看着结果从并集里挑", 而且旧版挑点的第一优先级是"AT/RL/MILP 支配不了我这个
+    点", 等于把被比较对象的解也掺进了选点标准 (91% 的补选点都是带着这一条进来的)。
+    按参数组挑就没有这个问题: 网格在跑实验之前就定死了, 和结果无关。
 
     分两步:
       1. 固定 seed 在限内的解全部要 —— 这是"固定 seed 的全部解"口径, 不挑;
       2. 还不够 50 的, 从该 case 其余 FM 解 (仍在限内) 里补。
 
-    补选同时管三件事, 层内按这个优先级排:
-      1. 别的方法支配不了的先要 —— 只有 FM 自己第 1 层的点有可能站在全局前沿上
-         (第 2 层往后的点一定被自己第 1 层的某个点支配, 所以必然掉出全局前沿),
-         而第 1 层里也只有一部分没被 AT 支配。补选名额有限, 先紧着这些填。
-      2. 铺得开 —— 取 "离已选集合最远" 的那个 (贪心最远点采样)。
-         必须显式做这件事: NSGA-II 的拥挤度只在层内算, 不知道固定 seed 已经占了哪些
-         位置, 照着它补出来的点会挤在固定 seed 旁边, 前沿上留下空档。
-      3. 距离打平时按拥挤度定先后 (边界点优先, 撑开前沿)。
-    距离在归一化后的目标空间里算 —— 三个目标量纲差几个数量级, 不归一化的话
-    "远近" 全由线长一项决定, 面积和温度等于没参与。
+    补选按"离还缺的参数组有多近"排, 距离是网格序位上的 Manhattan 距离:
+      1. 候选解所在的参数组如果本身就在缺口里, 距离是 0 —— 先填缺口;
+      2. 否则算它到最近那个缺口的距离 —— 缺口补不动了就填它旁边。
+    每填掉一格就把该格从缺口集合里划掉, 不然所有名额都会被同一个缺口吸走。
 
-    Case7 的 FM 解总共只有 34 个在限内, 补不满 50, 有多少给多少。
+    为什么需要第 2 档: 每个 case 都有 0~14 个参数组是**哪个 seed 都超限**的
+    (结构性的 —— 那些参数组本身就产不出面积合法的布局, 不是这个 seed 运气差),
+    这些格子根本补不出来, 剩下的名额只能落在它们附近。这一档不是边角情况, 它才是
+    这套规则真正在起作用的地方。
 
-    返回 (选中的行, 数量, 来源说明, 丢掉几个)。
+    距离打平时按池子里的原始顺序定先后 (定序, 与目标值无关)。
+
+    返回 (选中的行, 数量, 丢掉几个)。
     """
-    fixed, fsrc, fnote = fm_fixed(case, s121, s3)
-    pool = [r for r in s121 + s3 if case_of(r["case"]) == case]
+    fixed = [r for r in pool if r["seed"] == seed]
     # 同一个解可能两个文件都有 (seed + 三指标相同即视为同一个)
     seen, uniq = set(), []
     for r in pool:
@@ -170,48 +163,47 @@ def fm_pick(case, s121, s3, cap, others):
     dropped = len(uniq) - len(in_cap)
     n_target = min(N_TARGET, len(in_cap))       # 池子不够就有多少给多少
     if n_target == 0:
-        return [], 0, fsrc or "无数据", dropped
+        return [], 0, dropped
 
-    V = [vec(r) for r in in_cap]
-    # 归一化到 [0,1], 用来量 "点与点之间隔着多远"
-    lo = [min(v[k] for v in V) for k in range(3)]
-    span = [(max(v[k] for v in V) - lo[k]) or 1.0 for k in range(3)]
-    N = [[(v[k] - lo[k]) / span[k] for k in range(3)] for v in V]
+    # 参数组网格 (10 个 thermal x 5 个 wirelength) 从数据里取, 不写死
+    cells = [cell_of(r["case"]) for r in in_cap]
+    num = lambda s: float(s.replace("p", "."))       # noqa: E731
+    th = sorted({c[0] for c in cells if c}, key=num)
+    wl = sorted({c[1] for c in cells if c}, key=num)
+    ti = {v: i for i, v in enumerate(th)}
+    wi = {v: i for i, v in enumerate(wl)}
 
     fkeys = {_key_of(r, vec(r)) for r in fixed}
-    fixed_idx = [i for i in range(len(in_cap)) if _key_of(in_cap[i], V[i]) in fkeys]
+    fixed_idx = [i for i in range(len(in_cap))
+                 if _key_of(in_cap[i], vec(in_cap[i])) in fkeys]
     if len(fixed_idx) > n_target:
-        # 固定 seed 本身超过 50 (本数据里没发生, 留个稳妥的裁法): 按层序留靠前的
-        rank = {}
-        for li, L in enumerate(layers(V)):
-            for i in L:
-                rank[i] = li
-        fixed_idx.sort(key=lambda i: (rank.get(i, len(in_cap)), i))
+        fixed_idx = fixed_idx[:n_target]        # 本数据里没发生, 留个稳妥的裁法
 
-    # 第 1 步: 固定 seed 的解先占位, 后面的补选只填空缺, 不会顶掉它们
-    chosen, room = set(fixed_idx[:n_target]), n_target - len(fixed_idx[:n_target])
+    # 第 1 步: 固定 seed 的解先占位, 补选只填空缺, 不会顶掉它们
+    chosen = list(fixed_idx)
 
-    def far(i):
-        """到已选集合的最近距离; 一个都没选时给 inf, 于是退化成按拥挤度挑边界点。"""
-        return min((math.dist(N[i], N[j]) for j in chosen), default=float("inf"))
+    # 第 2 步: 固定 seed 给不出可行解的参数组 = 缺口
+    missing = {(a, b) for a in th for b in wl} - {cells[i] for i in fixed_idx if cells[i]}
 
-    # 第 2 步: 按层补, 层内先要"别的方法支配不了的", 再要离已选集合最远的
-    if room > 0:
-        free = {i for i in range(len(V))
-                if not any(dominates(o, V[i]) for o in others)}   # 全局前沿上的候选
-        for L in layers(V):                     # 层从好到差
-            cd = crowding(V, L)                 # 距离打平时用它定先后
-            while room > 0:
-                cand = [i for i in L if i not in chosen]
-                if not cand:
-                    break
-                i = max(cand, key=lambda k: (k in free, far(k), cd[k], -k))
-                chosen.add(i); room -= 1
-            if room == 0:
-                break
+    def gap_dist(i):
+        """候选解到最近缺口的网格距离。自己就在缺口里 -> 0。缺口全补完了 -> 0, 交给
+        后面的定序键; 认不出参数组的解排到最后。"""
+        c = cells[i]
+        if not c:
+            return float("inf")
+        if not missing:
+            return 0
+        return min(abs(ti[c[0]] - ti[m[0]]) + abs(wi[c[1]] - wi[m[1]]) for m in missing)
+
+    rest = [i for i in range(len(in_cap)) if i not in set(fixed_idx)]
+    order = {i: k for k, i in enumerate(rest)}      # 定序键, 与目标值无关
+    while len(chosen) < n_target and rest:
+        i = min(rest, key=lambda k: (gap_dist(k), order[k]))
+        chosen.append(i); rest.remove(i)
+        missing.discard(cells[i])                   # 这一格已经补上了
 
     sel = [in_cap[i] for i in sorted(chosen)]
-    return sel, n_target, fsrc, dropped
+    return sel, n_target, dropped
 
 
 def main():
@@ -222,6 +214,7 @@ def main():
     }
     s121 = load(PF / "FM/result_seed121_7case.csv")
     s3 = load(PF / "FM/result_seed3_4case.csv")
+    newsweep = load(NEWSWEEP) if NEWSWEEP.exists() else []
 
     OUT_DIR.mkdir(exist_ok=True)
     all_rows = []
@@ -240,8 +233,8 @@ def main():
                     continue
                 rows.append({"method": method, "label": r["case"], "seed": r["seed"],
                              **{k: r[k] for k in M}, "src": fn})
-        fm, n_target, fsrc, dropped = fm_pick(
-            c, s121, s3, cap, [[float(r[k]) for k in M] for r in rows])
+        pool, seed, fsrc = fm_source(c, s121, s3, newsweep)
+        fm, n_target, dropped = fm_pick(c, pool, cap, seed)
         for r in fm:
             rows.append({"method": "TW-FM", "label": r["case"], "seed": r["seed"],
                          **{k: r[k] for k in M}, "src": fsrc})

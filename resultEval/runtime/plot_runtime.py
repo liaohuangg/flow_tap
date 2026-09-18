@@ -35,8 +35,10 @@ FIG = HERE / "fig"
 CASES = ["ascend910", "xerox6_m", "hp6_m", "multigpu",
          "xerox7_m", "cpu-dram", "hp11_m", "syn4"]
 
-# FMGPUTime.csv 没覆盖的 case: 这三行的 CPU+GPU 一栏只能留空
-NO_GPU = {"xerox6_m", "hp6_m", "xerox7_m"}
+# 曾经 FMGPUTime.csv 缺 xerox6_m/hp6_m/xerox7_m 的 GPU 计时, 2026-09-18 已补齐。
+# 现在要求四个来源对这 8 个 case 全部有数据, 任一缺口直接报错而不是留空 ——
+# 留空的表格很容易被当成"跑得很快"读过去。
+NO_GPU: set[str] = set()
 
 # 数据文件里的旧拼写 -> 论文里的正式名
 RENAME = {"acend910": "ascend910"}
@@ -92,6 +94,13 @@ def collect() -> dict[str, list[float]]:
     cpu = read_csv("FMCPUTime.csv")
     gpu = read_csv("FMGPUTime.csv")
 
+    missing = [(c, n) for c in CASES for n, src in
+               (("AT.csv", at), ("ILP.csv", milp), ("FMCPUTime.csv", cpu),
+                ("FMGPUTime.csv", gpu)) if c not in src]
+    if missing:
+        raise SystemExit("这些 case 在对应文件里没有数据: "
+                         + ", ".join(f"{c}@{f}" for c, f in missing))
+
     out = {name: [] for name, _ in SERIES}
     for c in CASES:
         out["ATPlace2.5D"].append(float(at[c]["total_time_mean_s"]))
@@ -142,19 +151,19 @@ def emit_table(data: dict[str, list[float]]) -> None:
     """同一份数字导成可直接 \\input 的 LaTeX 表格片段。"""
     lines = [
         r"\begin{table}[!t]",
-        r"\caption{RUNTIME OF THE FOUR METHODS, WITH THE TW-FM SPEEDUP RELATIVE TO "
-        r"ATPLACE2.5D. RLPLANNER IS ASSIGNED A FIXED 3600 s BUDGET AND HAS NO PER-CASE "
-        r"MEASUREMENT. SPEEDUP IS COMPUTED FROM THE TW-FM (CPU+GPU) COLUMN, WHICH IS A "
-        r"FIVE-SEED AVERAGE; THE TW-FM (CPU) COLUMN IS A SINGLE RUN. THE THREE SYSTEMS "
-        r"MARKED --- HAVE NO GPU MEASUREMENT}",
+        r"\caption{RUNTIME IN SECONDS OF THE FOUR METHODS, WITH THE TW-FM SPEEDUP "
+        r"RELATIVE TO ATPLACE2.5D. RLPLANNER HAS NO PER-CASE MEASUREMENT, BEING GIVEN A "
+        r"FIXED 3600 s BUDGET ON EVERY SYSTEM, AND IS THEREFORE OMITTED AS A COLUMN. "
+        r"SPEEDUP IS COMPUTED FROM THE TW-FM (CPU+GPU) COLUMN, WHICH IS A FIVE-SEED "
+        r"AVERAGE; THE TW-FM (CPU) COLUMN IS A SINGLE RUN}",
         r"\centering",
         r"\small",
-        r"\setlength{\tabcolsep}{3pt}",
-        r"\begin{tabular}{lcccccc}",
+        r"\setlength{\tabcolsep}{4pt}",
+        r"\begin{tabular}{lccccc}",
         r"\toprule",
-        r"\textbf{Case} & \textbf{ATPlace2.5D} & \textbf{RLPlanner} & \textbf{MILP}"
+        r"\textbf{Case} & \textbf{ATPlace2.5D} & \textbf{MILP}"
         r" & \multicolumn{2}{c}{\textbf{TW-FM}} & \textbf{Spd.} \\",
-        r" & & & & \textbf{(CPU)} & \textbf{(CPU+GPU)} & \\",
+        r" & & & \textbf{(CPU)} & \textbf{(CPU+GPU)} & \\",
         r"\midrule",
     ]
     for i, c in enumerate(CASES):
@@ -162,7 +171,9 @@ def emit_table(data: dict[str, list[float]]) -> None:
         gpu = data["TW-FM (CPU+GPU)"][i]
         g = "---" if np.isnan(gpu) else f"\\textbf{{{gpu:.0f}}}"
         spd = "---" if np.isnan(gpu) else f"{at/gpu:.1f}$\\times$"
-        lines.append(f"\\textit{{{c}}} & {at:.0f} & {data['RLPlanner'][i]:.0f} & "
+        # case 名里的下划线要转义, 否则 \textit{xerox6_m} 会被当成数学模式的 _
+        name = c.replace("_", r"\_")
+        lines.append(f"\\textit{{{name}}} & {at:.0f} & "
                      f"{data['MILP'][i]:.0f} & {data['TW-FM (CPU)'][i]:.0f} & {g} & {spd} \\\\")
     lines += [r"\bottomrule", r"\end{tabular}", r"\label{tab:runtime}", r"\end{table}", ""]
     out = HERE / "runtime_table.tex"
