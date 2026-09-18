@@ -1,0 +1,147 @@
+{
+  "system_id": "hp8_m_t3-w50_seed946615675",
+  "chiplets": [
+    {
+      "name": "A",
+      "x-position": 31.331424,
+      "y-position": 15.978645,
+      "width": 4.62,
+      "height": 10.36,
+      "rotation": 0,
+      "power": 61,
+      "hubump": 0.18
+    },
+    {
+      "name": "B",
+      "x-position": 19.949262,
+      "y-position": 28.69275,
+      "width": 7.0,
+      "height": 3.78,
+      "rotation": 0,
+      "power": 61,
+      "hubump": 0.09
+    },
+    {
+      "name": "C",
+      "x-position": 35.941404,
+      "y-position": 3.37661,
+      "width": 2.1,
+      "height": 9.8,
+      "rotation": 0,
+      "power": 52,
+      "hubump": 0.18
+    },
+    {
+      "name": "D",
+      "x-position": 21.394695,
+      "y-position": 5.070784,
+      "width": 2.1,
+      "height": 9.8,
+      "rotation": 0,
+      "power": 48,
+      "hubump": 0.09
+    },
+    {
+      "name": "E",
+      "x-position": 1.40919,
+      "y-position": 25.339308,
+      "width": 2.1,
+      "height": 9.8,
+      "rotation": 0,
+      "power": 28,
+      "hubump": 0.09
+    },
+    {
+      "name": "F",
+      "x-position": 10.586102,
+      "y-position": -0.568354,
+      "width": 5.46,
+      "height": 33.04,
+      "rotation": 0,
+      "power": 45,
+      "hubump": 0.09
+    },
+    {
+      "name": "G",
+      "x-position": 3.517912,
+      "y-position": 32.47275,
+      "width": 33.04,
+      "height": 5.46,
+      "rotation": 0,
+      "power": 60,
+      "hubump": 0.045
+    },
+    {
+      "name": "H",
+      "x-position": 23.524312,
+      "y-position": 8.530008,
+      "width": 2.52,
+      "height": 20.16,
+      "rotation": 0,
+      "power": 38,
+      "hubump": 0.135
+    }
+  ],
+  "connections": [
+    {
+      "node1": "A",
+      "node2": "C",
+      "wireCount": 512
+    },
+    {
+      "node1": "A",
+      "node2": "F",
+      "wireCount": 256
+    },
+    {
+      "node1": "A",
+      "node2": "H",
+      "wireCount": 512
+    },
+    {
+      "node1": "B",
+      "node2": "E",
+      "wireCount": 128
+    },
+    {
+      "node1": "B",
+      "node2": "F",
+      "wireCount": 128
+    },
+    {
+      "node1": "C",
+      "node2": "D",
+      "wireCount": 256
+    },
+    {
+      "node1": "C",
+      "node2": "G",
+      "wireCount": 128
+    },
+    {
+      "node1": "C",
+      "node2": "H",
+      "wireCount": 128
+    },
+    {
+      "node1": "D",
+      "node2": "G",
+      "wireCount": 128
+    },
+    {
+      "node1": "E",
+      "node2": "G",
+      "wireCount": 256
+    },
+    {
+      "node1": "F",
+      "node2": "H",
+      "wireCount": 512
+    },
+    {
+      "node1": "G",
+      "node2": "H",
+      "wireCount": 256
+    }
+  ]
+}

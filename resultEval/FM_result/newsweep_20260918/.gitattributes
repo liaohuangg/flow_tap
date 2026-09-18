@@ -1,0 +1,8 @@
+# 本目录的评测结果 csv 以纯文本入库, 不走 LFS —— 与
+# pareto_table_profiles_5seed/ 及 ..._legal_only/ 两个同级目录同口径,
+# 目的是让 result.csv / manifest.csv 能在 GitHub 上直接查看、直接 diff。
+#
+# 注意: 根 .gitignore 里有 `*.csv` 和 `*.png`, 所以本目录的 2 个 csv 与 2658 张 png
+#       都是用 `git add -f` 加进来的。png 不在 .gitattributes 的 LFS 规则里,
+#       按普通二进制 blob 存储 (GitHub 可直接预览)。
+*.csv -filter -diff -merge text
