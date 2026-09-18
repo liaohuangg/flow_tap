@@ -31,6 +31,11 @@
   RL_result/result.csv   每行 = 一个 (case, seed)
   AT_result/result.csv
 
+wlsweep (run_wlsweep_50set.sh) 那批布局在 AT_result/format_result_50set/, 与
+result.csv 分开算、分开存:
+  python eval_layout.py --method AT --layout-subdir format_result_50set --csv-name 50set.csv
+  -> AT_result/50set.csv, case 列形如 acend910_wl00 (wl 序号在 case 列里)
+
 用法:
   python eval_layout.py --method AT                 # 只跑 AT
   python eval_layout.py --method both --stage wl    # 只算线长 (快)
@@ -73,6 +78,11 @@ METHOD_DIR = {
     # ChipletFM (flow matching)。文件名保留了 bestT/bestWL 标记, 所以 case 列形如
     # "Case6_bestT" —— 一个 case 两个 pick, 去掉标记则 cpu-dram 的 bestT/bestWL 会同名。
     "FM": RESULT_EVAL / "FM_result",
+    # MILP 布局基线 (baseline/ILP)。目标是**只最小化线长**, 画布是软约束。
+    "ILP": RESULT_EVAL / "ILP_result",
+    # 同一个 MILP 基线的另一个目标: 优化外接框 W+H (主) + 长宽比 |W-H| (次)。
+    # 目标里 maxX/maxY/aspect 都是精确变量, 所以是**求到 MIPGap=0 的可证明最优**。
+    "ILP_bbox": RESULT_EVAL / "ILP_bbox_result",
 }
 LAYOUT_SUBDIR = "format_result"
 EVAL_SUBDIR = "eval_out"          # HotSpot 中间文件
@@ -287,7 +297,13 @@ def _load_cache(path: Path) -> dict:
     return {}
 
 
-def _write_csv(path: Path, cache: dict) -> None:
+def _write_csv(path: Path, cache: dict, stems: list[str] | None = None) -> None:
+    """把 cache 里的行写成 csv。
+
+    stems 给定时只写这些 stem —— 同一个 method 目录下可能存在多批布局
+    (format_result/ 与 format_result_50set/), 共用一份 cache 但各写各的 csv,
+    否则第二批会把第一批的行一起带进来。
+    """
     def sort_key(stem: str):
         case, seed = _split_stem(stem)
         try:
@@ -296,7 +312,9 @@ def _write_csv(path: Path, cache: dict) -> None:
             return (case, 0)
 
     lines = [",".join(CSV_COLUMNS)]
-    for stem in sorted(cache, key=sort_key):
+    for stem in sorted(cache if stems is None else stems, key=sort_key):
+        if stem not in cache:
+            continue
         row = cache[stem]
         cells = []
         for col in CSV_COLUMNS:
@@ -319,15 +337,16 @@ def _fmt(v, unit="", nd=4) -> str:
 # --------------------------------------------------------------------------- #
 def run_method(method: str, args) -> None:
     mdir = METHOD_DIR[method]
-    layout_dir = mdir / LAYOUT_SUBDIR
+    layout_dir = mdir / args.layout_subdir
     eval_dir = mdir / EVAL_SUBDIR
     cache_path = mdir / CACHE_NAME
-    csv_path = mdir / CSV_NAME
+    csv_path = mdir / args.csv_name
 
-    stems = sorted(p.stem for p in layout_dir.glob("*.json"))
-    if not stems:
+    all_stems = sorted(p.stem for p in layout_dir.glob("*.json"))
+    if not all_stems:
         print(f"[{method}] {layout_dir} 下没有布局 json, 跳过")
         return
+    stems = all_stems
 
     cache = _load_cache(cache_path)
     if args.only:
@@ -377,24 +396,30 @@ def run_method(method: str, args) -> None:
                 cache[stem] = {**prev, **row}
                 if done % 5 == 0:
                     cache_path.write_text(json.dumps(cache, indent=1, ensure_ascii=False), encoding="utf-8")
-                    _write_csv(csv_path, cache)
+                    _write_csv(csv_path, cache, all_stems)
         print(f"[{method}] 用时 {time.time() - t0:.1f}s", flush=True)
 
     cache_path.write_text(json.dumps(cache, indent=1, ensure_ascii=False), encoding="utf-8")
-    _write_csv(csv_path, cache)
-    n_ok = sum(1 for r in cache.values() if not r.get("error"))
-    print(f"[{method}] -> {csv_path}  ({len(cache)} 行, 无错误 {n_ok}, 有错误 {len(cache) - n_ok})", flush=True)
+    _write_csv(csv_path, cache, all_stems)
+    n_ok = sum(1 for s in all_stems if s in cache and not cache[s].get("error"))
+    print(f"[{method}] -> {csv_path}  ({len(all_stems)} 行, 无错误 {n_ok}, 有错误 {len(all_stems) - n_ok})", flush=True)
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--method", default="both", choices=["AT", "RL", "FM", "both"],
-                    help="AT/RL/FM 算单个方法, both=AT+RL (不含 FM, 保持原有行为)")
+    ap.add_argument("--method", default="both",
+                    choices=["AT", "RL", "FM", "ILP", "ILP_bbox", "both"],
+                    help="AT/RL/FM/ILP 算单个方法, both=AT+RL (不含 FM, 保持原有行为)")
     ap.add_argument("--stage", default="both", choices=["wl", "thermal", "both"],
                     help="wl=只算线长+外接框 (快), thermal=只算热, both=全算")
     ap.add_argument("--grid", type=int, default=GRID_DEFAULT, help="HotSpot 温度网格 (默认 64, 与 thermal_dataset_64 一致)")
     ap.add_argument("--workers", type=int, default=8, help="进程数 (热仿真单线程, 但线长的 ILP 很吃内存)")
     ap.add_argument("--only", nargs="*", default=None, help="只算这些 stem, 如 Case6_seed1")
+    ap.add_argument("--layout-subdir", default=LAYOUT_SUBDIR,
+                    help=f"布局目录 (相对 <METHOD>_result/), 默认 {LAYOUT_SUBDIR}; "
+                         f"wlsweep 50 点批用 format_result_50set")
+    ap.add_argument("--csv-name", default=CSV_NAME,
+                    help=f"输出 CSV 文件名 (写进 <METHOD>_result/), 默认 {CSV_NAME}")
     args = ap.parse_args()
 
     methods = ["AT", "RL"] if args.method == "both" else [args.method]

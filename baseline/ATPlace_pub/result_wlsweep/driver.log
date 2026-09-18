@@ -6,3 +6,58 @@ wl_weight 网格 (50 点, 0 .. 0.01, 步长 0.00020408163)
 ===== progress: /root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep/progress.log =====
 ===== 失败明细: /root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep/wlsweep_report.txt =====
 (无失败)
+wl_weight 网格 (50 点, 0 .. 0.01, 步长 0.00020408163)
+将跑的槽位: 50 个 wl × 7 个 case = 350 次求解 (JOBS=12)
+[2026-09-18 01:06:39] param 文件已生成 -> /root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep/params/<case>/wl<NN>_Thermal-aware.json
+Terminated
+Terminated
+Terminated
+Terminated
+Terminated
+Terminated
+Terminated
+Terminated
+Terminated
+Terminated
+Terminated
+Terminated
+wl_weight 网格 (50 点, 0 .. 0.01, 步长 0.00020408163)
+将跑的槽位: 50 个 wl × 5 个 case = 250 次求解 (JOBS=12)
+[2026-09-18 02:12:57] param 文件已生成 -> /root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep/params/<case>/wl<NN>_Thermal-aware.json
+[2026-09-18 07:51:40] === 结束: 提交 250 个槽位 (成功 250, 跳过 0, 失败 0) ===
+
+===== progress: /root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep/progress.log =====
+===== 失败明细: /root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep/wlsweep_report.txt =====
+FAIL  case=hp8_m_bump  wl_index=4  wl=0.000816326530612  耗时=00:11:00  rc=1  原因=Error Constant is Nan happen during placeflow!
+FAIL  case=hp8_m_bump  wl_index=3  wl=0.000612244897959  耗时=00:11:05  rc=1  原因=Error Constant is Nan happen during placeflow!
+FAIL  case=hp8_m_bump  wl_index=2  wl=0.000408163265306  耗时=00:11:09  rc=1  原因=Error Constant is Nan happen during placeflow!
+FAIL  case=hp8_m_bump  wl_index=1  wl=0.000204081632653  耗时=00:11:12  rc=1  原因=Error Constant is Nan happen during placeflow!
+FAIL  case=hp8_m_bump  wl_index=5  wl=0.00102040816327  耗时=00:11:04  rc=1  原因=Error Constant is Nan happen during placeflow!
+FAIL  case=hp8_m_bump  wl_index=6  wl=0.00122448979592  耗时=00:11:04  rc=1  原因=Error Constant is Nan happen during placeflow!
+FAIL  case=hp8_m_bump  wl_index=7  wl=0.00142857142857  耗时=00:11:09  rc=1  原因=Error Constant is Nan happen during placeflow!
+FAIL  case=hp8_m_bump  wl_index=8  wl=0.00163265306122  耗时=00:11:09  rc=1  原因=Error Constant is Nan happen during placeflow!
+FAIL  case=hp8_m_bump  wl_index=9  wl=0.00183673469388  耗时=00:11:13  rc=1  原因=Error Constant is Nan happen during placeflow!
+FAIL  case=hp8_m_bump  wl_index=10  wl=0.00204081632653  耗时=00:11:10  rc=1  原因=Error Constant is Nan happen during placeflow!
+FAIL  case=hp8_m_bump  wl_index=11  wl=0.00224489795918  耗时=00:11:27  rc=1  原因=Error Constant is Nan happen during placeflow!
+FAIL  case=hp8_m_bump  wl_index=13  wl=0.00265306122449  耗时=00:11:15  rc=1  原因=Error Constant is Nan happen during placeflow!
+FAIL  case=hp8_m_bump  wl_index=12  wl=0.00244897959184  耗时=00:11:22  rc=1  原因=Error Constant is Nan happen during placeflow!
+FAIL  case=hp8_m_bump  wl_index=14  wl=0.00285714285714  耗时=00:11:30  rc=1  原因=Error Constant is Nan happen during placeflow!
+FAIL  case=hp8_m_bump  wl_index=15  wl=0.0030612244898  耗时=00:11:30  rc=1  原因=Error Constant is Nan happen during placeflow!
+FAIL  case=hp8_m_bump  wl_index=17  wl=0.0034693877551  耗时=00:11:30  rc=1  原因=Error Constant is Nan happen during placeflow!
+FAIL  case=hp8_m_bump  wl_index=16  wl=0.00326530612245  耗时=00:11:31  rc=1  原因=Error Constant is Nan happen during placeflow!
+FAIL  case=hp8_m_bump  wl_index=18  wl=0.00367346938776  耗时=00:11:35  rc=1  原因=Error Constant is Nan happen during placeflow!
+FAIL  case=hp8_m_bump  wl_index=20  wl=0.00408163265306  耗时=00:11:32  rc=1  原因=Error Constant is Nan happen during placeflow!
+FAIL  case=hp8_m_bump  wl_index=21  wl=0.00428571428571  耗时=00:11:19  rc=1  原因=Error Constant is Nan happen during placeflow!
+FAIL  case=hp8_m_bump  wl_index=19  wl=0.00387755102041  耗时=00:11:40  rc=1  原因=Error Constant is Nan happen during placeflow!
+FAIL  case=hp8_m_bump  wl_index=28  wl=0.00571428571429  耗时=00:05:54  rc=143  原因=无 layout.json (rc=143)
+FAIL  case=hp8_m_bump  wl_index=29  wl=0.00591836734694  耗时=00:05:54  rc=143  原因=无 layout.json (rc=143)
+FAIL  case=hp8_m_bump  wl_index=26  wl=0.00530612244898  耗时=00:06:01  rc=143  原因=无 layout.json (rc=143)
+FAIL  case=hp8_m_bump  wl_index=22  wl=0.00448979591837  耗时=00:08:50  rc=143  原因=无 layout.json (rc=143)
+FAIL  case=hp8_m_bump  wl_index=23  wl=0.00469387755102  耗时=00:07:39  rc=143  原因=无 layout.json (rc=143)
+FAIL  case=hp8_m_bump  wl_index=31  wl=0.00632653061224  耗时=00:05:44  rc=143  原因=无 layout.json (rc=143)
+FAIL  case=hp8_m_bump  wl_index=27  wl=0.00551020408163  耗时=00:05:58  rc=143  原因=无 layout.json (rc=143)
+FAIL  case=hp8_m_bump  wl_index=32  wl=0.0065306122449  耗时=00:05:44  rc=143  原因=无 layout.json (rc=143)
+FAIL  case=hp8_m_bump  wl_index=30  wl=0.00612244897959  耗时=00:05:48  rc=143  原因=无 layout.json (rc=143)
+FAIL  case=hp8_m_bump  wl_index=24  wl=0.00489795918367  耗时=00:06:21  rc=143  原因=无 layout.json (rc=143)
+FAIL  case=hp8_m_bump  wl_index=25  wl=0.00510204081633  耗时=00:06:21  rc=143  原因=无 layout.json (rc=143)
+FAIL  case=hp8_m_bump  wl_index=33  wl=0.00673469387755  耗时=00:05:37  rc=143  原因=无 layout.json (rc=143)

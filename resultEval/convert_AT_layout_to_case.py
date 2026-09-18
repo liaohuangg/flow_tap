@@ -16,8 +16,13 @@
 
 输入:  AT_result/result/<prefix>_bump/seed<N>/layout.json         (统一参数版)
        AT_result/result/<prefix>_bump_op/seed<N>/layout.json      (各 case 原始参数版)
+       AT_result/result/<prefix>_bump/wl<NN>/seed<N>/layout.json  (wlsweep 50 点批)
 输出:  AT_result/format_result/<prefix>_seed<N>.json
        AT_result/format_result/<prefix>_op_seed<N>.json
+       AT_result/format_result_50set/<prefix>_wl<NN>_seed<N>.json
+
+wlsweep 那一批 (每个 wl_weight 网格点一个解) 单独写进 format_result_50set/, 免得混进
+format_result/ 后被 eval_layout.py 一起收进 result.csv。
 
 四处关键映射 (全部逐 chiplet 与 benchmark 交叉校验, 不一致直接抛错):
 
@@ -58,6 +63,8 @@ import sys
 AT_ROOT = "/root/placement/flow_tap/resultEval/AT_result"
 RESULT_DIR = os.path.join(AT_ROOT, "result")
 OUT_DIR = os.path.join(AT_ROOT, "format_result")
+# wlsweep (run_wlsweep_50set.sh) 的产物单独一个目录, 与普通 seed 批分开
+OUT_DIR_50SET = os.path.join(AT_ROOT, "format_result_50set")
 BENCH_DIR = "/root/placement/flow_tap/benchmark/cases_hubump"
 
 # 结果目录后缀 -> (benchmark 前缀, 输出 stem 的标记)。长的后缀要排在前面。
@@ -78,6 +85,28 @@ def split_result_dir(name: str) -> tuple[str, str] | None:
         if name.endswith(suffix):
             return name[: -len(suffix)], tag
     return None
+
+
+def iter_layouts(result_dir: str) -> list[tuple[str, str, str]]:
+    """枚举一个结果目录里所有待转换的布局 -> [(stem 尾缀, 输出目录, layout.json 路径)]。
+
+    两种排布 (seed 目录一律以 seed 开头, wl 目录一律以 wl 开头, 互不重叠):
+
+      <case>_bump/seed<N>/layout.json         普通 seed 批  -> format_result
+      <case>_bump/wl<NN>/seed<M>/layout.json  wlsweep 50 点批 -> format_result_50set
+
+    后者的 stem 形如 <case>_wl<NN>_seed<M>: 保留 _seed<M> 尾缀, eval_layout._split_stem
+    才切得出 case / seed 两列, wl 序号留在 case 列里。
+    """
+    found: list[tuple[str, str, str]] = []
+    for seed_dir in sorted(glob.glob(os.path.join(result_dir, "seed*"))):
+        found.append((os.path.basename(seed_dir), OUT_DIR, os.path.join(seed_dir, "layout.json")))
+    for wl_dir in sorted(glob.glob(os.path.join(result_dir, "wl*"))):
+        wl_tag = os.path.basename(wl_dir)
+        for seed_dir in sorted(glob.glob(os.path.join(wl_dir, "seed*"))):
+            found.append((f"{wl_tag}_{os.path.basename(seed_dir)}", OUT_DIR_50SET,
+                          os.path.join(seed_dir, "layout.json")))
+    return found
 
 
 def placed_footprint_um(w_um: float, h_um: float, angle_rad: float) -> tuple[float, float]:
@@ -167,6 +196,7 @@ def convert_one(layout_path: str, benchmark_path: str, out_path: str) -> dict:
 
 def main() -> None:
     os.makedirs(OUT_DIR, exist_ok=True)
+    os.makedirs(OUT_DIR_50SET, exist_ok=True)
     n_ok = n_skip = 0
     for result_dir in sorted(glob.glob(os.path.join(RESULT_DIR, "*"))):
         if not os.path.isdir(result_dir):
@@ -180,26 +210,25 @@ def main() -> None:
             print(f"[skip] {prefix}: 无对应 benchmark {benchmark_path}", file=sys.stderr)
             n_skip += 1
             continue
-        seed_dirs = sorted(glob.glob(os.path.join(result_dir, "seed*")))
-        if not seed_dirs:
-            print(f"[skip] {prefix}: 无 seed* 子目录", file=sys.stderr)
+        layouts = iter_layouts(result_dir)
+        if not layouts:
+            print(f"[skip] {prefix}: 无 seed*/ 或 wl*/seed* 子目录", file=sys.stderr)
             n_skip += 1
             continue
-        for seed_dir in seed_dirs:
-            layout_path = os.path.join(seed_dir, "layout.json")
+        for stem_tag, out_dir, layout_path in layouts:
             if not os.path.exists(layout_path):
                 print(f"[skip] {layout_path}: 不存在", file=sys.stderr)
                 n_skip += 1
                 continue
-            seed_tag = os.path.basename(seed_dir)
-            out_path = os.path.join(OUT_DIR, f"{prefix}{tag}_{seed_tag}.json")
+            out_path = os.path.join(out_dir, f"{prefix}{tag}_{stem_tag}.json")
             try:
                 out = convert_one(layout_path, benchmark_path, out_path)
             except Exception as e:  # noqa: BLE001
-                print(f"[err ] {prefix}/{seed_tag}: {type(e).__name__}: {e}", file=sys.stderr)
+                print(f"[err ] {prefix}/{stem_tag}: {type(e).__name__}: {e}", file=sys.stderr)
                 n_skip += 1
                 continue
-            print(f"[ok] {os.path.basename(layout_path):<12} -> {os.path.basename(out_path):<22} "
+            print(f"[ok] {os.path.relpath(layout_path, RESULT_DIR):<34} -> "
+                  f"{os.path.relpath(out_path, AT_ROOT):<40} "
                   f"chiplets={len(out['chiplets'])} connections={len(out['connections'])}")
             n_ok += 1
     print(f"\n完成: 生成 {n_ok} 个文件 -> {OUT_DIR}  (跳过/失败 {n_skip})")

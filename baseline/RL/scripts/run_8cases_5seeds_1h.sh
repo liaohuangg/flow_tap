@@ -14,7 +14,7 @@ else
 fi
 
 # Seed is the outer loop so seed 0 produces one complete 8-case round first.
-SEED_LIST="${SEED_LIST:-0 1 2 3 4}"
+SEED_LIST="${SEED_LIST:-1 2 3 4 5}"
 CASE_LIST="${CASE_LIST:-acend910 cpu-dram hp11_m multigpu syn1 syn4 syn6 xerox8_m}"
 read -r -a CASES <<< "${CASE_LIST//,/ }"
 

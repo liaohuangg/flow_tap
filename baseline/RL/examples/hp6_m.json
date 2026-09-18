@@ -1,0 +1,106 @@
+{
+  "case": "hp6_m",
+  "chiplets": [
+    {
+      "name": "A",
+      "width": 4.62,
+      "height": 10.36,
+      "power": 61,
+      "hubump": 0.135,
+      "footprint_w": 4.89,
+      "footprint_h": 10.63
+    },
+    {
+      "name": "B",
+      "width": 7.0,
+      "height": 3.78,
+      "power": 61,
+      "hubump": 0.09,
+      "footprint_w": 7.18,
+      "footprint_h": 3.96
+    },
+    {
+      "name": "C",
+      "width": 2.1,
+      "height": 9.8,
+      "power": 52,
+      "hubump": 0.135,
+      "footprint_w": 2.37,
+      "footprint_h": 10.07
+    },
+    {
+      "name": "D",
+      "width": 2.1,
+      "height": 9.8,
+      "power": 48,
+      "hubump": 0.045,
+      "footprint_w": 2.19,
+      "footprint_h": 9.89
+    },
+    {
+      "name": "E",
+      "width": 2.1,
+      "height": 9.8,
+      "power": 28,
+      "hubump": 0.045,
+      "footprint_w": 2.19,
+      "footprint_h": 9.89
+    },
+    {
+      "name": "F",
+      "width": 5.46,
+      "height": 33.04,
+      "power": 45,
+      "hubump": 0.045,
+      "footprint_w": 5.55,
+      "footprint_h": 33.13
+    }
+  ],
+  "connections": [
+    {
+      "node1": "A",
+      "node2": "C",
+      "wireCount": 512,
+      "EMIBType": "interfaceB",
+      "EMIB_length": 1.7067,
+      "EMIB_bump_width": 1.0,
+      "EMIB_width": 2
+    },
+    {
+      "node1": "A",
+      "node2": "F",
+      "wireCount": 256,
+      "EMIBType": "interfaceB",
+      "EMIB_length": 0.8533,
+      "EMIB_bump_width": 1.0,
+      "EMIB_width": 2
+    },
+    {
+      "node1": "B",
+      "node2": "E",
+      "wireCount": 128,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 3.2,
+      "EMIB_bump_width": 0.5,
+      "EMIB_width": 2
+    },
+    {
+      "node1": "B",
+      "node2": "F",
+      "wireCount": 128,
+      "EMIBType": "interfaceC",
+      "EMIB_length": 3.2,
+      "EMIB_bump_width": 0.5,
+      "EMIB_width": 2
+    },
+    {
+      "node1": "C",
+      "node2": "D",
+      "wireCount": 256,
+      "EMIBType": "interfaceB",
+      "EMIB_length": 0.8533,
+      "EMIB_bump_width": 1.0,
+      "EMIB_width": 2
+    }
+  ]
+}

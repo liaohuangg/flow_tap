@@ -44,6 +44,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.colors import to_rgba  # noqa: E402
+from matplotlib.ticker import MaxNLocator  # noqa: E402
 from mpl_toolkits.mplot3d import Axes3D  # noqa: F401,E402  (注册 3d projection)
 # ========== 删除曲面相关依赖：Poly3DCollection、Delaunay、ConvexHull、插值器等全部曲面函数保留但不调用 ==========
 from scipy.interpolate import (LinearNDInterpolator,  # noqa: E402
@@ -74,7 +75,10 @@ METHODS = [
 # 分类色只按实体固定分配, 不随筛选后的顺序变: AT 恒为 slot1 (蓝), Ours 恒为 slot2 (橙)。
 # 取自参考调色板, 已过 validate_palette.js (light/dark 两种 mode 的 all-pairs 检查全 PASS)。
 THEME = {
-    "light": {"surface": "#fcfcfb", "ink": "#0b0b0b", "ink2": "#52514e",
+    # light 的大背景 (画布 + 坐标区, 也就是立体盒子外面那圈) 用纯白 #ffffff,
+    # 贴进白底论文/文档里不留灰边; 三个立体背面仍保持原来的浅灰 #f4f3ef,
+    # 靠它撑出立体感, 别一起刷白 —— 刷白了盒子就没边了。
+    "light": {"surface": "#ffffff", "ink": "#0b0b0b", "ink2": "#52514e",
               "grid": "#dedcd4", "pane": "#f4f3ef", "surf": "#6b6a66"},
     "dark": {"surface": "#1a1a19", "ink": "#ffffff", "ink2": "#c3c2b7",
              "grid": "#3a3a37", "pane": "#232322", "surf": "#8a8985"},
@@ -395,7 +399,10 @@ def main() -> None:
             ax.plot(s[:, 0], s[:, 1], s[:, 2], color=c, lw=2.0, alpha=0.75, zorder=5)
     ax.set_xlabel(axis_labels[0], color=th["ink2"], fontsize=11, labelpad=10)
     ax.set_ylabel(axis_labels[1], color=th["ink2"], fontsize=11, labelpad=10)
-    ax.set_zlabel(axis_labels[2], color=th["ink2"], fontsize=11, labelpad=10)
+    # 温度轴的轴标题要跟着刻度一起往外让 —— 刻度 pad 提到 14 以后, 数字正好压在
+    # 标题原来的位置上, 不推开会叠字。3d 里标题偏移同样由 labelpad 控 (axis3d.py
+    # 的 _draw_offset_text), 刻度让出多少, 标题就得让出差不多多少。
+    ax.set_zlabel(axis_labels[2], color=th["ink2"], fontsize=11, labelpad=15)
     ax.set_xlim(lims[0]); ax.set_ylim(lims[1]); ax.set_zlim(lims[2])
     try:
         box = tuple(float(x) for x in str(args.box_aspect).split(","))
@@ -409,7 +416,21 @@ def main() -> None:
         axis.set_pane_color(matplotlib.colors.to_rgba(th["pane"], 1.0))
         axis._axinfo["grid"].update(color=th["grid"], linewidth=0.6)
         axis.line.set_color(th["grid"])
-    ax.tick_params(colors=th["ink2"], labelsize=9)
+    # 坐标刻度的数字: 三维里刻度是斜着看的, 原来 9 号偏小, 提到 12 (跟轴标题
+    # 的 11 号同量级, 不再是一眼看不见的脚注大小)。
+    ax.tick_params(colors=th["ink2"], labelsize=12)
+    # 刻度和轴的距离逐轴微调。3d 里刻度文字的偏移量是 (tick.get_pad() + 8) * points
+    # (mpl_toolkits/mplot3d/axis3d.py), 但同样的 pad 经投影后各轴观感差很多 ——
+    # 竖轴 (温度) 的数是贴着轴的, 横轴 (线长) 的数离得远。默认 pad 都是 3.5,
+    # 所以这里把温度轴往外推、线长轴往里收, 让两边的留白看起来一致。
+    # 面积轴 (y) 的默认观感正好, 不动。
+    ax.zaxis.set_tick_params(pad=6)     # 温度: 原来是贴轴的, 往外让一点点
+    ax.xaxis.set_tick_params(pad=1)     # 线长: 原来是飘着的, 往里收一点点
+    # 字号大了以后, 面积轴自动取的那 8 个刻度 (1300 步长 100) 会自己撞在一起,
+    # 所以把三个轴的刻度数都压到 6 以内 —— 3d 里刻度是斜的, 刻度一密就叠字。
+    for axis in (ax.xaxis, ax.yaxis, ax.zaxis):
+        # steps 限定成 1/2/2.5/5/10 这几档, 免得 3d 自己挑出 150 这种不整的步长
+        axis.set_major_locator(MaxNLocator(nbins=5, steps=[1, 2, 2.5, 5, 10]))
     ax.set_title(f"{args.case} — 3D Pareto front (all three objectives minimised)",
                  color=th["ink"], fontsize=13, pad=18)
     leg = ax.legend(loc="upper left", fontsize=10, frameon=True,
