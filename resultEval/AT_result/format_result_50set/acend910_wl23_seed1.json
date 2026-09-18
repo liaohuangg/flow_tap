@@ -1,0 +1,92 @@
+{
+  "system_id": "acend910_wl23_seed1",
+  "chiplets": [
+    {
+      "name": "A",
+      "x-position": 10.77391,
+      "y-position": 6.466031,
+      "width": 14.5,
+      "height": 31.4,
+      "rotation": 0,
+      "power": 256,
+      "hubump": 0.09
+    },
+    {
+      "name": "B",
+      "x-position": 28.828336,
+      "y-position": 16.119443,
+      "width": 16.0,
+      "height": 10.5,
+      "rotation": 1,
+      "power": 14,
+      "hubump": 0.045
+    },
+    {
+      "name": "C",
+      "x-position": 26.964898,
+      "y-position": 3.178667,
+      "width": 11.87,
+      "height": 7.75,
+      "rotation": 1,
+      "power": 20,
+      "hubump": 0.045
+    },
+    {
+      "name": "D",
+      "x-position": 0.095,
+      "y-position": 12.709594,
+      "width": 7.75,
+      "height": 11.87,
+      "rotation": 0,
+      "power": 20,
+      "hubump": 0.045
+    },
+    {
+      "name": "E",
+      "x-position": 0.62486,
+      "y-position": 30.239102,
+      "width": 7.75,
+      "height": 11.87,
+      "rotation": 0,
+      "power": 20,
+      "hubump": 0.045
+    },
+    {
+      "name": "F",
+      "x-position": 31.464055,
+      "y-position": 26.809533,
+      "width": 7.75,
+      "height": 11.87,
+      "rotation": 0,
+      "power": 20,
+      "hubump": 0.045
+    }
+  ],
+  "connections": [
+    {
+      "node1": "A",
+      "node2": "B",
+      "wireCount": 200
+    },
+    {
+      "node1": "A",
+      "node2": "C",
+      "wireCount": 256
+    },
+    {
+      "node1": "A",
+      "node2": "D",
+      "wireCount": 256
+    },
+    {
+      "node1": "A",
+      "node2": "E",
+      "wireCount": 256
+    },
+    {
+      "node1": "A",
+      "node2": "F",
+      "wireCount": 256
+    }
+  ]
+}

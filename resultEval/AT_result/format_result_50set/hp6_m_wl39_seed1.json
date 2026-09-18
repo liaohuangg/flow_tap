@@ -1,0 +1,92 @@
+{
+  "system_id": "hp6_m_wl39_seed1",
+  "chiplets": [
+    {
+      "name": "A",
+      "x-position": 0.185,
+      "y-position": 8.49982,
+      "width": 10.36,
+      "height": 4.62,
+      "rotation": 1,
+      "power": 61,
+      "hubump": 0.135
+    },
+    {
+      "name": "B",
+      "x-position": 24.16042,
+      "y-position": 19.094953,
+      "width": 7.0,
+      "height": 3.78,
+      "rotation": 0,
+      "power": 61,
+      "hubump": 0.09
+    },
+    {
+      "name": "C",
+      "x-position": 10.915067,
+      "y-position": 2.287318,
+      "width": 2.1,
+      "height": 9.8,
+      "rotation": 0,
+      "power": 52,
+      "hubump": 0.135
+    },
+    {
+      "name": "D",
+      "x-position": 0.835,
+      "y-position": 3.903916,
+      "width": 9.8,
+      "height": 2.1,
+      "rotation": 1,
+      "power": 48,
+      "hubump": 0.045
+    },
+    {
+      "name": "E",
+      "x-position": 17.841105,
+      "y-position": 23.600443,
+      "width": 9.8,
+      "height": 2.1,
+      "rotation": 1,
+      "power": 28,
+      "hubump": 0.045
+    },
+    {
+      "name": "F",
+      "x-position": 0.095,
+      "y-position": 13.399887,
+      "width": 33.04,
+      "height": 5.46,
+      "rotation": 1,
+      "power": 45,
+      "hubump": 0.045
+    }
+  ],
+  "connections": [
+    {
+      "node1": "A",
+      "node2": "C",
+      "wireCount": 512
+    },
+    {
+      "node1": "A",
+      "node2": "F",
+      "wireCount": 256
+    },
+    {
+      "node1": "B",
+      "node2": "E",
+      "wireCount": 128
+    },
+    {
+      "node1": "B",
+      "node2": "F",
+      "wireCount": 128
+    },
+    {
+      "node1": "C",
+      "node2": "D",
+      "wireCount": 256
+    }
+  ]
+}

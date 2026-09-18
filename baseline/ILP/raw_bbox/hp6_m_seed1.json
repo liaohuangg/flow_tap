@@ -1,0 +1,116 @@
+{
+  "case": "hp6_m",
+  "seed": 1,
+  "config": "bbox",
+  "profile": "full",
+  "objective": "bbox",
+  "n_chiplets": 6,
+  "canvas_mm": 33.28085708618164,
+  "canvas_source": "ATPlace:Thermal-aware.json",
+  "budget_s_total": 1800.0,
+  "wall_s": 1.77,
+  "best_stage": "iter0/OPTIMAL",
+  "obj_model": 1.4526414505436556,
+  "mip_gap": 0.04684616352799439,
+  "best_bound": 1.3845907716039445,
+  "proven_optimal": false,
+  "obj_eval_total_wl": 13253.699999999997,
+  "greedy_init_total_wl": 26324.120000000003,
+  "canvas_overflow_mm": [
+    0.0,
+    0.0
+  ],
+  "bbox_mm": [
+    12.81,
+    33.13
+  ],
+  "bbox_area_mm2": 424.3953,
+  "bbox_wh_mm": 45.94,
+  "aspect_absdiff_mm": 20.32,
+  "n_footprint_overlaps": 0,
+  "model": {
+    "n_vars": 185,
+    "n_bin": 78,
+    "n_constrs": 295,
+    "M": 100.69171417236328,
+    "S": 33.28085708618164,
+    "objective": "bbox",
+    "w_wl": 0.01,
+    "w_bbox": 1.0,
+    "w_aspect": 0.1,
+    "wl_ref": 26324.120000000003,
+    "beta_area": 1e-06,
+    "hard_canvas": true,
+    "lam_sum": 2560.0
+  },
+  "config_detail": {
+    "name": "bbox",
+    "rot": true,
+    "K": 1,
+    "uniform_init": true,
+    "w_bbox": 1.0,
+    "w_aspect": 0.1,
+    "w_wl": 0.01,
+    "hard_canvas": true
+  },
+  "history": [
+    {
+      "iter": 0,
+      "stage": "OPTIMAL",
+      "status": "OPTIMAL",
+      "mip_gap": 0.14926152310392862,
+      "obj_model": 1.492032314629036,
+      "obj_eval": 28755.479999999996,
+      "bbox_wh": 47.2,
+      "aspect": 19.06
+    },
+    {
+      "iter": 0,
+      "stage": "OPTIMAL",
+      "status": "OPTIMAL",
+      "mip_gap": 0.04684616352799439,
+      "obj_model": 1.4526414505436556,
+      "obj_eval": 13253.699999999997,
+      "bbox_wh": 45.94,
+      "aspect": 20.32
+    }
+  ],
+  "x_footprint_ll": [
+    {
+      "name": "A",
+      "FX": 5.55,
+      "FY": 19.22,
+      "r": 0
+    },
+    {
+      "name": "B",
+      "FX": 7.74,
+      "FY": 0.0,
+      "r": 1
+    },
+    {
+      "name": "C",
+      "FX": 10.44,
+      "FY": 19.78,
+      "r": 0
+    },
+    {
+      "name": "D",
+      "FX": 10.53,
+      "FY": 9.89,
+      "r": 0
+    },
+    {
+      "name": "E",
+      "FX": 5.55,
+      "FY": 0.0,
+      "r": 0
+    },
+    {
+      "name": "F",
+      "FX": 0.0,
+      "FY": 0.0,
+      "r": 0
+    }
+  ]
+}

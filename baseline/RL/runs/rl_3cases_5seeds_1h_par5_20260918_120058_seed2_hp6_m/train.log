@@ -1,0 +1,76 @@
+Run name: rl_3cases_5seeds_1h_par5_20260918_120058_seed2_hp6_m
+Run directory: /root/placement/flow_tap/baseline/RL/runs/rl_3cases_5seeds_1h_par5_20260918_120058_seed2_hp6_m
+Training log: /root/placement/flow_tap/baseline/RL/runs/rl_3cases_5seeds_1h_par5_20260918_120058_seed2_hp6_m/train.log
+Default RL canvas aligned to fastTM interposer: 50.0 x 50.0
+
+生成/检查 fastTM 热阻表...
+  热阻表阶段状态: ok
+  热阻表阶段耗时: 191.930s
+  热阻表日志: /root/placement/flow_tap/baseline/RL/runs/rl_3cases_5seeds_1h_par5_20260918_120058_seed2_hp6_m/thermal_tables.log
+======================================================================
+PPO训练 - 芯片布局优化
+======================================================================
+
+环境信息:
+  芯片数量: 6
+  放置顺序: ['A', 'C', 'F', 'B', 'D', 'E']
+  观察维度: 10
+  动作维度: 70000
+  rollout batch: 480 transitions
+  minibatches: 4
+  PPO update epochs: 4
+  随机种子: 2
+  剩余总时间预算: 3408.1s
+
+开始训练...
+----------------------------------------------------------------------
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 1
+  rlplanner_cost: 31.7626
+  reward: -9.2482
+  温度: 83.2016
+  CPLEX平均线长: 27.4009
+BEST_LAYOUT
+  epoch: 1/600, rollout: 1
+  reward: -9.2482
+  温度: 83.2016
+  CPLEX平均线长: 27.4009
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 2
+  rlplanner_cost: 30.9270
+  reward: -10.8034
+  温度: 77.6709
+  CPLEX平均线长: 30.9270
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 3
+  rlplanner_cost: 20.0241
+  reward: 2.0863
+  温度: 81.3443
+  CPLEX平均线长: 18.8587
+BEST_LAYOUT
+  epoch: 1/600, rollout: 3
+  reward: 2.0863
+  温度: 81.3443
+  CPLEX平均线长: 18.8587
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 4
+  rlplanner_cost: 18.4548
+  reward: 5.5794
+  温度: 82.0573
+  CPLEX平均线长: 16.1899
+BEST_LAYOUT
+  epoch: 1/600, rollout: 4
+  reward: 5.5794
+  温度: 82.0573
+  CPLEX平均线长: 16.1899
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 10
+  rlplanner_cost: 17.6679
+  reward: 4.0484
+  温度: 82.9080
+  CPLEX平均线长: 13.8696
+Epoch 1/600
+  rollouts: 80, samples: 480
+  平均奖励: -9.4500, 成功率: 100.0%
+  optimizer steps: 16, KL: 0.000211
+  累计RL时间: 49.90s

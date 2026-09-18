@@ -1,0 +1,97 @@
+{
+  "system_id": "multigpu_thermal0p1_wirelength50_seed121",
+  "chiplets": [
+    {
+      "name": "A",
+      "x-position": 5.718871,
+      "y-position": 25.984407,
+      "width": 12.0,
+      "height": 12.0,
+      "rotation": 0,
+      "power": 105,
+      "hubump": 0.135
+    },
+    {
+      "name": "B",
+      "x-position": 4.668388,
+      "y-position": 7.748411,
+      "width": 18.2,
+      "height": 18.2,
+      "rotation": 0,
+      "power": 295,
+      "hubump": 0.09
+    },
+    {
+      "name": "C",
+      "x-position": 22.868388,
+      "y-position": 4.994379,
+      "width": 18.2,
+      "height": 18.2,
+      "rotation": 0,
+      "power": 295,
+      "hubump": 0.09
+    },
+    {
+      "name": "D",
+      "x-position": 25.471602,
+      "y-position": 26.049055,
+      "width": 7.75,
+      "height": 11.87,
+      "rotation": 0,
+      "power": 20,
+      "hubump": 0.135
+    },
+    {
+      "name": "E",
+      "x-position": 33.221942,
+      "y-position": 23.194393,
+      "width": 7.75,
+      "height": 11.87,
+      "rotation": 0,
+      "power": 20,
+      "hubump": 0.135
+    },
+    {
+      "name": "F",
+      "x-position": 17.721603,
+      "y-position": 25.948873,
+      "width": 7.75,
+      "height": 11.87,
+      "rotation": 0,
+      "power": 20,
+      "hubump": 0.135
+    }
+  ],
+  "connections": [
+    {
+      "node1": "A",
+      "node2": "B",
+      "wireCount": 128
+    },
+    {
+      "node1": "A",
+      "node2": "C",
+      "wireCount": 128
+    },
+    {
+      "node1": "A",
+      "node2": "D",
+      "wireCount": 1024
+    },
+    {
+      "node1": "B",
+      "node2": "C",
+      "wireCount": 128
+    },
+    {
+      "node1": "B",
+      "node2": "E",
+      "wireCount": 1024
+    },
+    {
+      "node1": "C",
+      "node2": "F",
+      "wireCount": 1024
+    }
+  ]
+}

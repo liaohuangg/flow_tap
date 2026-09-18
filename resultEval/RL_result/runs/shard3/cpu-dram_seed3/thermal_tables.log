@@ -1,0 +1,22 @@
+command: /root/anaconda3/envs/chipdiffusion/bin/python /root/placement/flow_tap/baseline/RL/generate_thermal_tables.py /root/placement/flow_tap/baseline/RL/examples/cpu-dram.json --intp-size 35.994444 --overwrite-config --force
+cwd: /root/placement/flow_tap/baseline/RL/fastTM
+hotspot: /root/placement/flow_tap/baseline/RL/fastTM/util/hotspot
+started_at: 2026-09-12T01:35:05
+
+Config: /root/placement/flow_tap/baseline/RL/fastTM/configs/benchmark_cpu-dram.cfg
+Output: /root/placement/flow_tap/baseline/RL/fastTM/outputs/benchmark_cpu-dram
+#info# Characterizing R_self for Chiplet0 at [ 4.225 , 4.6 ] [mm]
+#info# Characterizing R_self for Chiplet0 at [ 17.958499780000004 , 4.6 ] [mm]
+#info# Characterizing R_self for Chiplet0 at [ 4.225 , 17.96224978 ] [mm]
+#info# Characterizing R_self for Chiplet0 at [ 17.958499780000004 , 17.96224978 ] [mm]
+#info# R_self characterization done for: Chiplet0 . Saved to file: /root/placement/flow_tap/baseline/RL/fastTM/outputs/benchmark_cpu-dram/Chiplet0.rself
+#info# Characterizing R_mutu for Chiplet0 at [ 4.225 , 4.6 ] [mm]
+#info# R_mutual characterization done for: Chiplet0 Saved to file: /root/placement/flow_tap/baseline/RL/fastTM/outputs/benchmark_cpu-dram/Chiplet0.rmutu
+#info# Characterizing R_self for Chiplet1 at [ 4.475 , 4.475 ] [mm]
+#info# Characterizing R_self for Chiplet1 at [ 17.96099978 , 4.475 ] [mm]
+#info# Characterizing R_self for Chiplet1 at [ 4.475 , 17.96099978 ] [mm]
+#info# Characterizing R_self for Chiplet1 at [ 17.96099978 , 17.96099978 ] [mm]
+#info# R_self characterization done for: Chiplet1 . Saved to file: /root/placement/flow_tap/baseline/RL/fastTM/outputs/benchmark_cpu-dram/Chiplet1.rself
+#info# Characterizing R_mutu for Chiplet1 at [ 4.475 , 4.475 ] [mm]
+#info# R_mutual characterization done for: Chiplet1 Saved to file: /root/placement/flow_tap/baseline/RL/fastTM/outputs/benchmark_cpu-dram/Chiplet1.rmutu
+Thermal tables generated.

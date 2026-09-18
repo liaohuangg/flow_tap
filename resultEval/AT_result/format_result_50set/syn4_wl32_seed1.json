@@ -1,0 +1,287 @@
+{
+  "system_id": "syn4_wl32_seed1",
+  "chiplets": [
+    {
+      "name": "A",
+      "x-position": 24.219186,
+      "y-position": 9.610326,
+      "width": 7.0,
+      "height": 9.0,
+      "rotation": 1,
+      "power": 51,
+      "hubump": 0.09
+    },
+    {
+      "name": "B",
+      "x-position": 16.849111,
+      "y-position": 3.89871,
+      "width": 7.0,
+      "height": 8.0,
+      "rotation": 1,
+      "power": 43,
+      "hubump": 0.18
+    },
+    {
+      "name": "C",
+      "x-position": 0.692591,
+      "y-position": 16.978081,
+      "width": 7.0,
+      "height": 6.0,
+      "rotation": 0,
+      "power": 26,
+      "hubump": 0.135
+    },
+    {
+      "name": "D",
+      "x-position": 8.062741,
+      "y-position": 13.2954,
+      "width": 7.0,
+      "height": 7.0,
+      "rotation": 0,
+      "power": 40,
+      "hubump": 0.135
+    },
+    {
+      "name": "E",
+      "x-position": 15.52274,
+      "y-position": 26.575475,
+      "width": 6.0,
+      "height": 8.0,
+      "rotation": 0,
+      "power": 25,
+      "hubump": 0.135
+    },
+    {
+      "name": "F",
+      "x-position": 0.737666,
+      "y-position": 9.653006,
+      "width": 7.0,
+      "height": 7.0,
+      "rotation": 1,
+      "power": 38,
+      "hubump": 0.09
+    },
+    {
+      "name": "G",
+      "x-position": 21.937815,
+      "y-position": 24.530475,
+      "width": 5.0,
+      "height": 9.0,
+      "rotation": 1,
+      "power": 30,
+      "hubump": 0.18
+    },
+    {
+      "name": "H",
+      "x-position": 15.65774,
+      "y-position": 19.0704,
+      "width": 5.0,
+      "height": 7.0,
+      "rotation": 1,
+      "power": 37,
+      "hubump": 0.27
+    },
+    {
+      "name": "I",
+      "x-position": 21.252815,
+      "y-position": 19.0254,
+      "width": 9.0,
+      "height": 5.0,
+      "rotation": 0,
+      "power": 46,
+      "hubump": 0.225
+    },
+    {
+      "name": "J",
+      "x-position": 8.107665,
+      "y-position": 20.710475,
+      "width": 7.0,
+      "height": 7.0,
+      "rotation": 1,
+      "power": 44,
+      "hubump": 0.18
+    },
+    {
+      "name": "K",
+      "x-position": 27.30789,
+      "y-position": 24.7171,
+      "width": 7.0,
+      "height": 8.0,
+      "rotation": 1,
+      "power": 58,
+      "hubump": 0.09
+    },
+    {
+      "name": "L",
+      "x-position": 15.567816,
+      "y-position": 13.430326,
+      "width": 6.0,
+      "height": 5.0,
+      "rotation": 0,
+      "power": 46,
+      "hubump": 0.27
+    },
+    {
+      "name": "M",
+      "x-position": 8.389036,
+      "y-position": 3.880251,
+      "width": 8.0,
+      "height": 9.0,
+      "rotation": 1,
+      "power": 32,
+      "hubump": 0.18
+    }
+  ],
+  "connections": [
+    {
+      "node1": "A",
+      "node2": "I",
+      "wireCount": 256
+    },
+    {
+      "node1": "A",
+      "node2": "L",
+      "wireCount": 128
+    },
+    {
+      "node1": "B",
+      "node2": "D",
+      "wireCount": 128
+    },
+    {
+      "node1": "B",
+      "node2": "E",
+      "wireCount": 256
+    },
+    {
+      "node1": "B",
+      "node2": "G",
+      "wireCount": 128
+    },
+    {
+      "node1": "B",
+      "node2": "I",
+      "wireCount": 128
+    },
+    {
+      "node1": "B",
+      "node2": "M",
+      "wireCount": 512
+    },
+    {
+      "node1": "C",
+      "node2": "D",
+      "wireCount": 128
+    },
+    {
+      "node1": "C",
+      "node2": "F",
+      "wireCount": 128
+    },
+    {
+      "node1": "C",
+      "node2": "H",
+      "wireCount": 128
+    },
+    {
+      "node1": "C",
+      "node2": "I",
+      "wireCount": 128
+    },
+    {
+      "node1": "C",
+      "node2": "J",
+      "wireCount": 256
+    },
+    {
+      "node1": "D",
+      "node2": "F",
+      "wireCount": 128
+    },
+    {
+      "node1": "D",
+      "node2": "L",
+      "wireCount": 256
+    },
+    {
+      "node1": "E",
+      "node2": "H",
+      "wireCount": 256
+    },
+    {
+      "node1": "E",
+      "node2": "I",
+      "wireCount": 128
+    },
+    {
+      "node1": "E",
+      "node2": "J",
+      "wireCount": 256
+    },
+    {
+      "node1": "F",
+      "node2": "M",
+      "wireCount": 256
+    },
+    {
+      "node1": "G",
+      "node2": "H",
+      "wireCount": 256
+    },
+    {
+      "node1": "G",
+      "node2": "I",
+      "wireCount": 256
+    },
+    {
+      "node1": "G",
+      "node2": "J",
+      "wireCount": 128
+    },
+    {
+      "node1": "G",
+      "node2": "K",
+      "wireCount": 256
+    },
+    {
+      "node1": "H",
+      "node2": "I",
+      "wireCount": 512
+    },
+    {
+      "node1": "H",
+      "node2": "J",
+      "wireCount": 128
+    },
+    {
+      "node1": "H",
+      "node2": "L",
+      "wireCount": 256
+    },
+    {
+      "node1": "I",
+      "node2": "L",
+      "wireCount": 128
+    },
+    {
+      "node1": "J",
+      "node2": "L",
+      "wireCount": 128
+    },
+    {
+      "node1": "J",
+      "node2": "M",
+      "wireCount": 256
+    },
+    {
+      "node1": "K",
+      "node2": "L",
+      "wireCount": 128
+    },
+    {
+      "node1": "L",
+      "node2": "M",
+      "wireCount": 512
+    }
+  ]
+}

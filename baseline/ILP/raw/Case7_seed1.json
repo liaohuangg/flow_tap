@@ -1,0 +1,286 @@
+{
+  "case": "Case7",
+  "seed": 1,
+  "config": "wl",
+  "profile": "full",
+  "objective": "wl",
+  "n_chiplets": 28,
+  "canvas_mm": 27.54967150439366,
+  "canvas_source": "ATPlace:Thermal-aware.json",
+  "budget_s_total": 3300.0,
+  "wall_s": 3327.36,
+  "best_stage": "iter2/TIME_LIMIT",
+  "obj_model": 0.38093079609215513,
+  "mip_gap": 0.07494034861166257,
+  "best_bound": 0.3523837094360909,
+  "proven_optimal": false,
+  "obj_eval_total_wl": 20618.614999999994,
+  "greedy_init_total_wl": 58117.455,
+  "canvas_overflow_mm": [
+    0.0,
+    0.0
+  ],
+  "bbox_mm": [
+    27.2375,
+    25.37
+  ],
+  "bbox_area_mm2": 691.0154,
+  "bbox_wh_mm": 52.6075,
+  "aspect_absdiff_mm": 1.8675,
+  "n_footprint_overlaps": 0,
+  "model": {
+    "n_vars": 2268,
+    "n_bin": 1592,
+    "n_constrs": 3284,
+    "M": 65.18934300878732,
+    "S": 27.54967150439366,
+    "objective": "wl",
+    "w_wl": 1.0,
+    "w_bbox": 0.0,
+    "w_aspect": 0.0,
+    "wl_ref": 58117.455,
+    "beta_area": 1e-06,
+    "hard_canvas": true,
+    "lam_sum": 5632.0
+  },
+  "config_detail": {
+    "name": "wl",
+    "rot": true,
+    "K": 3,
+    "damp": 0.8,
+    "uniform_init": true,
+    "hard_canvas": true
+  },
+  "history": [
+    {
+      "iter": 0,
+      "stage": "TIME_LIMIT",
+      "status": "TIME_LIMIT",
+      "mip_gap": 0.333657475972081,
+      "obj_model": 0.7754459482095177,
+      "obj_eval": 26159.784999999993,
+      "bbox_wh": 52.92,
+      "aspect": 1.6
+    },
+    {
+      "iter": 0,
+      "stage": "TIME_LIMIT",
+      "status": "TIME_LIMIT",
+      "mip_gap": 0.2196760704390916,
+      "obj_model": 0.7056273369162471,
+      "obj_eval": 21341.369999999995,
+      "bbox_wh": 51.83,
+      "aspect": 3.09
+    },
+    {
+      "iter": 1,
+      "stage": "TIME_LIMIT",
+      "status": "TIME_LIMIT",
+      "mip_gap": 0.15993764248563241,
+      "obj_model": 0.44554535294086645,
+      "obj_eval": 20617.214999999997,
+      "bbox_wh": 52.6075,
+      "aspect": 1.8675
+    },
+    {
+      "iter": 1,
+      "stage": "TIME_LIMIT",
+      "status": "TIME_LIMIT",
+      "mip_gap": 0.09754840524353194,
+      "obj_model": 0.44554535294086645,
+      "obj_eval": 20617.214999999997,
+      "bbox_wh": 52.6075,
+      "aspect": 1.8675
+    },
+    {
+      "iter": 2,
+      "stage": "TIME_LIMIT",
+      "status": "TIME_LIMIT",
+      "mip_gap": 0.177266678542055,
+      "obj_model": 0.38093079609215513,
+      "obj_eval": 20618.614999999994,
+      "bbox_wh": 52.6075,
+      "aspect": 1.8675
+    },
+    {
+      "iter": 2,
+      "stage": "TIME_LIMIT",
+      "status": "TIME_LIMIT",
+      "mip_gap": 0.07494034861166257,
+      "obj_model": 0.38093079609215513,
+      "obj_eval": 20618.614999999994,
+      "bbox_wh": 52.6075,
+      "aspect": 1.8675
+    }
+  ],
+  "x_footprint_ll": [
+    {
+      "name": "CPU1_0",
+      "FX": 10.68,
+      "FY": 4.4,
+      "r": 1
+    },
+    {
+      "name": "CPU1_1",
+      "FX": 14.45,
+      "FY": 8.76,
+      "r": 0
+    },
+    {
+      "name": "CPU1_2",
+      "FX": 12.4725,
+      "FY": 12.53,
+      "r": 1
+    },
+    {
+      "name": "CPU1_3",
+      "FX": 16.2425,
+      "FY": 12.53,
+      "r": 1
+    },
+    {
+      "name": "CPU1_4",
+      "FX": 19.31,
+      "FY": 8.15,
+      "r": 1
+    },
+    {
+      "name": "CPU1_5",
+      "FX": 19.99,
+      "FY": 4.38,
+      "r": 0
+    },
+    {
+      "name": "CPU1_6",
+      "FX": 17.22,
+      "FY": 4.38,
+      "r": 0
+    },
+    {
+      "name": "CPU1_7",
+      "FX": 14.45,
+      "FY": 4.4,
+      "r": 0
+    },
+    {
+      "name": "CPU2_0",
+      "FX": 9.09,
+      "FY": 7.17,
+      "r": 0
+    },
+    {
+      "name": "CPU2_1",
+      "FX": 20.0125,
+      "FY": 10.92,
+      "r": 0
+    },
+    {
+      "name": "DRAM_0",
+      "FX": 0.0,
+      "FY": 5.305,
+      "r": 0
+    },
+    {
+      "name": "DRAM_1",
+      "FX": 18.1475,
+      "FY": 16.28,
+      "r": 0
+    },
+    {
+      "name": "Analog_0",
+      "FX": 11.52,
+      "FY": 1.31,
+      "r": 1
+    },
+    {
+      "name": "Analog_1",
+      "FX": 13.61,
+      "FY": 1.31,
+      "r": 1
+    },
+    {
+      "name": "Analog_2",
+      "FX": 12.8125,
+      "FY": 15.3,
+      "r": 0
+    },
+    {
+      "name": "Analog_3",
+      "FX": 17.22,
+      "FY": 9.44,
+      "r": 1
+    },
+    {
+      "name": "Analog_4",
+      "FX": 23.08,
+      "FY": 7.83,
+      "r": 1
+    },
+    {
+      "name": "Analog_5",
+      "FX": 20.645,
+      "FY": 1.29,
+      "r": 1
+    },
+    {
+      "name": "Analog_6",
+      "FX": 17.265,
+      "FY": 1.29,
+      "r": 1
+    },
+    {
+      "name": "Analog_7",
+      "FX": 22.76,
+      "FY": 4.74,
+      "r": 1
+    },
+    {
+      "name": "MEMS_0",
+      "FX": 11.52,
+      "FY": 0.02,
+      "r": 0
+    },
+    {
+      "name": "MEMS_1",
+      "FX": 15.7,
+      "FY": 1.81,
+      "r": 1
+    },
+    {
+      "name": "MEMS_2",
+      "FX": 13.3125,
+      "FY": 17.39,
+      "r": 0
+    },
+    {
+      "name": "MEMS_3",
+      "FX": 17.22,
+      "FY": 8.15,
+      "r": 0
+    },
+    {
+      "name": "MEMS_4",
+      "FX": 25.17,
+      "FY": 8.33,
+      "r": 1
+    },
+    {
+      "name": "MEMS_5",
+      "FX": 19.355,
+      "FY": 1.29,
+      "r": 1
+    },
+    {
+      "name": "MEMS_6",
+      "FX": 17.265,
+      "FY": 0.0,
+      "r": 0
+    },
+    {
+      "name": "MEMS_7",
+      "FX": 22.76,
+      "FY": 3.45,
+      "r": 0
+    }
+  ]
+}

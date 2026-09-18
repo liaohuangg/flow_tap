@@ -1,0 +1,110 @@
+{
+  "case": "xerox6_m_bump",
+  "mode": "thermal",
+  "unit": "um",
+  "interposer": {
+    "width": 39452.25215371107,
+    "height": 39452.25215371107,
+    "fence": [
+      0.0,
+      39452.25215371107,
+      0.0,
+      39452.25215371107
+    ]
+  },
+  "thermal": {
+    "temp_aware_opt": true,
+    "thermal_solver": "hotspot",
+    "thermal_dir": "/root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep/xerox6_m_bump/wl06/thermal/",
+    "num_grid_x": 64,
+    "num_grid_y": 64
+  },
+  "chiplets": [
+    {
+      "name": "A",
+      "x": 36232.25390625,
+      "y": 32837.25390625,
+      "width": 6340.0,
+      "height": 13130.0,
+      "angle_rad": 0.0,
+      "power_w": 48.0
+    },
+    {
+      "name": "B",
+      "x": 6204.31201171875,
+      "y": 6570.0,
+      "width": 4990.0,
+      "height": 13040.0,
+      "angle_rad": 0.0,
+      "power_w": 92.0
+    },
+    {
+      "name": "C",
+      "x": 24427.721876745694,
+      "y": 4385.0,
+      "width": 8670.0,
+      "height": 7830.0,
+      "angle_rad": 4.71238899230957,
+      "power_w": 38.0
+    },
+    {
+      "name": "D",
+      "x": 5950.0,
+      "y": 29617.251953125,
+      "width": 11800.0,
+      "height": 19570.0,
+      "angle_rad": 3.1415927410125732,
+      "power_w": 46.0
+    },
+    {
+      "name": "E",
+      "x": 22294.7109375,
+      "y": 31007.251953125,
+      "width": 12450.0,
+      "height": 16790.0,
+      "angle_rad": 0.0,
+      "power_w": 53.0
+    },
+    {
+      "name": "F",
+      "x": 32987.80078125,
+      "y": 6765.0,
+      "width": 9090.0,
+      "height": 13430.0,
+      "angle_rad": 0.0,
+      "power_w": 50.0
+    }
+  ],
+  "raw_best_fp": [
+    [
+      36232.25390625,
+      6204.31201171875,
+      24427.80078125,
+      5950.0,
+      22294.7109375,
+      32987.80078125,
+      32837.25390625,
+      6570.0,
+      4385.0,
+      29617.251953125,
+      31007.251953125,
+      6765.0
+    ],
+    [
+      0.0,
+      0.0,
+      4.71238899230957,
+      3.1415927410125732,
+      0.0,
+      0.0
+    ]
+  ],
+  "hpwl_raw": 75008648.0,
+  "num_overlaps_raw": 0,
+  "hpwl": 75008679.93408108,
+  "num_overlaps": 0,
+  "seed": 1,
+  "legal": true,
+  "legalize_method": "milp",
+  "legalize_s": 0.3919031620025635
+}

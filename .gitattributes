@@ -18,3 +18,8 @@ resultEval/FM_result/pareto_weight_sweep_seed121_legal_only_results/*.csv -filte
 # 连 57KB 的文件也推不上去。改回普通 blob 入库。
 resultEval/runtime/*.csv -filter -diff -merge text
 resultEval/AT_result/50set.csv -filter -diff -merge text
+
+# 全局把 csv 从 LFS 摘出去: 后面的行覆盖上面的 *.csv filter=lfs 规则。
+# 结果 csv 都是几十 KB 的文本, 走 LFS 只会占额度; 而 LFS 额度一超, GitHub 会拒绝
+# 整个仓库的 LFS 上传, 连小文件也推不上去。
+*.csv -filter -diff -merge text

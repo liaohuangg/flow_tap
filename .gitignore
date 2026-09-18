@@ -17,5 +17,11 @@ __pycache__/
 # 模型周期性训练快照 (大文件, 不入库; best.pth 单独跟踪)
 checkpoint_ep*.pth
 
+# RL 训练的 PPO 权重 (每个 ~70 MB, 三个 case 五个 seed 就是 3.7 GB)。这些权重本身
+# 不可复现地依赖训练时的随机性, 但每个 seed 的指标已经落在同目录的 summary_all.csv
+# 里, 权重对复现实验结论没有增量价值, 只占 LFS 额度。需要权重时按 runs/ 下的
+# config.json 重新训即可。
+baseline/RL/runs/**/checkpoints/*.pt
+
 Dataset/dataset/**/*
 !Dataset/dataset/**/*.zip

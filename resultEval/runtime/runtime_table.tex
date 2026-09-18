@@ -1,0 +1,22 @@
+\begin{table}[!t]
+\caption{RUNTIME OF THE FOUR METHODS, WITH THE TW-FM SPEEDUP RELATIVE TO ATPLACE2.5D. RLPLANNER IS ASSIGNED A FIXED 3600 s BUDGET AND HAS NO PER-CASE MEASUREMENT. SPEEDUP IS COMPUTED FROM THE TW-FM (CPU+GPU) COLUMN, WHICH IS A FIVE-SEED AVERAGE; THE TW-FM (CPU) COLUMN IS A SINGLE RUN. THE THREE SYSTEMS MARKED --- HAVE NO GPU MEASUREMENT}
+\centering
+\small
+\setlength{\tabcolsep}{3pt}
+\begin{tabular}{lcccccc}
+\toprule
+\textbf{Case} & \textbf{ATPlace2.5D} & \textbf{RLPlanner} & \textbf{MILP} & \multicolumn{2}{c}{\textbf{TW-FM}} & \textbf{Spd.} \\
+ & & & & \textbf{(CPU)} & \textbf{(CPU+GPU)} & \\
+\midrule
+\textit{ascend910} & 274 & 3600 & 26 & 145 & \textbf{42} & 6.6$\times$ \\
+\textit{xerox6_m} & 334 & 3600 & 179 & 178 & --- & --- \\
+\textit{hp6_m} & 360 & 3600 & 4 & 168 & --- & --- \\
+\textit{multigpu} & 274 & 3600 & 7 & 139 & \textbf{45} & 6.2$\times$ \\
+\textit{xerox7_m} & 346 & 3600 & 324 & 136 & --- & --- \\
+\textit{cpu-dram} & 297 & 3600 & 28 & 143 & \textbf{46} & 6.4$\times$ \\
+\textit{hp11_m} & 383 & 3600 & 1222 & 152 & \textbf{36} & 10.6$\times$ \\
+\textit{syn4} & 375 & 3600 & 3305 & 150 & \textbf{46} & 8.1$\times$ \\
+\bottomrule
+\end{tabular}
+\label{tab:runtime}
+\end{table}

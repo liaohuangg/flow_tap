@@ -1,0 +1,36 @@
+command: /root/anaconda3/envs/chipdiffusion/bin/python3 /root/placement/flow_tap/baseline/RL/generate_thermal_tables.py /root/placement/flow_tap/baseline/RL/examples/hp6_m.json --intp-size 50.0 --overwrite-config --force
+cwd: /root/placement/flow_tap/baseline/RL/fastTM
+hotspot: /root/placement/flow_tap/baseline/RL/fastTM/util/hotspot
+started_at: 2026-09-18T11:51:17
+
+Config: /root/placement/flow_tap/baseline/RL/fastTM/configs/benchmark_hp6_m.cfg
+Output: /root/placement/flow_tap/baseline/RL/fastTM/outputs/benchmark_hp6_m
+#info# Characterizing R_self for Chiplet0 at [ 2.41 , 5.279999999999999 ] [mm]
+#info# Characterizing R_self for Chiplet0 at [ 24.8731 , 5.279999999999999 ] [mm]
+#info# Characterizing R_self for Chiplet0 at [ 2.41 , 24.9018 ] [mm]
+#info# Characterizing R_self for Chiplet0 at [ 24.8731 , 24.9018 ] [mm]
+#info# R_self characterization done for: Chiplet0 . Saved to file: /root/placement/flow_tap/baseline/RL/fastTM/outputs/benchmark_hp6_m/Chiplet0.rself
+#info# Characterizing R_mutu for Chiplet0 at [ 2.41 , 5.279999999999999 ] [mm]
+#info# R_mutual characterization done for: Chiplet0 Saved to file: /root/placement/flow_tap/baseline/RL/fastTM/outputs/benchmark_hp6_m/Chiplet0.rmutu
+#info# Characterizing R_self for Chiplet1 at [ 3.6 , 1.99 ] [mm]
+#info# Characterizing R_self for Chiplet1 at [ 24.885 , 1.99 ] [mm]
+#info# Characterizing R_self for Chiplet1 at [ 3.6 , 24.8689 ] [mm]
+#info# Characterizing R_self for Chiplet1 at [ 24.885 , 24.8689 ] [mm]
+#info# R_self characterization done for: Chiplet1 . Saved to file: /root/placement/flow_tap/baseline/RL/fastTM/outputs/benchmark_hp6_m/Chiplet1.rself
+#info# Characterizing R_mutu for Chiplet1 at [ 3.6 , 1.99 ] [mm]
+#info# R_mutual characterization done for: Chiplet1 Saved to file: /root/placement/flow_tap/baseline/RL/fastTM/outputs/benchmark_hp6_m/Chiplet1.rmutu
+#info# Characterizing R_self for Chiplet2 at [ 1.1500000000000001 , 5.0 ] [mm]
+#info# Characterizing R_self for Chiplet2 at [ 24.860500000000002 , 5.0 ] [mm]
+#info# Characterizing R_self for Chiplet2 at [ 1.1500000000000001 , 24.899 ] [mm]
+#info# Characterizing R_self for Chiplet2 at [ 24.860500000000002 , 24.899 ] [mm]
+#info# R_self characterization done for: Chiplet2 . Saved to file: /root/placement/flow_tap/baseline/RL/fastTM/outputs/benchmark_hp6_m/Chiplet2.rself
+#info# Characterizing R_mutu for Chiplet2 at [ 1.1500000000000001 , 5.0 ] [mm]
+#info# R_mutual characterization done for: Chiplet2 Saved to file: /root/placement/flow_tap/baseline/RL/fastTM/outputs/benchmark_hp6_m/Chiplet2.rmutu
+#info# Characterizing R_self for Chiplet3 at [ 2.83 , 16.62 ] [mm]
+#info# Characterizing R_self for Chiplet3 at [ 24.877300000000005 , 16.62 ] [mm]
+#info# Characterizing R_self for Chiplet3 at [ 2.83 , 25.0152 ] [mm]
+#info# Characterizing R_self for Chiplet3 at [ 24.877300000000005 , 25.0152 ] [mm]
+#info# R_self characterization done for: Chiplet3 . Saved to file: /root/placement/flow_tap/baseline/RL/fastTM/outputs/benchmark_hp6_m/Chiplet3.rself
+#info# Characterizing R_mutu for Chiplet3 at [ 2.83 , 16.62 ] [mm]
+#info# R_mutual characterization done for: Chiplet3 Saved to file: /root/placement/flow_tap/baseline/RL/fastTM/outputs/benchmark_hp6_m/Chiplet3.rmutu
+Thermal tables generated.

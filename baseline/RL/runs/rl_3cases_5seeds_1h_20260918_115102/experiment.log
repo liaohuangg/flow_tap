@@ -1,0 +1,143 @@
+experiment=rl_3cases_5seeds_1h_20260918_115102
+started_at=2026-09-18 11:51:02
+python=/root/anaconda3/envs/chipdiffusion/bin/python3
+cases=hp6_m xerox6_m xerox7_m
+seeds=0 1 2 3 4
+time_limit_seconds=3600 (includes forced thermal tables, RL, and checkpoint)
+max_epochs=600
+rollout_batch_size=480
+num_minibatches=4
+ppo_update_epochs=4
+grid_resolution=auto
+max_auto_grid_resolution=100
+exact_action_slots=50000
+thermal_intp_size=50
+placement_area_weight=1.0
+placement_pin_weight=1.0
+thermal_reuse_across_seeds=disabled (--force_thermal_tables)
+checkpoint=best policy only (no optimizer state)
+batch_dir=/root/placement/flow_tap/baseline/RL/runs/rl_3cases_5seeds_1h_20260918_115102
+
+Checking PyTorch and CPLEX...
+torch=2.11.0+cu130, cplex=22.1.0.0
+======================================================================
+Starting complete round for seed=0
+----------------------------------------------------------------------
+run=1, seed=0, case=hp6_m
+command: /root/anaconda3/envs/chipdiffusion/bin/python3 train.py --name rl_3cases_5seeds_1h_20260918_115102_seed0_hp6_m --json examples/hp6_m.json --num_epochs 600 --rollout_batch_size 480 --num_minibatches 4 --ppo_update_epochs 4 --log_interval 1 --grid_resolution auto --max_auto_grid_resolution 100 --exact_action_slots 50000 --thermal_intp_size 50 --placement_area_weight 1.0 --placement_pin_weight 1.0 --seed 0 --time_limit_seconds 3600 --force_thermal_tables --save_checkpoint
+使用设备: cuda
+Run name: rl_3cases_5seeds_1h_20260918_115102_seed0_hp6_m
+Run directory: /root/placement/flow_tap/baseline/RL/runs/rl_3cases_5seeds_1h_20260918_115102_seed0_hp6_m
+Training log: /root/placement/flow_tap/baseline/RL/runs/rl_3cases_5seeds_1h_20260918_115102_seed0_hp6_m/train.log
+Default RL canvas aligned to fastTM interposer: 50.0 x 50.0
+
+生成/检查 fastTM 热阻表...
+  热阻表阶段状态: ok
+  热阻表阶段耗时: 192.897s
+  热阻表日志: /root/placement/flow_tap/baseline/RL/runs/rl_3cases_5seeds_1h_20260918_115102_seed0_hp6_m/thermal_tables.log
+======================================================================
+PPO训练 - 芯片布局优化
+======================================================================
+
+环境信息:
+  芯片数量: 6
+  放置顺序: ['A', 'C', 'F', 'B', 'D', 'E']
+  观察维度: 10
+  动作维度: 70000
+  rollout batch: 480 transitions
+  minibatches: 4
+  PPO update epochs: 4
+  随机种子: 0
+  剩余总时间预算: 3407.1s
+
+开始训练...
+----------------------------------------------------------------------
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 1
+  rlplanner_cost: 32.4575
+  reward: -11.7405
+  温度: 80.0804
+  CPLEX平均线长: 32.4379
+BEST_LAYOUT
+  epoch: 1/600, rollout: 1
+  reward: -11.7405
+  温度: 80.0804
+  CPLEX平均线长: 32.4379
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 2
+  rlplanner_cost: 26.0991
+  reward: -5.3077
+  温度: 82.0281
+  CPLEX平均线长: 23.8834
+BEST_LAYOUT
+  epoch: 1/600, rollout: 2
+  reward: -5.3077
+  温度: 82.0281
+  CPLEX平均线长: 23.8834
+BEST_LAYOUT
+  epoch: 1/600, rollout: 3
+  reward: -4.8114
+  温度: 82.8560
+  CPLEX平均线长: 22.5342
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 5
+  rlplanner_cost: 22.0171
+  reward: -0.8220
+  温度: 80.8011
+  CPLEX平均线长: 21.4998
+BEST_LAYOUT
+  epoch: 1/600, rollout: 5
+  reward: -0.8220
+  温度: 80.8011
+  CPLEX平均线长: 21.4998
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 19
+  rlplanner_cost: 15.9188
+  reward: 5.1858
+  温度: 81.7397
+  CPLEX平均线长: 14.1715
+BEST_LAYOUT
+  epoch: 1/600, rollout: 19
+  reward: 5.1858
+  温度: 81.7397
+  CPLEX平均线长: 14.1715
+Epoch 1/600
+  rollouts: 80, samples: 480
+  平均奖励: -8.3100, 成功率: 100.0%
+  optimizer steps: 16, KL: 0.000196
+  累计RL时间: 62.54s
+Epoch 2/600
+  rollouts: 80, samples: 480
+  平均奖励: -10.8121, 成功率: 100.0%
+  optimizer steps: 16, KL: 0.000782
+  累计RL时间: 110.31s
+Epoch 3/600
+  rollouts: 80, samples: 480
+  平均奖励: -8.7477, 成功率: 100.0%
+  optimizer steps: 16, KL: 0.002027
+  累计RL时间: 159.89s
+BEST_LAYOUT
+  epoch: 4/600, rollout: 259
+  reward: 7.2820
+  温度: 81.6175
+  CPLEX平均线长: 15.6412
+Epoch 4/600
+  rollouts: 80, samples: 480
+  平均奖励: -8.1753, 成功率: 100.0%
+  optimizer steps: 16, KL: 0.004693
+  累计RL时间: 210.37s
+Epoch 5/600
+  rollouts: 80, samples: 480
+  平均奖励: -9.4638, 成功率: 100.0%
+  optimizer steps: 14, KL: 0.005269
+  累计RL时间: 260.77s
+Epoch 6/600
+  rollouts: 80, samples: 480
+  平均奖励: -9.7633, 成功率: 100.0%
+  optimizer steps: 12, KL: 0.006059
+  累计RL时间: 309.19s
+Epoch 7/600
+  rollouts: 80, samples: 480
+  平均奖励: -8.3369, 成功率: 100.0%
+  optimizer steps: 12, KL: 0.005295
+  累计RL时间: 358.38s

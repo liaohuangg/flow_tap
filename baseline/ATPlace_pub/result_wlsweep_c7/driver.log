@@ -1,0 +1,34 @@
+
+===== [2026-09-17 14:37:11] Case7_bump (wl 0->0.02, 50 点, seed=1, JOBS=12) =====
+wl_weight 网格 (50 点, 0 .. 0.02, 步长 0.00040816327)
+将跑的槽位: 50 个 wl × 1 个 case = 50 次求解 (JOBS=12)
+[2026-09-17 14:37:15] param 文件已生成 -> /root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep_c7/params/<case>/wl<NN>_Thermal-aware.json
+
+===== [2026-09-17 15:22:24] 重开 Case7_bump — 降并发 JOBS=4, OUTER_TIMEOUT=10800s =====
+     上一轮 JOBS=12 实测 77 s/iter → 单槽需 ~2h10m, 撞 3600s 上限, 故降并发
+wl_weight 网格 (50 点, 0 .. 0.02, 步长 0.00040816327)
+将跑的槽位: 50 个 wl × 1 个 case = 50 次求解 (JOBS=4)
+[2026-09-17 15:22:30] param 文件已生成 -> /root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep_c7/params/<case>/wl<NN>_Thermal-aware.json
+
+===== [2026-09-17 16:35:39] Case7_bump 重开 — JOBS=10, OUTER_TIMEOUT=10800s, WL_MAX=0.01 (50 点) =====
+     实测 s/iter ≈ 6.4×JOBS → 10 路约 64 s/iter → 单槽 ~110 min, 故放宽到 3h
+wl_weight 网格 (50 点, 0 .. 0.01, 步长 0.00020408163)
+将跑的槽位: 50 个 wl × 1 个 case = 50 次求解 (JOBS=10)
+[2026-09-17 16:37:09] param 文件已生成 -> /root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep_c7/params/<case>/wl<NN>_Thermal-aware.json
+
+===== [2026-09-17 16:59:32] Case7_bump 重开 — JOBS=2, OUTER_TIMEOUT=10800s, WL_MAX=0.01 (50 点) =====
+     用户选 2 并发: 单槽最快(~24min)、超时风险最低, 代价是总时长略长(~10h)
+wl_weight 网格 (50 点, 0 .. 0.01, 步长 0.00020408163)
+将跑的槽位: 50 个 wl × 1 个 case = 50 次求解 (JOBS=2)
+[2026-09-17 17:00:13] param 文件已生成 -> /root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep_c7/params/<case>/wl<NN>_Thermal-aware.json
+[2026-09-18 04:33:27] 等 pid=131502 (run_wlsweep_50set) 结束 ...
+[2026-09-18 07:51:45] 前一批已结束 -> 开始扫 Case7_bump (JOBS=4)
+wl_weight 网格 (50 点, 0 .. 0.01, 步长 0.00020408163)
+将跑的槽位: 50 个 wl × 1 个 case = 50 次求解 (JOBS=4)
+[2026-09-18 07:51:46] param 文件已生成 -> /root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep_c7/params/<case>/wl<NN>_Thermal-aware.json
+[2026-09-18 15:33:21] === 结束: 提交 50 个槽位 (成功 44, 跳过 6, 失败 0) ===
+
+===== progress: /root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep_c7/progress.log =====
+===== 失败明细: /root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep_c7/wlsweep_report.txt =====
+(无失败)
+[2026-09-18 15:33:21] Case7_bump 扫描结束 (rc=0)

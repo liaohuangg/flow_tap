@@ -1,0 +1,39 @@
+{
+  "case": "hp11_m_bump",
+  "mode": "thermal",
+  "base_seed": 1,
+  "status": "completed",
+  "error": null,
+  "legal_found": false,
+  "num_legal": 0,
+  "num_illegal": 1,
+  "attempts": 1,
+  "best_hpwl": 77395919.02443612,
+  "twl_m": 77.39591902443611,
+  "best_seed": 1,
+  "best_legal": false,
+  "best_overlaps": 2,
+  "best_legalize_method": "milp",
+  "best_legalize_s": 0.10300326347351074,
+  "total_legalize_s": 0.10300326347351074,
+  "runtime_s": 1348.2760155200958,
+  "attempt_log": [
+    {
+      "seed": 1,
+      "iterations": 100,
+      "overlaps": 2,
+      "overlaps_raw": 0,
+      "hpwl": 77395919.02443612,
+      "hpwl_raw": 77395992.0,
+      "run_s": 1345.9443709850311,
+      "legal": false,
+      "legalize_method": "milp",
+      "legalize_s": 0.10300326347351074,
+      "layout_dir": "/root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep/hp11_m_bump/wl23/seed1"
+    }
+  ],
+  "layout_json": "/root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep/hp11_m_bump/wl23/layout.json",
+  "layout_png": "/root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep/hp11_m_bump/wl23/layout.png",
+  "layout_chiplets": 11,
+  "visualized": true
+}

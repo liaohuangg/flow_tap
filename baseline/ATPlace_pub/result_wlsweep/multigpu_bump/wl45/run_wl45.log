@@ -1,0 +1,39 @@
+{
+  "case": "multigpu_bump",
+  "mode": "thermal",
+  "base_seed": 1,
+  "status": "completed",
+  "error": null,
+  "legal_found": true,
+  "num_legal": 1,
+  "num_illegal": 0,
+  "attempts": 1,
+  "best_hpwl": 62192150.17851257,
+  "twl_m": 62.19215017851257,
+  "best_seed": 1,
+  "best_legal": true,
+  "best_overlaps": 0,
+  "best_legalize_method": "milp",
+  "best_legalize_s": 0.04687237739562988,
+  "total_legalize_s": 0.04687237739562988,
+  "runtime_s": 485.502968788147,
+  "attempt_log": [
+    {
+      "seed": 1,
+      "iterations": 100,
+      "overlaps": 0,
+      "overlaps_raw": 0,
+      "hpwl": 62192150.17851257,
+      "hpwl_raw": 62191944.0,
+      "run_s": 483.45202112197876,
+      "legal": true,
+      "legalize_method": "milp",
+      "legalize_s": 0.04687237739562988,
+      "layout_dir": "/root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep/multigpu_bump/wl45/seed1"
+    }
+  ],
+  "layout_json": "/root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep/multigpu_bump/wl45/layout.json",
+  "layout_png": "/root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep/multigpu_bump/wl45/layout.png",
+  "layout_chiplets": 6,
+  "visualized": true
+}

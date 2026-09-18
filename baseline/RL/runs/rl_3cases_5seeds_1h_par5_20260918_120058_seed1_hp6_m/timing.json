@@ -1,0 +1,35 @@
+{
+  "name": "rl_3cases_5seeds_1h_par5_20260918_120058_seed1_hp6_m",
+  "run_dir": "/root/placement/flow_tap/baseline/RL/runs/rl_3cases_5seeds_1h_par5_20260918_120058_seed1_hp6_m",
+  "started_at": "2026-09-18T12:01:09",
+  "thermal_tables": {
+    "status": "failed",
+    "returncode": 1,
+    "seconds": 151.96593734100315,
+    "started_at": "2026-09-18T12:01:09",
+    "ended_at": "2026-09-18T12:03:45",
+    "command": [
+      "/root/anaconda3/envs/chipdiffusion/bin/python3",
+      "/root/placement/flow_tap/baseline/RL/generate_thermal_tables.py",
+      "/root/placement/flow_tap/baseline/RL/examples/hp6_m.json",
+      "--intp-size",
+      "50.0",
+      "--overwrite-config",
+      "--force"
+    ],
+    "cwd": "/root/placement/flow_tap/baseline/RL/fastTM",
+    "hotspot": "/root/placement/flow_tap/baseline/RL/fastTM/util/hotspot",
+    "log": "/root/placement/flow_tap/baseline/RL/runs/rl_3cases_5seeds_1h_par5_20260918_120058_seed1_hp6_m/thermal_tables.log",
+    "intp_size": 50.0,
+    "existing_intp_size": 50.0,
+    "force": true,
+    "force_requested": true,
+    "force_reason": null
+  },
+  "rl_solve": null,
+  "best_layout": null,
+  "total_seconds": 151.96770087800542,
+  "termination_reason": "thermal_tables_failed",
+  "time_limit_seconds": 3600.0,
+  "ended_at": "2026-09-18T12:03:45"
+}

@@ -1,0 +1,143 @@
+command: /root/anaconda3/envs/chipdiffusion/bin/python /root/placement/flow_tap/baseline/RL/train.py --json /root/placement/flow_tap/baseline/RL/examples/Case10.json --name Case10_seed2 --runs-dir /root/placement/flow_tap/baseline/RL/runs/shard2 --seed 2 --time_limit_seconds 3600.0 --max_width 48.556602 --max_height 48.556602 --thermal_intp_size 48.556602 --footprint_mode json_first --save_checkpoint --log_interval 1 --force_thermal_tables
+started_at: 2026-09-12T05:39:04
+
+使用设备: cuda
+Run name: Case10_seed2
+Run directory: /root/placement/flow_tap/baseline/RL/runs/shard2/Case10_seed2
+Training log: /root/placement/flow_tap/baseline/RL/runs/shard2/Case10_seed2/train.log
+
+生成/检查 fastTM 热阻表...
+  热阻表阶段状态: ok
+  热阻表阶段耗时: 113.173s
+  热阻表日志: /root/placement/flow_tap/baseline/RL/runs/shard2/Case10_seed2/thermal_tables.log
+======================================================================
+PPO训练 - 芯片布局优化
+======================================================================
+[ChipletPlacementEnv] occupied-envelope warnings (declared footprint/hubump != connectivity-derived halo):
+  - DUMMY_0: declared envelope 8.0000x12.0000 (json_footprint) differs from the connectivity-derived 8.0900x12.0900; using the declared value
+  - DUMMY_1: declared envelope 8.0000x12.0000 (json_footprint) differs from the connectivity-derived 8.0900x12.0900; using the declared value
+  - DUMMY_2: declared envelope 8.0000x12.0000 (json_footprint) differs from the connectivity-derived 8.0900x12.0900; using the declared value
+  - DUMMY_3: declared envelope 8.0000x12.0000 (json_footprint) differs from the connectivity-derived 8.0900x12.0900; using the declared value
+
+环境信息:
+  芯片数量: 61
+  放置顺序: ['CPU2_0', 'CPU2_4', 'CPU2_8', 'CPU2_1', 'CPU2_2', 'CPU2_3', 'CPU2_5', 'CPU2_6', 'CPU2_7', 'CPU1_0', 'CPU1_1', 'CPU1_2', 'CPU1_3', 'CPU1_4', 'CPU1_5', 'GPU_0', 'GPU_1', 'GPU_2', 'GPU_3', 'IODie_0', 'IODie_1', 'DUMMY_0', 'DUMMY_1', 'DUMMY_2', 'DUMMY_3', 'MEMS_0', 'MEMS_1', 'MEMS_2', 'MEMS_3', 'MEMS_4', 'MEMS_5', 'MEMS_6', 'MEMS_7', 'MEMS_8', 'MEMS_9', 'MEMS_10', 'MEMS_11', 'MEMS_12', 'MEMS_13', 'MEMS_14', 'MEMS_15', 'MEMS_16', 'MEMS_17', 'MEMS_18', 'MEMS_19', 'MEMS_20', 'MEMS_21', 'MEMS_22', 'MEMS_23', 'MEMS_24', 'MEMS_25', 'MEMS_26', 'MEMS_27', 'MEMS_28', 'MEMS_29', 'MEMS_30', 'MEMS_31', 'MEMS_32', 'MEMS_33', 'MEMS_34', 'MEMS_35']
+  观察维度: 10
+  动作维度: 70000
+  rollout batch: 480 transitions
+  minibatches: 4
+  PPO update epochs: 4
+  随机种子: 2
+  剩余总时间预算: 3486.8s
+
+开始训练...
+----------------------------------------------------------------------
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 2
+  rlplanner_cost: 102.7829
+  reward: -12.5683
+  温度: 107.7803
+  CPLEX平均线长: 27.4720
+BEST_LAYOUT
+  epoch: 1/600, rollout: 2
+  reward: -12.5683
+  温度: 107.7803
+  CPLEX平均线长: 27.4720
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 7
+  rlplanner_cost: 99.1148
+  reward: -8.8380
+  温度: 106.7868
+  CPLEX平均线长: 27.2861
+BEST_LAYOUT
+  epoch: 1/600, rollout: 7
+  reward: -8.8380
+  温度: 106.7868
+  CPLEX平均线长: 27.2861
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 12
+  rlplanner_cost: 94.1524
+  reward: -4.3199
+  温度: 104.7728
+  CPLEX平均线长: 29.2637
+BEST_LAYOUT
+  epoch: 1/600, rollout: 12
+  reward: -4.3199
+  温度: 104.7728
+  CPLEX平均线长: 29.2637
+Epoch 1/600
+  rollouts: 15, samples: 539
+  平均奖励: 20.9960, 成功率: 33.3%
+  optimizer steps: 16, KL: 0.000249
+  累计RL时间: 432.62s
+Epoch 2/600
+  rollouts: 14, samples: 481
+  平均奖励: 20.7748, 成功率: 28.6%
+  optimizer steps: 16, KL: 0.000429
+  累计RL时间: 777.33s
+Epoch 3/600
+  rollouts: 13, samples: 492
+  平均奖励: 16.1848, 成功率: 38.5%
+  optimizer steps: 16, KL: 0.001099
+  累计RL时间: 1208.65s
+Epoch 4/600
+  rollouts: 13, samples: 492
+  平均奖励: 16.2090, 成功率: 38.5%
+  optimizer steps: 16, KL: 0.002378
+  累计RL时间: 1634.67s
+Epoch 5/600
+  rollouts: 14, samples: 518
+  平均奖励: 18.1815, 成功率: 35.7%
+  optimizer steps: 16, KL: 0.003694
+  累计RL时间: 2060.95s
+BEST_COST_LAYOUT
+  epoch: 6/600, rollout: 71
+  rlplanner_cost: 84.6086
+  reward: 5.6718
+  温度: 104.0130
+  CPLEX平均线长: 22.2954
+BEST_LAYOUT
+  epoch: 6/600, rollout: 71
+  reward: 5.6718
+  温度: 104.0130
+  CPLEX平均线长: 22.2954
+Epoch 6/600
+  rollouts: 11, samples: 482
+  平均奖励: 11.7323, 成功率: 54.5%
+  optimizer steps: 16, KL: 0.005180
+  累计RL时间: 2579.02s
+Epoch 7/600
+  rollouts: 11, samples: 523
+  平均奖励: 5.3902, 成功率: 63.6%
+  optimizer steps: 14, KL: 0.005022
+  累计RL时间: 3175.16s
+Epoch 8/600
+  rollouts: 13, samples: 457
+  平均奖励: 20.5126, 成功率: 30.8%
+  optimizer steps: 11, KL: 0.004386
+  累计RL时间: 3518.58s
+模型已保存到 /root/placement/flow_tap/baseline/RL/runs/shard2/Case10_seed2/checkpoints/ppo_best.pt
+模型已保存到 /root/placement/flow_tap/baseline/RL/runs/shard2/Case10_seed2/checkpoints/ppo_best_cost.pt
+
+======================================================================
+训练完成！
+  请求epochs: 600
+  完整epochs: 7
+  已执行epoch轮次: 8
+  总rollouts: 104
+  总transitions: 3984
+  最终成功率: 39.4%
+  最近平均奖励: 16.2476
+  optimizer steps: 121
+  终止原因: time_limit
+======================================================================
+
+运行时间统计:
+  热阻表: 113.173s
+  RL求解: 3518.916s
+  总时间: 3632.090s
+  best layout发现时间: 2026-09-12T06:17:52
+  best layout累计RL时间: 2146.328s
+  best layout累计总时间: 2259.502s
+
+Model saved to /root/placement/flow_tap/baseline/RL/runs/shard2/Case10_seed2/checkpoints/ppo_best.pt

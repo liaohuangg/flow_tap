@@ -1,0 +1,39 @@
+{
+  "case": "xerox7_m_bump",
+  "mode": "thermal",
+  "base_seed": 1,
+  "status": "completed",
+  "error": null,
+  "legal_found": true,
+  "num_legal": 1,
+  "num_illegal": 0,
+  "attempts": 1,
+  "best_hpwl": 93631723.1708771,
+  "twl_m": 93.6317231708771,
+  "best_seed": 1,
+  "best_legal": true,
+  "best_overlaps": 0,
+  "best_legalize_method": "milp",
+  "best_legalize_s": 0.022315502166748047,
+  "total_legalize_s": 0.022315502166748047,
+  "runtime_s": 578.5568680763245,
+  "attempt_log": [
+    {
+      "seed": 1,
+      "iterations": 100,
+      "overlaps": 0,
+      "overlaps_raw": 0,
+      "hpwl": 93631723.1708771,
+      "hpwl_raw": 93631704.0,
+      "run_s": 577.4575049877167,
+      "legal": true,
+      "legalize_method": "milp",
+      "legalize_s": 0.022315502166748047,
+      "layout_dir": "/root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep/xerox7_m_bump/wl03/seed1"
+    }
+  ],
+  "layout_json": "/root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep/xerox7_m_bump/wl03/layout.json",
+  "layout_png": "/root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep/xerox7_m_bump/wl03/layout.png",
+  "layout_chiplets": 7,
+  "visualized": true
+}

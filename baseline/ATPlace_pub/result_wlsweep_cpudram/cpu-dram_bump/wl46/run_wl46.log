@@ -1,0 +1,39 @@
+{
+  "case": "cpu-dram_bump",
+  "mode": "thermal",
+  "base_seed": 1,
+  "status": "completed",
+  "error": null,
+  "legal_found": true,
+  "num_legal": 1,
+  "num_illegal": 0,
+  "attempts": 1,
+  "best_hpwl": 57342194.26287031,
+  "twl_m": 57.342194262870315,
+  "best_seed": 1,
+  "best_legal": true,
+  "best_overlaps": 0,
+  "best_legalize_method": "milp",
+  "best_legalize_s": 0.4678642749786377,
+  "total_legalize_s": 0.4678642749786377,
+  "runtime_s": 651.1314976215363,
+  "attempt_log": [
+    {
+      "seed": 1,
+      "iterations": 100,
+      "overlaps": 0,
+      "overlaps_raw": 0,
+      "hpwl": 57342194.26287031,
+      "hpwl_raw": 57341832.0,
+      "run_s": 646.625274181366,
+      "legal": true,
+      "legalize_method": "milp",
+      "legalize_s": 0.4678642749786377,
+      "layout_dir": "/root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep_cpudram/cpu-dram_bump/wl46/seed1"
+    }
+  ],
+  "layout_json": "/root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep_cpudram/cpu-dram_bump/wl46/layout.json",
+  "layout_png": "/root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep_cpudram/cpu-dram_bump/wl46/layout.png",
+  "layout_chiplets": 8,
+  "visualized": true
+}

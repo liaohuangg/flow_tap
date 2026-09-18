@@ -1,0 +1,39 @@
+{
+  "case": "acend910_bump",
+  "mode": "thermal",
+  "base_seed": 1,
+  "status": "completed",
+  "error": null,
+  "legal_found": true,
+  "num_legal": 1,
+  "num_illegal": 0,
+  "attempts": 1,
+  "best_hpwl": 38570803.693964005,
+  "twl_m": 38.570803693964,
+  "best_seed": 1,
+  "best_legal": true,
+  "best_overlaps": 0,
+  "best_legalize_method": "milp",
+  "best_legalize_s": 0.011247634887695312,
+  "total_legalize_s": 0.011247634887695312,
+  "runtime_s": 522.5407192707062,
+  "attempt_log": [
+    {
+      "seed": 1,
+      "iterations": 100,
+      "overlaps": 0,
+      "overlaps_raw": 0,
+      "hpwl": 38570803.693964005,
+      "hpwl_raw": 38570784.0,
+      "run_s": 521.8415675163269,
+      "legal": true,
+      "legalize_method": "milp",
+      "legalize_s": 0.011247634887695312,
+      "layout_dir": "/root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep/acend910_bump/wl20/seed1"
+    }
+  ],
+  "layout_json": "/root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep/acend910_bump/wl20/layout.json",
+  "layout_png": "/root/placement/flow_tap/baseline/ATPlace_pub/result_wlsweep/acend910_bump/wl20/layout.png",
+  "layout_chiplets": 6,
+  "visualized": true
+}

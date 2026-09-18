@@ -1,0 +1,97 @@
+{
+  "system_id": "multigpu_wl46_seed1",
+  "chiplets": [
+    {
+      "name": "A",
+      "x-position": 8.304905,
+      "y-position": 0.971299,
+      "width": 12.0,
+      "height": 12.0,
+      "rotation": 0,
+      "power": 105,
+      "hubump": 0.135
+    },
+    {
+      "name": "B",
+      "x-position": 13.56391,
+      "y-position": 20.832496,
+      "width": 18.2,
+      "height": 18.2,
+      "rotation": 0,
+      "power": 295,
+      "hubump": 0.09
+    },
+    {
+      "name": "C",
+      "x-position": 20.63,
+      "y-position": 2.352402,
+      "width": 18.2,
+      "height": 18.2,
+      "rotation": 0,
+      "power": 295,
+      "hubump": 0.09
+    },
+    {
+      "name": "D",
+      "x-position": 0.184811,
+      "y-position": 3.387613,
+      "width": 7.75,
+      "height": 11.87,
+      "rotation": 0,
+      "power": 20,
+      "hubump": 0.135
+    },
+    {
+      "name": "E",
+      "x-position": 21.10548,
+      "y-position": 39.357591,
+      "width": 11.87,
+      "height": 7.75,
+      "rotation": 1,
+      "power": 20,
+      "hubump": 0.135
+    },
+    {
+      "name": "F",
+      "x-position": 39.155095,
+      "y-position": 11.110232,
+      "width": 7.75,
+      "height": 11.87,
+      "rotation": 0,
+      "power": 20,
+      "hubump": 0.135
+    }
+  ],
+  "connections": [
+    {
+      "node1": "A",
+      "node2": "B",
+      "wireCount": 128
+    },
+    {
+      "node1": "A",
+      "node2": "C",
+      "wireCount": 128
+    },
+    {
+      "node1": "A",
+      "node2": "D",
+      "wireCount": 1024
+    },
+    {
+      "node1": "B",
+      "node2": "C",
+      "wireCount": 128
+    },
+    {
+      "node1": "B",
+      "node2": "E",
+      "wireCount": 1024
+    },
+    {
+      "node1": "C",
+      "node2": "F",
+      "wireCount": 1024
+    }
+  ]
+}

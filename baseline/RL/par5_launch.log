@@ -1,0 +1,41 @@
+batch=rl_3cases_5seeds_1h_par5_20260918_162229
+started_at=2026-09-18 16:22:29
+python=/root/anaconda3/envs/chipdiffusion/bin/python
+cases=hp6_m xerox6_m xerox7_m
+seeds=2 3 4
+jobs=5
+time_limit_seconds=3600
+thermal_reuse_across_seeds=disabled (--force_thermal_tables)
+batch_dir=/root/placement/flow_tap/baseline/RL/runs/rl_3cases_5seeds_1h_par5_20260918_162229
+
+[2026-09-18 16:22:29] Checking PyTorch and CPLEX...
+torch=2.11.0+cu130, cplex=22.1.0.0
+[2026-09-18 16:22:31] START case=hp6_m seed=2
+[2026-09-18 16:22:31] START case=hp6_m seed=3
+[2026-09-18 16:22:31] START case=hp6_m seed=4
+[2026-09-18 16:22:31] START case=xerox6_m seed=2
+[2026-09-18 16:22:31] START case=xerox6_m seed=3
+[2026-09-18 17:24:01] DONE  case=hp6_m seed=4 status=ok rc=0 wall=3690s
+[2026-09-18 17:24:01] DONE  case=xerox6_m seed=3 status=ok rc=0 wall=3690s
+[2026-09-18 17:24:02] DONE  case=xerox6_m seed=2 status=ok rc=0 wall=3691s
+[2026-09-18 17:24:02] DONE  case=hp6_m seed=3 status=ok rc=0 wall=3691s
+[2026-09-18 17:24:02] DONE  case=hp6_m seed=2 status=ok rc=0 wall=3691s
+[2026-09-18 17:24:08] START case=xerox6_m seed=4
+[2026-09-18 17:24:08] START case=xerox7_m seed=2
+[2026-09-18 17:24:08] START case=xerox7_m seed=3
+[2026-09-18 17:24:08] START case=xerox7_m seed=4
+[2026-09-18 18:26:05] DONE  case=xerox7_m seed=4 status=ok rc=0 wall=3717s
+[2026-09-18 18:26:06] DONE  case=xerox7_m seed=3 status=ok rc=0 wall=3718s
+[2026-09-18 18:26:06] DONE  case=xerox7_m seed=2 status=ok rc=0 wall=3718s
+[2026-09-18 18:26:06] DONE  case=xerox6_m seed=4 status=ok rc=0 wall=3718s
+[2026-09-18 18:26:06] === 全部结束 ===
+case	seed	status	exit_code	wall_seconds	run_dir
+hp6_m	4	ok	0	3690	/root/placement/flow_tap/baseline/RL/runs/rl_3cases_5seeds_1h_par5_20260918_162229_hp6_m_seed4_hp6_m
+xerox6_m	3	ok	0	3690	/root/placement/flow_tap/baseline/RL/runs/rl_3cases_5seeds_1h_par5_20260918_162229_xerox6_m_seed3_xerox6_m
+xerox6_m	2	ok	0	3691	/root/placement/flow_tap/baseline/RL/runs/rl_3cases_5seeds_1h_par5_20260918_162229_xerox6_m_seed2_xerox6_m
+hp6_m	3	ok	0	3691	/root/placement/flow_tap/baseline/RL/runs/rl_3cases_5seeds_1h_par5_20260918_162229_hp6_m_seed3_hp6_m
+hp6_m	2	ok	0	3691	/root/placement/flow_tap/baseline/RL/runs/rl_3cases_5seeds_1h_par5_20260918_162229_hp6_m_seed2_hp6_m
+xerox7_m	4	ok	0	3717	/root/placement/flow_tap/baseline/RL/runs/rl_3cases_5seeds_1h_par5_20260918_162229_xerox7_m_seed4_xerox7_m
+xerox7_m	3	ok	0	3718	/root/placement/flow_tap/baseline/RL/runs/rl_3cases_5seeds_1h_par5_20260918_162229_xerox7_m_seed3_xerox7_m
+xerox7_m	2	ok	0	3718	/root/placement/flow_tap/baseline/RL/runs/rl_3cases_5seeds_1h_par5_20260918_162229_xerox7_m_seed2_xerox7_m
+xerox6_m	4	ok	0	3718	/root/placement/flow_tap/baseline/RL/runs/rl_3cases_5seeds_1h_par5_20260918_162229_xerox6_m_seed4_xerox6_m

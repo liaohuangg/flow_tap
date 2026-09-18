@@ -1,0 +1,166 @@
+{
+  "case": "cpu-dram",
+  "seed": 1,
+  "config": "wl",
+  "profile": "full",
+  "objective": "wl",
+  "n_chiplets": 8,
+  "canvas_mm": 35.994444015708865,
+  "canvas_source": "ATPlace:Thermal-aware.json",
+  "budget_s_total": 1800.0,
+  "wall_s": 27.82,
+  "best_stage": "iter2/OPTIMAL",
+  "obj_model": 0.5801922342558739,
+  "mip_gap": 0.03489486755340076,
+  "best_bound": 0.5599465030860035,
+  "proven_optimal": false,
+  "obj_eval_total_wl": 64984.759999999995,
+  "greedy_init_total_wl": 122044.32499999998,
+  "canvas_overflow_mm": [
+    0.0,
+    0.0
+  ],
+  "bbox_mm": [
+    35.26,
+    26.99
+  ],
+  "bbox_area_mm2": 951.6674,
+  "bbox_wh_mm": 62.25,
+  "aspect_absdiff_mm": 8.27,
+  "n_footprint_overlaps": 0,
+  "model": {
+    "n_vars": 300,
+    "n_bin": 132,
+    "n_constrs": 478,
+    "M": 82.34888803141773,
+    "S": 35.994444015708865,
+    "objective": "wl",
+    "w_wl": 1.0,
+    "w_bbox": 0.0,
+    "w_aspect": 0.0,
+    "wl_ref": 122044.32499999998,
+    "beta_area": 1e-06,
+    "hard_canvas": true,
+    "lam_sum": 10240.0
+  },
+  "config_detail": {
+    "name": "wl",
+    "rot": true,
+    "K": 3,
+    "damp": 0.8,
+    "uniform_init": true,
+    "hard_canvas": true
+  },
+  "history": [
+    {
+      "iter": 0,
+      "stage": "OPTIMAL",
+      "status": "OPTIMAL",
+      "mip_gap": 0.1499388318087839,
+      "obj_model": 1.0690201285475585,
+      "obj_eval": 74262.16,
+      "bbox_wh": 63.34,
+      "aspect": 7.86
+    },
+    {
+      "iter": 0,
+      "stage": "OPTIMAL",
+      "status": "OPTIMAL",
+      "mip_gap": 0.047628747125911065,
+      "obj_model": 1.0276502410087485,
+      "obj_eval": 64984.759999999995,
+      "bbox_wh": 62.25,
+      "aspect": 8.27
+    },
+    {
+      "iter": 1,
+      "stage": "OPTIMAL",
+      "status": "OPTIMAL",
+      "mip_gap": 0.14596605370338767,
+      "obj_model": 0.6547685687146864,
+      "obj_eval": 64984.759999999995,
+      "bbox_wh": 62.25,
+      "aspect": 8.27
+    },
+    {
+      "iter": 1,
+      "stage": "OPTIMAL",
+      "status": "OPTIMAL",
+      "mip_gap": 0.04355166483279682,
+      "obj_model": 0.6547685687146864,
+      "obj_eval": 64984.759999999995,
+      "bbox_wh": 62.25,
+      "aspect": 8.27
+    },
+    {
+      "iter": 2,
+      "stage": "OPTIMAL",
+      "status": "OPTIMAL",
+      "mip_gap": 0.06646819104999997,
+      "obj_model": 0.5801922342558739,
+      "obj_eval": 64984.759999999995,
+      "bbox_wh": 62.25,
+      "aspect": 8.27
+    },
+    {
+      "iter": 2,
+      "stage": "OPTIMAL",
+      "status": "OPTIMAL",
+      "mip_gap": 0.03489486755340076,
+      "obj_model": 0.5801922342558739,
+      "obj_eval": 64984.759999999995,
+      "bbox_wh": 62.25,
+      "aspect": 8.27
+    }
+  ],
+  "x_footprint_ll": [
+    {
+      "name": "A",
+      "FX": 8.27,
+      "FY": 9.36,
+      "r": 1
+    },
+    {
+      "name": "B",
+      "FX": 17.63,
+      "FY": 9.36,
+      "r": 1
+    },
+    {
+      "name": "C",
+      "FX": 17.63,
+      "FY": 0.0,
+      "r": 0
+    },
+    {
+      "name": "D",
+      "FX": 9.02,
+      "FY": 0.0,
+      "r": 0
+    },
+    {
+      "name": "E",
+      "FX": 8.44,
+      "FY": 17.97,
+      "r": 0
+    },
+    {
+      "name": "F",
+      "FX": 17.8,
+      "FY": 17.97,
+      "r": 0
+    },
+    {
+      "name": "G",
+      "FX": 26.24,
+      "FY": 0.17,
+      "r": 0
+    },
+    {
+      "name": "H",
+      "FX": 0.0,
+      "FY": 0.17,
+      "r": 0
+    }
+  ]
+}

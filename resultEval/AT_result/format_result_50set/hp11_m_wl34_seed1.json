@@ -1,0 +1,227 @@
+{
+  "system_id": "hp11_m_wl34_seed1",
+  "chiplets": [
+    {
+      "name": "A",
+      "x-position": 10.302783,
+      "y-position": 24.697018,
+      "width": 10.36,
+      "height": 4.62,
+      "rotation": 1,
+      "power": 61,
+      "hubump": 0.225
+    },
+    {
+      "name": "B",
+      "x-position": 10.930765,
+      "y-position": 35.562016,
+      "width": 3.78,
+      "height": 7.0,
+      "rotation": 1,
+      "power": 61,
+      "hubump": 0.18
+    },
+    {
+      "name": "C",
+      "x-position": 7.652783,
+      "y-position": 21.717018,
+      "width": 2.1,
+      "height": 9.8,
+      "rotation": 0,
+      "power": 52,
+      "hubump": 0.225
+    },
+    {
+      "name": "D",
+      "x-position": 7.367194,
+      "y-position": 13.462018,
+      "width": 9.8,
+      "height": 2.1,
+      "rotation": 1,
+      "power": 48,
+      "hubump": 0.09
+    },
+    {
+      "name": "E",
+      "x-position": 24.357318,
+      "y-position": 13.327018,
+      "width": 9.8,
+      "height": 2.1,
+      "rotation": 1,
+      "power": 28,
+      "hubump": 0.225
+    },
+    {
+      "name": "F",
+      "x-position": 10.280383,
+      "y-position": 29.732018,
+      "width": 33.04,
+      "height": 5.46,
+      "rotation": 1,
+      "power": 45,
+      "hubump": 0.09
+    },
+    {
+      "name": "G",
+      "x-position": 7.367195,
+      "y-position": 15.842,
+      "width": 33.04,
+      "height": 5.46,
+      "rotation": 0,
+      "power": 60,
+      "hubump": 0.09
+    },
+    {
+      "name": "H",
+      "x-position": 14.276045,
+      "y-position": 21.672018,
+      "width": 20.16,
+      "height": 2.52,
+      "rotation": 1,
+      "power": 38,
+      "hubump": 0.18
+    },
+    {
+      "name": "I",
+      "x-position": 12.565383,
+      "y-position": 8.337018,
+      "width": 30.8,
+      "height": 4.62,
+      "rotation": 1,
+      "power": 39,
+      "hubump": 0.045
+    },
+    {
+      "name": "J",
+      "x-position": 10.041939,
+      "y-position": 5.627018,
+      "width": 20.16,
+      "height": 2.52,
+      "rotation": 1,
+      "power": 67,
+      "hubump": 0.045
+    },
+    {
+      "name": "K",
+      "x-position": 2.422194,
+      "y-position": 10.528881,
+      "width": 4.62,
+      "height": 30.8,
+      "rotation": 0,
+      "power": 57,
+      "hubump": 0.135
+    }
+  ],
+  "connections": [
+    {
+      "node1": "A",
+      "node2": "C",
+      "wireCount": 512
+    },
+    {
+      "node1": "A",
+      "node2": "F",
+      "wireCount": 256
+    },
+    {
+      "node1": "A",
+      "node2": "H",
+      "wireCount": 512
+    },
+    {
+      "node1": "A",
+      "node2": "I",
+      "wireCount": 128
+    },
+    {
+      "node1": "B",
+      "node2": "E",
+      "wireCount": 128
+    },
+    {
+      "node1": "B",
+      "node2": "F",
+      "wireCount": 128
+    },
+    {
+      "node1": "B",
+      "node2": "K",
+      "wireCount": 512
+    },
+    {
+      "node1": "C",
+      "node2": "D",
+      "wireCount": 256
+    },
+    {
+      "node1": "C",
+      "node2": "G",
+      "wireCount": 128
+    },
+    {
+      "node1": "C",
+      "node2": "H",
+      "wireCount": 128
+    },
+    {
+      "node1": "C",
+      "node2": "K",
+      "wireCount": 256
+    },
+    {
+      "node1": "D",
+      "node2": "G",
+      "wireCount": 128
+    },
+    {
+      "node1": "D",
+      "node2": "K",
+      "wireCount": 128
+    },
+    {
+      "node1": "E",
+      "node2": "G",
+      "wireCount": 256
+    },
+    {
+      "node1": "E",
+      "node2": "I",
+      "wireCount": 512
+    },
+    {
+      "node1": "E",
+      "node2": "K",
+      "wireCount": 256
+    },
+    {
+      "node1": "F",
+      "node2": "H",
+      "wireCount": 512
+    },
+    {
+      "node1": "G",
+      "node2": "H",
+      "wireCount": 256
+    },
+    {
+      "node1": "G",
+      "node2": "I",
+      "wireCount": 128
+    },
+    {
+      "node1": "G",
+      "node2": "J",
+      "wireCount": 128
+    },
+    {
+      "node1": "G",
+      "node2": "K",
+      "wireCount": 256
+    },
+    {
+      "node1": "H",
+      "node2": "K",
+      "wireCount": 256
+    }
+  ]
+}

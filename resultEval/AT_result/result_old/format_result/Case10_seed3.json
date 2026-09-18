@@ -1,0 +1,917 @@
+{
+  "system_id": "Case10_seed3",
+  "chiplets": [
+    {
+      "name": "CPU1_0",
+      "x-position": 4.102105,
+      "y-position": 27.81485,
+      "width": 3.5,
+      "height": 2.5,
+      "rotation": 1,
+      "power": 12.0,
+      "hubump": 0.135
+    },
+    {
+      "name": "CPU1_1",
+      "x-position": 3.405137,
+      "y-position": 16.098119,
+      "width": 3.5,
+      "height": 2.5,
+      "rotation": 1,
+      "power": 12.0,
+      "hubump": 0.135
+    },
+    {
+      "name": "CPU1_2",
+      "x-position": 11.054597,
+      "y-position": 8.950007,
+      "width": 3.5,
+      "height": 2.5,
+      "rotation": 1,
+      "power": 12.0,
+      "hubump": 0.135
+    },
+    {
+      "name": "CPU1_3",
+      "x-position": 9.510682,
+      "y-position": 14.118119,
+      "width": 2.5,
+      "height": 3.5,
+      "rotation": 0,
+      "power": 12.0,
+      "hubump": 0.135
+    },
+    {
+      "name": "CPU1_4",
+      "x-position": 10.916624,
+      "y-position": 38.311602,
+      "width": 3.5,
+      "height": 2.5,
+      "rotation": 1,
+      "power": 12.0,
+      "hubump": 0.135
+    },
+    {
+      "name": "CPU1_5",
+      "x-position": 8.134379,
+      "y-position": 24.643682,
+      "width": 3.5,
+      "height": 2.5,
+      "rotation": 1,
+      "power": 12.0,
+      "hubump": 0.135
+    },
+    {
+      "name": "CPU2_0",
+      "x-position": 19.609379,
+      "y-position": 21.52,
+      "width": 5.0,
+      "height": 5.0,
+      "rotation": 0,
+      "power": 34.0,
+      "hubump": 0.18
+    },
+    {
+      "name": "CPU2_1",
+      "x-position": 25.024379,
+      "y-position": 21.565,
+      "width": 5.0,
+      "height": 5.0,
+      "rotation": 0,
+      "power": 34.0,
+      "hubump": 0.135
+    },
+    {
+      "name": "CPU2_2",
+      "x-position": 23.024598,
+      "y-position": 6.915,
+      "width": 5.0,
+      "height": 5.0,
+      "rotation": 1,
+      "power": 34.0,
+      "hubump": 0.135
+    },
+    {
+      "name": "CPU2_3",
+      "x-position": 15.731336,
+      "y-position": 27.025,
+      "width": 5.0,
+      "height": 5.0,
+      "rotation": 1,
+      "power": 34.0,
+      "hubump": 0.135
+    },
+    {
+      "name": "CPU2_4",
+      "x-position": 21.146336,
+      "y-position": 26.98,
+      "width": 5.0,
+      "height": 5.0,
+      "rotation": 0,
+      "power": 34.0,
+      "hubump": 0.18
+    },
+    {
+      "name": "CPU2_5",
+      "x-position": 14.194379,
+      "y-position": 21.655,
+      "width": 5.0,
+      "height": 5.0,
+      "rotation": 1,
+      "power": 34.0,
+      "hubump": 0.135
+    },
+    {
+      "name": "CPU2_6",
+      "x-position": 12.380682,
+      "y-position": 41.181602,
+      "width": 5.0,
+      "height": 5.0,
+      "rotation": 1,
+      "power": 34.0,
+      "hubump": 0.135
+    },
+    {
+      "name": "CPU2_7",
+      "x-position": 11.054597,
+      "y-position": 32.941602,
+      "width": 5.0,
+      "height": 5.0,
+      "rotation": 1,
+      "power": 34.0,
+      "hubump": 0.135
+    },
+    {
+      "name": "CPU2_8",
+      "x-position": 16.469598,
+      "y-position": 32.44,
+      "width": 5.0,
+      "height": 5.0,
+      "rotation": 1,
+      "power": 34.0,
+      "hubump": 0.18
+    },
+    {
+      "name": "GPU_0",
+      "x-position": 15.226482,
+      "y-position": 12.195,
+      "width": 9.0,
+      "height": 9.0,
+      "rotation": 1,
+      "power": 100.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "GPU_1",
+      "x-position": 29.976031,
+      "y-position": 0.095,
+      "width": 9.0,
+      "height": 9.0,
+      "rotation": 0,
+      "power": 100.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "GPU_2",
+      "x-position": 17.660682,
+      "y-position": 37.765,
+      "width": 9.0,
+      "height": 9.0,
+      "rotation": 1,
+      "power": 100.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "GPU_3",
+      "x-position": 26.850682,
+      "y-position": 39.461602,
+      "width": 9.0,
+      "height": 9.0,
+      "rotation": 1,
+      "power": 100.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "DUMMY_0",
+      "x-position": 36.506602,
+      "y-position": 40.506602,
+      "width": 12.0,
+      "height": 8.0,
+      "rotation": 1,
+      "power": 25.0,
+      "hubump": 0.0
+    },
+    {
+      "name": "DUMMY_1",
+      "x-position": 28.406602,
+      "y-position": 27.316602,
+      "width": 8.0,
+      "height": 12.0,
+      "rotation": 0,
+      "power": 25.0,
+      "hubump": 0.0
+    },
+    {
+      "name": "DUMMY_2",
+      "x-position": 36.506602,
+      "y-position": 30.955211,
+      "width": 12.0,
+      "height": 8.0,
+      "rotation": 1,
+      "power": 25.0,
+      "hubump": 0.0
+    },
+    {
+      "name": "DUMMY_3",
+      "x-position": 14.789598,
+      "y-position": 0.05,
+      "width": 8.0,
+      "height": 12.0,
+      "rotation": 0,
+      "power": 25.0,
+      "hubump": 0.0
+    },
+    {
+      "name": "IODie_0",
+      "x-position": 8.914379,
+      "y-position": 19.288119,
+      "width": 5.0,
+      "height": 5.0,
+      "rotation": 0,
+      "power": 10.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "IODie_1",
+      "x-position": 10.072105,
+      "y-position": 27.661602,
+      "width": 5.0,
+      "height": 5.0,
+      "rotation": 0,
+      "power": 10.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_0",
+      "x-position": 4.859074,
+      "y-position": 30.59485,
+      "width": 1.2,
+      "height": 2.0,
+      "rotation": 1,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_1",
+      "x-position": 4.963584,
+      "y-position": 13.400536,
+      "width": 1.2,
+      "height": 2.0,
+      "rotation": 1,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_2",
+      "x-position": 4.568298,
+      "y-position": 40.721129,
+      "width": 2.0,
+      "height": 1.2,
+      "rotation": 0,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_3",
+      "x-position": 2.834008,
+      "y-position": 11.237412,
+      "width": 2.0,
+      "height": 1.2,
+      "rotation": 0,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_4",
+      "x-position": 7.882105,
+      "y-position": 27.423682,
+      "width": 2.0,
+      "height": 1.2,
+      "rotation": 0,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_5",
+      "x-position": 6.584597,
+      "y-position": 14.618119,
+      "width": 2.0,
+      "height": 1.2,
+      "rotation": 0,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_6",
+      "x-position": 3.198889,
+      "y-position": 18.878119,
+      "width": 2.0,
+      "height": 1.2,
+      "rotation": 0,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_7",
+      "x-position": 2.979833,
+      "y-position": 38.978582,
+      "width": 1.2,
+      "height": 2.0,
+      "rotation": 1,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_8",
+      "x-position": 2.773584,
+      "y-position": 14.618119,
+      "width": 2.0,
+      "height": 1.2,
+      "rotation": 0,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_9",
+      "x-position": 1.125137,
+      "y-position": 16.008119,
+      "width": 2.0,
+      "height": 1.2,
+      "rotation": 0,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_10",
+      "x-position": 5.176173,
+      "y-position": 6.04482,
+      "width": 1.2,
+      "height": 2.0,
+      "rotation": 1,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_11",
+      "x-position": 6.413316,
+      "y-position": 13.228119,
+      "width": 2.0,
+      "height": 1.2,
+      "rotation": 0,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_12",
+      "x-position": 10.178454,
+      "y-position": 11.838119,
+      "width": 1.2,
+      "height": 2.0,
+      "rotation": 1,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_13",
+      "x-position": 1.160039,
+      "y-position": 9.847412,
+      "width": 2.0,
+      "height": 1.2,
+      "rotation": 0,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_14",
+      "x-position": 8.774597,
+      "y-position": 8.668197,
+      "width": 2.0,
+      "height": 1.2,
+      "rotation": 0,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_15",
+      "x-position": 9.545886,
+      "y-position": 5.021088,
+      "width": 1.2,
+      "height": 2.0,
+      "rotation": 1,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_16",
+      "x-position": 12.956307,
+      "y-position": 6.670007,
+      "width": 1.2,
+      "height": 2.0,
+      "rotation": 1,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_17",
+      "x-position": 12.954684,
+      "y-position": 4.480007,
+      "width": 1.2,
+      "height": 2.0,
+      "rotation": 1,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_18",
+      "x-position": 8.774597,
+      "y-position": 10.448119,
+      "width": 2.0,
+      "height": 1.2,
+      "rotation": 0,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_19",
+      "x-position": 6.25646,
+      "y-position": 22.75485,
+      "width": 2.0,
+      "height": 1.2,
+      "rotation": 0,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_20",
+      "x-position": 12.466029,
+      "y-position": 11.992586,
+      "width": 2.0,
+      "height": 1.2,
+      "rotation": 0,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_21",
+      "x-position": 1.5124,
+      "y-position": 7.566049,
+      "width": 2.0,
+      "height": 1.2,
+      "rotation": 0,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_22",
+      "x-position": 5.006598,
+      "y-position": 9.807016,
+      "width": 2.0,
+      "height": 1.2,
+      "rotation": 0,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_23",
+      "x-position": 2.821558,
+      "y-position": 37.588582,
+      "width": 2.0,
+      "height": 1.2,
+      "rotation": 0,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_24",
+      "x-position": 7.988454,
+      "y-position": 11.838119,
+      "width": 2.0,
+      "height": 1.2,
+      "rotation": 0,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_25",
+      "x-position": 11.914379,
+      "y-position": 26.271602,
+      "width": 2.0,
+      "height": 1.2,
+      "rotation": 0,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_26",
+      "x-position": 12.731548,
+      "y-position": 14.368259,
+      "width": 2.0,
+      "height": 1.2,
+      "rotation": 0,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_27",
+      "x-position": 8.774597,
+      "y-position": 36.831602,
+      "width": 2.0,
+      "height": 1.2,
+      "rotation": 0,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_28",
+      "x-position": 15.119748,
+      "y-position": 46.461602,
+      "width": 1.2,
+      "height": 2.0,
+      "rotation": 1,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_29",
+      "x-position": 11.122974,
+      "y-position": 47.261602,
+      "width": 2.0,
+      "height": 1.2,
+      "rotation": 0,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_30",
+      "x-position": 6.293464,
+      "y-position": 30.59485,
+      "width": 2.0,
+      "height": 1.2,
+      "rotation": 0,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_31",
+      "x-position": 2.153377,
+      "y-position": 24.903459,
+      "width": 1.2,
+      "height": 2.0,
+      "rotation": 1,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_32",
+      "x-position": 5.56453,
+      "y-position": 26.33485,
+      "width": 2.0,
+      "height": 1.2,
+      "rotation": 0,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_33",
+      "x-position": 8.396127,
+      "y-position": 17.898119,
+      "width": 2.0,
+      "height": 1.2,
+      "rotation": 0,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_34",
+      "x-position": 7.384597,
+      "y-position": 6.737039,
+      "width": 1.2,
+      "height": 2.0,
+      "rotation": 1,
+      "power": 3.0,
+      "hubump": 0.045
+    },
+    {
+      "name": "MEMS_35",
+      "x-position": 6.654379,
+      "y-position": 24.14485,
+      "width": 1.2,
+      "height": 2.0,
+      "rotation": 1,
+      "power": 3.0,
+      "hubump": 0.045
+    }
+  ],
+  "connections": [
+    {
+      "node1": "CPU1_0",
+      "node2": "CPU2_1",
+      "wireCount": 88
+    },
+    {
+      "node1": "CPU1_0",
+      "node2": "MEMS_0",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_0",
+      "node2": "MEMS_1",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_0",
+      "node2": "MEMS_2",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_0",
+      "node2": "MEMS_3",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_0",
+      "node2": "MEMS_4",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_0",
+      "node2": "MEMS_5",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_1",
+      "node2": "CPU2_2",
+      "wireCount": 88
+    },
+    {
+      "node1": "CPU1_1",
+      "node2": "MEMS_10",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_1",
+      "node2": "MEMS_11",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_1",
+      "node2": "MEMS_6",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_1",
+      "node2": "MEMS_7",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_1",
+      "node2": "MEMS_8",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_1",
+      "node2": "MEMS_9",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_2",
+      "node2": "CPU2_5",
+      "wireCount": 88
+    },
+    {
+      "node1": "CPU1_2",
+      "node2": "MEMS_12",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_2",
+      "node2": "MEMS_13",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_2",
+      "node2": "MEMS_14",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_2",
+      "node2": "MEMS_15",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_2",
+      "node2": "MEMS_16",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_2",
+      "node2": "MEMS_17",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_3",
+      "node2": "CPU2_7",
+      "wireCount": 88
+    },
+    {
+      "node1": "CPU1_3",
+      "node2": "MEMS_18",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_3",
+      "node2": "MEMS_19",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_3",
+      "node2": "MEMS_20",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_3",
+      "node2": "MEMS_21",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_3",
+      "node2": "MEMS_22",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_3",
+      "node2": "MEMS_23",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_4",
+      "node2": "CPU2_6",
+      "wireCount": 88
+    },
+    {
+      "node1": "CPU1_4",
+      "node2": "MEMS_24",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_4",
+      "node2": "MEMS_25",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_4",
+      "node2": "MEMS_26",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_4",
+      "node2": "MEMS_27",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_4",
+      "node2": "MEMS_28",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_4",
+      "node2": "MEMS_29",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_5",
+      "node2": "CPU2_3",
+      "wireCount": 88
+    },
+    {
+      "node1": "CPU1_5",
+      "node2": "MEMS_30",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_5",
+      "node2": "MEMS_31",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_5",
+      "node2": "MEMS_32",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_5",
+      "node2": "MEMS_33",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_5",
+      "node2": "MEMS_34",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU1_5",
+      "node2": "MEMS_35",
+      "wireCount": 44
+    },
+    {
+      "node1": "CPU2_0",
+      "node2": "CPU2_1",
+      "wireCount": 176
+    },
+    {
+      "node1": "CPU2_0",
+      "node2": "CPU2_3",
+      "wireCount": 176
+    },
+    {
+      "node1": "CPU2_0",
+      "node2": "GPU_0",
+      "wireCount": 176
+    },
+    {
+      "node1": "CPU2_0",
+      "node2": "IODie_0",
+      "wireCount": 176
+    },
+    {
+      "node1": "CPU2_1",
+      "node2": "CPU2_2",
+      "wireCount": 176
+    },
+    {
+      "node1": "CPU2_1",
+      "node2": "CPU2_4",
+      "wireCount": 176
+    },
+    {
+      "node1": "CPU2_2",
+      "node2": "CPU2_5",
+      "wireCount": 176
+    },
+    {
+      "node1": "CPU2_2",
+      "node2": "GPU_1",
+      "wireCount": 176
+    },
+    {
+      "node1": "CPU2_3",
+      "node2": "CPU2_4",
+      "wireCount": 176
+    },
+    {
+      "node1": "CPU2_3",
+      "node2": "CPU2_6",
+      "wireCount": 176
+    },
+    {
+      "node1": "CPU2_4",
+      "node2": "CPU2_5",
+      "wireCount": 176
+    },
+    {
+      "node1": "CPU2_4",
+      "node2": "CPU2_7",
+      "wireCount": 176
+    },
+    {
+      "node1": "CPU2_5",
+      "node2": "CPU2_8",
+      "wireCount": 176
+    },
+    {
+      "node1": "CPU2_6",
+      "node2": "CPU2_7",
+      "wireCount": 176
+    },
+    {
+      "node1": "CPU2_6",
+      "node2": "GPU_2",
+      "wireCount": 176
+    },
+    {
+      "node1": "CPU2_7",
+      "node2": "CPU2_8",
+      "wireCount": 176
+    },
+    {
+      "node1": "CPU2_8",
+      "node2": "GPU_3",
+      "wireCount": 176
+    },
+    {
+      "node1": "CPU2_8",
+      "node2": "IODie_1",
+      "wireCount": 176
+    }
+  ]
+}

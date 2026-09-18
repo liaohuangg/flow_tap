@@ -1,0 +1,96 @@
+{
+  "reward": 31.461375670511906,
+  "episode": 77,
+  "json": "/root/placement/flow_tap/baseline/RL/runs/rl_3cases_5seeds_1h_par5_20260918_162229_xerox6_m_seed3_xerox6_m/results/top_layouts/layout_best_ep77_r31.46.json",
+  "metrics_json": "/root/placement/flow_tap/baseline/RL/runs/rl_3cases_5seeds_1h_par5_20260918_162229_xerox6_m_seed3_xerox6_m/results/top_layouts/layout_best_ep77_r31.46.metrics.json",
+  "img": "/root/placement/flow_tap/baseline/RL/runs/rl_3cases_5seeds_1h_par5_20260918_162229_xerox6_m_seed3_xerox6_m/results/top_layouts/layout_best_ep77_r31.46.png",
+  "metrics": {
+    "rlplanner_total_wirelength": 51783.55999999998,
+    "rlplanner_avg_wirelength": 9.19452414772727,
+    "rlplanner_emib_wirelength": 0.0,
+    "rlplanner_normal_wirelength": 51783.55999999998,
+    "rlplanner_total_wire_count": 5632,
+    "rlplanner_wirelength_source": "cplex_microbump_assignment",
+    "rlplanner_temperature": 80.3916519582219,
+    "rlplanner_temperature_penalty": 0.17640549151670548,
+    "rlplanner_cost": 9.370929639243975,
+    "thermal_layout_offset_x": -5.3100000000000005,
+    "thermal_layout_offset_y": 0.44500000000000206,
+    "thermal_bbox_width": 30.8,
+    "thermal_bbox_height": 33.199999999999996,
+    "thermal_bbox_min_x": 9.6,
+    "thermal_bbox_min_y": 8.400000000000002,
+    "thermal_bbox_max_x": 40.4,
+    "thermal_bbox_max_y": 41.599999999999994,
+    "thermal_intp_size": 50.0,
+    "thermal_layout_fits_interposer": true,
+    "chiplet_area": 749.3276,
+    "microbump_occupied_area": 778.2401,
+    "microbump_halos": {
+      "A": 0.09,
+      "B": 0.045,
+      "C": 0.135,
+      "D": 0.09,
+      "E": 0.135,
+      "F": 0.135
+    },
+    "microbump_footprints": {
+      "A": [
+        6.34,
+        13.13
+      ],
+      "B": [
+        4.99,
+        13.04
+      ],
+      "C": [
+        8.67,
+        7.83
+      ],
+      "D": [
+        11.8,
+        19.57
+      ],
+      "E": [
+        12.45,
+        16.79
+      ],
+      "F": [
+        9.09,
+        13.43
+      ]
+    },
+    "occupied_envelope_sources": {
+      "A": "json_footprint",
+      "B": "json_footprint",
+      "C": "json_footprint",
+      "D": "json_footprint",
+      "E": "json_footprint",
+      "F": "json_footprint"
+    },
+    "footprint_mode": "json_first",
+    "bbox_min_x": 14.91,
+    "bbox_min_y": 7.955,
+    "bbox_max_x": 45.71,
+    "bbox_max_y": 41.154999999999994,
+    "bbox_width": 30.8,
+    "bbox_height": 33.199999999999996,
+    "bbox_area": 1022.56,
+    "bbox_utilization": 0.7610703528399312,
+    "silicon_bbox_utilization": 0.7327957283680175,
+    "canvas_area": 2500.0,
+    "canvas_utilization": 0.31129604,
+    "silicon_canvas_utilization": 0.29973104
+  },
+  "timing": {
+    "run_started_at": "2026-09-18T16:22:34",
+    "found_at": "2026-09-18T16:41:16",
+    "epoch": 77,
+    "rollout": 6140,
+    "rl_elapsed_seconds": 932.2093385679982,
+    "total_elapsed_seconds": 1075.3745837540046,
+    "pre_rl_seconds": 143.16524518600636
+  },
+  "success": true,
+  "checkpoint": "/root/placement/flow_tap/baseline/RL/runs/rl_3cases_5seeds_1h_par5_20260918_162229_xerox6_m_seed3_xerox6_m/checkpoints/ppo_best.pt"
+}

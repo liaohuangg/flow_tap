@@ -1,0 +1,92 @@
+{
+  "system_id": "acend910_thermal0p1_wirelength0p2_seed121",
+  "chiplets": [
+    {
+      "name": "A",
+      "x-position": 14.150218,
+      "y-position": 4.661377,
+      "width": 14.5,
+      "height": 31.4,
+      "rotation": 0,
+      "power": 256,
+      "hubump": 0.09
+    },
+    {
+      "name": "B",
+      "x-position": 1.940608,
+      "y-position": 21.11549,
+      "width": 10.5,
+      "height": 16.0,
+      "rotation": 0,
+      "power": 14,
+      "hubump": 0.045
+    },
+    {
+      "name": "C",
+      "x-position": -1.352321,
+      "y-position": 8.472866,
+      "width": 7.75,
+      "height": 11.87,
+      "rotation": 0,
+      "power": 20,
+      "hubump": 0.045
+    },
+    {
+      "name": "D",
+      "x-position": 28.692502,
+      "y-position": 17.564595,
+      "width": 7.75,
+      "height": 11.87,
+      "rotation": 0,
+      "power": 20,
+      "hubump": 0.045
+    },
+    {
+      "name": "E",
+      "x-position": 28.650227,
+      "y-position": 5.694545,
+      "width": 7.75,
+      "height": 11.87,
+      "rotation": 0,
+      "power": 20,
+      "hubump": 0.045
+    },
+    {
+      "name": "F",
+      "x-position": 6.400219,
+      "y-position": 8.13258,
+      "width": 7.75,
+      "height": 11.87,
+      "rotation": 0,
+      "power": 20,
+      "hubump": 0.045
+    }
+  ],
+  "connections": [
+    {
+      "node1": "A",
+      "node2": "B",
+      "wireCount": 200
+    },
+    {
+      "node1": "A",
+      "node2": "C",
+      "wireCount": 256
+    },
+    {
+      "node1": "A",
+      "node2": "D",
+      "wireCount": 256
+    },
+    {
+      "node1": "A",
+      "node2": "E",
+      "wireCount": 256
+    },
+    {
+      "node1": "A",
+      "node2": "F",
+      "wireCount": 256
+    }
+  ]
+}

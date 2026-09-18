@@ -1,0 +1,87 @@
+Run name: rl_3cases_5seeds_1h_par5_20260918_120058_seed4_hp6_m
+Run directory: /root/placement/flow_tap/baseline/RL/runs/rl_3cases_5seeds_1h_par5_20260918_120058_seed4_hp6_m
+Training log: /root/placement/flow_tap/baseline/RL/runs/rl_3cases_5seeds_1h_par5_20260918_120058_seed4_hp6_m/train.log
+Default RL canvas aligned to fastTM interposer: 50.0 x 50.0
+
+生成/检查 fastTM 热阻表...
+  热阻表阶段状态: ok
+  热阻表阶段耗时: 191.582s
+  热阻表日志: /root/placement/flow_tap/baseline/RL/runs/rl_3cases_5seeds_1h_par5_20260918_120058_seed4_hp6_m/thermal_tables.log
+======================================================================
+PPO训练 - 芯片布局优化
+======================================================================
+
+环境信息:
+  芯片数量: 6
+  放置顺序: ['A', 'C', 'F', 'B', 'D', 'E']
+  观察维度: 10
+  动作维度: 70000
+  rollout batch: 480 transitions
+  minibatches: 4
+  PPO update epochs: 4
+  随机种子: 4
+  剩余总时间预算: 3408.4s
+
+开始训练...
+----------------------------------------------------------------------
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 1
+  rlplanner_cost: 35.2788
+  reward: -9.3449
+  温度: 81.1203
+  CPLEX平均线长: 34.4048
+BEST_LAYOUT
+  epoch: 1/600, rollout: 1
+  reward: -9.3449
+  温度: 81.1203
+  CPLEX平均线长: 34.4048
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 2
+  rlplanner_cost: 33.8323
+  reward: -8.1461
+  温度: 88.1074
+  CPLEX平均线长: 18.6473
+BEST_LAYOUT
+  epoch: 1/600, rollout: 2
+  reward: -8.1461
+  温度: 88.1074
+  CPLEX平均线长: 18.6473
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 3
+  rlplanner_cost: 29.3288
+  reward: -8.6617
+  温度: 81.1779
+  CPLEX平均线长: 28.3829
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 7
+  rlplanner_cost: 22.0128
+  reward: 1.1838
+  温度: 79.4280
+  CPLEX平均线长: 22.0128
+BEST_LAYOUT
+  epoch: 1/600, rollout: 7
+  reward: 1.1838
+  温度: 79.4280
+  CPLEX平均线长: 22.0128
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 11
+  rlplanner_cost: 17.4335
+  reward: 4.6014
+  温度: 80.1473
+  CPLEX平均线长: 17.3890
+BEST_LAYOUT
+  epoch: 1/600, rollout: 11
+  reward: 4.6014
+  温度: 80.1473
+  CPLEX平均线长: 17.3890
+BEST_COST_LAYOUT
+  epoch: 1/600, rollout: 29
+  rlplanner_cost: 16.9817
+  reward: 4.3012
+  温度: 80.5410
+  CPLEX平均线长: 16.6974
+Epoch 1/600
+  rollouts: 80, samples: 480
+  平均奖励: -8.7796, 成功率: 100.0%
+  optimizer steps: 16, KL: 0.000356
+  累计RL时间: 51.54s
