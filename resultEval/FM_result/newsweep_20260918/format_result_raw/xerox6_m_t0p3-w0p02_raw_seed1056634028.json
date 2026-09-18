@@ -1,0 +1,107 @@
+{
+  "system_id": "xerox6_m_t0p3-w0p02_raw_seed1056634028",
+  "chiplets": [
+    {
+      "name": "A",
+      "x-position": 25.548107,
+      "y-position": 8.502807,
+      "width": 6.16,
+      "height": 12.95,
+      "rotation": 0,
+      "power": 48,
+      "hubump": 0.09
+    },
+    {
+      "name": "B",
+      "x-position": -0.493011,
+      "y-position": 4.657815,
+      "width": 4.9,
+      "height": 12.95,
+      "rotation": 0,
+      "power": 92,
+      "hubump": 0.045
+    },
+    {
+      "name": "C",
+      "x-position": 30.562067,
+      "y-position": 14.664853,
+      "width": 8.4,
+      "height": 7.56,
+      "rotation": 0,
+      "power": 38,
+      "hubump": 0.135
+    },
+    {
+      "name": "D",
+      "x-position": 15.042245,
+      "y-position": 4.867883,
+      "width": 11.62,
+      "height": 19.39,
+      "rotation": 0,
+      "power": 46,
+      "hubump": 0.09
+    },
+    {
+      "name": "E",
+      "x-position": 3.364122,
+      "y-position": 4.472178,
+      "width": 12.18,
+      "height": 16.52,
+      "rotation": 0,
+      "power": 53,
+      "hubump": 0.135
+    },
+    {
+      "name": "F",
+      "x-position": 5.094608,
+      "y-position": 21.803705,
+      "width": 8.82,
+      "height": 13.16,
+      "rotation": 0,
+      "power": 50,
+      "hubump": 0.135
+    }
+  ],
+  "connections": [
+    {
+      "node1": "A",
+      "node2": "E",
+      "wireCount": 512
+    },
+    {
+      "node1": "A",
+      "node2": "F",
+      "wireCount": 256
+    },
+    {
+      "node1": "B",
+      "node2": "C",
+      "wireCount": 256
+    },
+    {
+      "node1": "C",
+      "node2": "E",
+      "wireCount": 256
+    },
+    {
+      "node1": "C",
+      "node2": "F",
+      "wireCount": 512
+    },
+    {
+      "node1": "D",
+      "node2": "E",
+      "wireCount": 512
+    },
+    {
+      "node1": "D",
+      "node2": "F",
+      "wireCount": 256
+    },
+    {
+      "node1": "E",
+      "node2": "F",
+      "wireCount": 256
+    }
+  ]
+}
