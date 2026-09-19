@@ -14,8 +14,11 @@
       "connections": [ { "node1": "A", "node2": "B", "wireCount": 512 }, ... ]
     }
 
-输入:  RL_result/runs/shard<N>/<prefix>_seed<M>/best_cost_summary.json
-       -> 其中 "json" 字段指向该 seed 的最优布局文件 (RL 自己的布局 json)
+输入:  RL_result/runs/shard<N>/<prefix>_seed<M>/
+         best_cost_summary.json  -> "json" 字段指向该 seed 的最优布局文件
+         results/top_layouts/*.metrics.json -> 该 run 存下来的全部候选解
+       每个 seed 出**一个**解, 口径 = "cost (rlplanner_cost) 最小、且外接框不超
+       该 case 真实中介层面积"的那个, 见 pick_layout()。
 输出:  RL_result/format_result/<prefix>_seed<M>.json
 
 RL 的布局 json 本来就与 README 同口径 (mm, 本体左下角 + 本体尺寸), 所以字段基本是原样搬运,
@@ -49,6 +52,11 @@ RUNS_DIR = os.path.join(RL_ROOT, "runs")
 OUT_DIR = os.path.join(RL_ROOT, "format_result")
 BENCH_DIR = "/root/placement/flow_tap/benchmark/cases_hubump"
 
+# 中介层面积上限的来源, 与 pareto_front/build_case_solution.py 的 cap_of() 同口径:
+# 数据本身是 bump 版布局, 所以优先 _bump 目录, 没有才回退到不带后缀的目录。
+CASES_BASE = "/root/placement/flow_tap/baseline/ATPlace_pub/cases"
+CAP_TOL = 1e-6          # 与 build_case_solution.over_cap 一致: 贴边可行解不算超限
+
 # RL 的 json 字段指向 baseline/RL/... ; 若该路径不存在, 用同后缀在 RL_result 下回退查找
 BASELINE_PREFIX = "/root/placement/flow_tap/baseline/RL/"
 FALLBACK_PREFIX = os.path.join(RL_ROOT, "")
@@ -64,6 +72,67 @@ def _resolve_layout_path(raw_path: str) -> str:
         if os.path.exists(alt):
             return alt
     return raw_path  # 交给调用方报错
+
+
+def cap_area(prefix: str) -> float | None:
+    """该 case 的中介层面积上限 (mm^2); 找不到 Thermal-aware.json 时返回 None。"""
+    for d in (prefix + "_bump", prefix):
+        p = os.path.join(CASES_BASE, d, "Thermal-aware.json")
+        if os.path.exists(p):
+            with open(p, encoding="utf-8") as f:
+                s = json.load(f)["interposer_size"]
+            return (float(s[0]) / 1000.0) * (float(s[1]) / 1000.0)
+    return None
+
+
+def _candidates(seed_dir: str) -> list[tuple[float, float, str]]:
+    """该 run 存下来的全部候选解 -> [(cost, 外接框面积, 布局路径), ...]。
+
+    top_layouts/ 里每个解有 .json (布局) 和 .metrics.json (指标), 这里只认成对存在的,
+    指标取 metrics.json —— 它的 bounding_rect_area 与 eval_layout.py 算的外接框逐位相等
+    (含 hubump 的轴对齐外接矩形), 所以可以直接拿来当面积上限的判据。
+    """
+    out = []
+    for mp in sorted(glob.glob(os.path.join(seed_dir, "results", "top_layouts", "*.metrics.json"))):
+        jp = mp[: -len(".metrics.json")] + ".json"
+        if not os.path.exists(jp):
+            continue
+        with open(mp, encoding="utf-8") as f:
+            m = json.load(f)
+        if m.get("rlplanner_cost") is None or m.get("bounding_rect_area") is None:
+            continue
+        out.append((float(m["rlplanner_cost"]), float(m["bounding_rect_area"]), jp))
+    return out
+
+
+def pick_layout(seed_dir: str, summary: dict, cap: float | None) -> tuple[str, str]:
+    """该 seed 出一个解: cost 最小、且外接框不超中介层。返回 (布局路径, 说明)。
+
+    第一顺位仍是 best_cost_summary.json 指的那个 —— 它就是该 run 内 cost 最小的解,
+    旧 case 全部走这一条。只有当它超限时才退到 results/top_layouts/ 里限内 cost 最小的
+    那个, 口径不变 (还是 cost 最小), 只是把搜索范围从"整个 run"收窄到"限内的解"，
+    而不是换成别的目标 (reward / 线长 / 温度都不参与挑解)。
+
+    会走到第二顺位, 是因为那批 RL 是用 50 mm 的固定画布跑的 (launcher 没按 case 传
+    interposer 尺寸), 画布比真实中介层大时 RL 从没为超限付过代价, cost 最小的解往往
+    放不进真实中介层 —— hp6_m (真实 33.28 mm) 5 个 seed 里有 4 个是这样。
+    """
+    raw = summary.get("json")
+    best = _resolve_layout_path(raw) if raw else ""
+    best_area = (summary.get("metrics") or {}).get("bbox_area")
+    if not best or not os.path.exists(best):
+        return best, "best_cost_summary 指的布局不存在"
+    if cap is None or best_area is None or best_area <= cap * (1 + CAP_TOL):
+        return best, f"best_cost_summary (area={best_area if best_area is None else round(best_area, 2)})"
+
+    feas = [c for c in _candidates(seed_dir) if c[1] <= cap * (1 + CAP_TOL)]
+    if not feas:
+        return best, (f"best_cost_summary 超限 (area={best_area:.2f} > cap={cap:.2f}) "
+                      f"且 {len(_candidates(seed_dir))} 个候选解无一限内, 保持原解 (下游会丢弃)")
+    cost, area, path = min(feas, key=lambda c: (c[0], c[1]))
+    return path, (f"best_cost_summary 超限 ({best_area:.2f} > cap={cap:.2f}) -> "
+                  f"限内 cost 最小候选 ({len(feas)}/{len(_candidates(seed_dir))} 个限内, "
+                  f"cost={cost:.4f}, area={area:.2f})")
 
 
 def convert_one(layout_path: str, benchmark_path: str, out_path: str) -> dict:
@@ -164,12 +233,12 @@ def main() -> None:
             n_err += 1
             continue
         summary = json.load(open(summary_path, encoding="utf-8"))
-        raw = summary.get("json")
-        if not raw:
+        if not summary.get("json"):
             print(f"[skip] {tag}: best_cost_summary.json 无 json 字段", file=sys.stderr)
             n_err += 1
             continue
-        layout_path = _resolve_layout_path(raw)
+
+        layout_path, why = pick_layout(seed_dir, summary, cap_area(prefix))
         if not os.path.exists(layout_path):
             print(f"[skip] {tag}: 最优布局不存在 {layout_path}", file=sys.stderr)
             n_err += 1
@@ -190,7 +259,7 @@ def main() -> None:
             continue
         print(f"[ok] {tag:<22} -> {os.path.basename(out_path):<22} "
               f"chiplets={len(out['chiplets'])} connections={len(out['connections'])} "
-              f"ep={summary.get('episode')} reward={summary.get('reward')}")
+              f"选自 {os.path.basename(layout_path)}  [{why}]")
         n_ok += 1
 
     print(f"\n完成: 生成 {n_ok} 个文件 -> {OUT_DIR}  (跳过/失败 {n_err})")

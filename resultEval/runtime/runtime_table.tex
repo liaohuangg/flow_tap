@@ -1,22 +1,26 @@
 \begin{table}[!t]
-\caption{RUNTIME IN SECONDS OF THE FOUR METHODS, WITH THE TW-FM SPEEDUP RELATIVE TO ATPLACE2.5D. RLPLANNER HAS NO PER-CASE MEASUREMENT, BEING GIVEN A FIXED 3600 s BUDGET ON EVERY SYSTEM, AND IS THEREFORE OMITTED AS A COLUMN. SPEEDUP IS COMPUTED FROM THE TW-FM (CPU+GPU) COLUMN, WHICH IS A FIVE-SEED AVERAGE; THE TW-FM (CPU) COLUMN IS A SINGLE RUN}
+\caption{RUNTIME IN SECONDS OF THE FOUR METHODS ON EACH BENCHMARK SYSTEM, WITH THE TW-FM SPEEDUP RELATIVE TO ATPLACE2.5D. RLPLANNER HAS NO PER-CASE MEASUREMENT: IT IS GIVEN A FIXED 3600 s BUDGET ON EVERY SYSTEM, WHICH IS WHY THAT COLUMN IS CONSTANT. SPEEDUP IS COMPUTED FROM THE TW-FM (CPU+GPU) COLUMN, WHICH IS A FIVE-SEED AVERAGE; THE TW-FM (CPU) COLUMN IS A SINGLE RUN}
 \centering
 \small
 \setlength{\tabcolsep}{4pt}
-\begin{tabular}{lccccc}
+\resizebox{\columnwidth}{!}{
+\begin{tabular}{lcccccc}
 \toprule
-\textbf{Case} & \textbf{ATPlace2.5D} & \textbf{MILP} & \multicolumn{2}{c}{\textbf{TW-FM}} & \textbf{Spd.} \\
- & & & \textbf{(CPU)} & \textbf{(CPU+GPU)} & \\
+\textbf{Case} & \multicolumn{2}{c}{\textbf{TW-FM}} & \textbf{ATPlace2.5D} & \textbf{MILP} & \textbf{RLPlanner} & \textbf{Spd.} \\
+ & \textbf{(CPU+GPU)} & \textbf{(CPU)} & & & & \\
 \midrule
-\textit{ascend910} & 274 & 26 & 145 & \textbf{42} & 6.6$\times$ \\
-\textit{xerox6\_m} & 334 & 179 & 178 & \textbf{51} & 6.6$\times$ \\
-\textit{hp6\_m} & 360 & 4 & 168 & \textbf{52} & 6.9$\times$ \\
-\textit{multigpu} & 274 & 7 & 139 & \textbf{45} & 6.2$\times$ \\
-\textit{xerox7\_m} & 346 & 324 & 136 & \textbf{52} & 6.7$\times$ \\
-\textit{cpu-dram} & 297 & 28 & 143 & \textbf{46} & 6.4$\times$ \\
-\textit{hp11\_m} & 383 & 1222 & 152 & \textbf{36} & 10.6$\times$ \\
-\textit{syn4} & 375 & 3305 & 150 & \textbf{46} & 8.1$\times$ \\
+\textit{ascend910} & \textbf{42} & 145 & 274 & 26 & 3600 & 6.6$\times$ \\
+\textit{hp6\_m} & \textbf{52} & 168 & 360 & 4 & 3600 & 6.9$\times$ \\
+\textit{multigpu} & \textbf{45} & 139 & 274 & 7 & 3600 & 6.2$\times$ \\
+\textit{xerox6\_m} & \textbf{51} & 178 & 334 & 179 & 3600 & 6.6$\times$ \\
+\textit{xerox7\_m} & \textbf{52} & 136 & 346 & 324 & 3600 & 6.7$\times$ \\
+\textit{cpu-dram} & \textbf{46} & 143 & 297 & 28 & 3600 & 6.4$\times$ \\
+\textit{syn1} & \textbf{43} & 158 & 354 & 1211 & 3600 & 8.3$\times$ \\
+\textit{hp11\_m} & \textbf{36} & 152 & 383 & 1222 & 3600 & 10.6$\times$ \\
+\textit{syn4} & \textbf{46} & 150 & 375 & 3305 & 3600 & 8.1$\times$ \\
+\textit{Case7} & \textbf{42} & 141 & 676 & 3327 & 3600 & 16.1$\times$ \\
 \bottomrule
 \end{tabular}
+}
 \label{tab:runtime}
 \end{table}
